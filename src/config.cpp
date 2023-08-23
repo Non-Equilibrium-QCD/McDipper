@@ -229,7 +229,7 @@ void Config::process_output_parameters(std::string testline){
   }
  
 }
-
+ 
 void Config::write_config_file(std::string target_folder){}
 
 void Config::terminal_setup_output(){

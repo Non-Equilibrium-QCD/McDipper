@@ -33,7 +33,7 @@ class Config{
     void process_general_parameters(std::string testline);
     //Grid
     void process_grid_parameters(std::string testline);
-    void fill_up_grid_params();
+    void fill_up_grid_params(); 
     // Model Parameters
     void process_model_parameters(std::string testline);
     void process_gbw_parameters(std::string testline);

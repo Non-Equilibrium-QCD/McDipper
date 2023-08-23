@@ -50,3 +50,4 @@ double PDFs::xfpart(QuarkID ID,double xx, double QQ){
 	else if(QQ <= QMin){return PDF_ptr->xfxQ ((int) ID, xx, QMin);}
 	else{return PDF_ptr->xfxQ ((int) ID, xx, QQ);}
 }
+ 

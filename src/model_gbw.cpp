@@ -308,7 +308,7 @@ void GBW::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
  	density_f.close();
 	if(config.get_Verbose()){printProgress(1);std::cout<<std::endl;}
 }
-
+  
 void GBW::make_baryon_stopping_all(){
 	make_baryon_stopping(0, QuarkID::u, QuarkID::ubar);
 	make_baryon_stopping(1, QuarkID::u, QuarkID::ubar);

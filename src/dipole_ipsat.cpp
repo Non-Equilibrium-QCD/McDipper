@@ -705,7 +705,7 @@ void Dipole::Transform_Dipole(Rep rep){
 		if(rep==Rep::Fundamental){std::cout<< "Transforming Fundamental Dipole"<< std::endl;}
 		else if(rep==Rep::Adjoint){std::cout<< "Transforming Adjoint Dipole "<< std::endl;}
 		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl;  ;
-	}
+	}  
 	dip_f.open(path_to_dip.str());
 
 	for (size_t iT = 0; iT < IPsat_pars::T_dip_points; iT++) {

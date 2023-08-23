@@ -374,7 +374,7 @@ void Event::MakeGlobalQuantities(){
 			y_cm[ieta] += y_cm_unnorm[ieta]/dEdeta[ieta];
 		}
 
-
+  
 
 		x_cm_global_unnorm += config.get_dETA() *x_cm_unnorm[ieta] ;
 		y_cm_global_unnorm += config.get_dETA() *y_cm_unnorm[ieta] ;

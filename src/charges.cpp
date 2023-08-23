@@ -104,7 +104,7 @@ void Charges::MakeGrid(){
   if(config.get_Verbose()){std::cout<<"[ Charges ] Grid created for Charges."<<std::endl;}
 
 }
-
+ 
 bool Charges::import_charges(){
 
   bool import_is_success=true;

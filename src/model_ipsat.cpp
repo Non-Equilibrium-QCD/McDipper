@@ -301,7 +301,7 @@ void IPSat::make_gluon_energy(){
 	GluonParsIPSat parameters;
 	parameters.sqrts= config.get_collEnergy();
   parameters.dip= Dip;
-
+  
 	double res=0;
   int counter = 0;
   density_f.open(densityname.str());

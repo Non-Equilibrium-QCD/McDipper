@@ -150,4 +150,4 @@ class Event{
 		void print_glauber_data_to_file(Nucleus * N1,Nucleus * N2);
 };
 
-#endif /* event_h */
+#endif /* event_h */ 

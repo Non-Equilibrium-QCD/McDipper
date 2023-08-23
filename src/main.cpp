@@ -32,7 +32,7 @@ int main (int argc, char **argv) {
 
   std::string path_to_config(argv[2]);
   Config config(path_to_config);
-
+  
   Event EventGen(config);
   EventGen.MakeEventByEvent();
   

@@ -186,3 +186,4 @@ class Dipole{
  };
 
 #endif /* dipole_ipsat */
+ 
