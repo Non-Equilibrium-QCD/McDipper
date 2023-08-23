@@ -40,7 +40,6 @@ buildfldr:
 	mkdir $(BUILD)
 	cp -r "$(PWD)/src/" "$(BUILD)/src/"
 	cp -r "$(PWD)/configs/" "$(BUILD)/configs/"
-	cp -r "$(PWD)/cteq6m/" "$(BUILD)/cteq6m/"
 	cp -r "$(PWD)/ipsat/" "$(BUILD)/ipsat/"
 	CP "$(PWD)/Makefile" "$(BUILD)/Makefile"
 

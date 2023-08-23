@@ -1,0 +1,45 @@
+Version: 1.0
+
+Logging:
+    Verbose: False
+
+General:
+    SqrtsNN: 2760.0
+    Nucleus1:
+        A:    208
+        Z:    82
+        mode: 0
+    Nucleus2:
+        A:    208
+        Z:    82
+        mode: 0
+    GlauberAcceptance: Gaussian
+    Events: 10
+    Model: 1
+    Fluctuations: False
+    Impact:
+        Range: [0, 40]
+        Sampling: Quadratic
+    Seed: -1
+    PDFs:
+      PDFSet: CT18NNLO
+      ForcePositive: 1
+    K-Factor: 1.
+
+Grid:
+    NX:        241
+    NY:        241
+    NETA:      101
+    X_RANGE:   [-12,12]
+    Y_RANGE:   [-12,12]
+    ETA_RANGE: [-10,10]
+    BG: 0.156
+
+Model_Parameters:
+    Set:   1
+    XScaling: 0.01
+
+Output:
+    path_to_output: Runs/
+    run_name: PbPb_2760GeV_IPSat_Set1
+    Format: ["EMoments","NMoments","Charges"]
