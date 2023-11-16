@@ -8,6 +8,8 @@
 #include <random>
 #include <string>
 #include <sstream>
+#include <cstring>
+#include <algorithm>
 
 
 #include "include/config.h"
