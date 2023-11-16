@@ -23,6 +23,9 @@ class Event{
 		void sample_db_impact(double bmin, double bmax);
 		void sample_bdb_impact(double bmin, double bmax);
 
+		// Function to fill a density array (used for a use of the code as a library)
+		void FillEventDensityArray(int EventID, double *density_array);
+
 		void MakeEventByEvent();
 
 		double uni_nu_rn(){return drand48();}
