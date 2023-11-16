@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 #include <gsl/gsl_dht.h>
 #include <gsl/gsl_multifit.h>
 
@@ -1140,8 +1141,8 @@ void Dipole::get_name_and_value(std::string testline,std::string &name, std::str
   size_t pos = line_temp.find(":");
   name = line_temp.substr(0,pos);
   value = line_temp.substr(pos+1, line_temp.length()-pos );
-  name.erase(std::remove(name.begin(),name.end(), ' '),name.end());
-  value.erase(std::remove(value.begin(),value.end(), ' '),value.end());
+  name.erase(std::remove_if(name.begin(),name.end(), ::isspace),name.end());
+  value.erase(std::remove_if(value.begin(),value.end(), ::isspace),value.end());
 }
 
 //////////////////////////////
