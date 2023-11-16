@@ -805,3 +805,125 @@ void Event::print_glauber_data_to_file(Nucleus * N1,Nucleus * N2){
 
 	global_f.close();
 }
+
+void Event::FillEventDensityArray(int EventID, double *density_array){
+	// Use the ID as a seed to avoid confusion if MPI is used
+	srand48(EventID);// Dump this in the config?
+
+	// Create Nuclei
+	bool is_event_valid=false;
+	if(config.get_Verbose()){
+		std::cout<< "|---------------------------------- New Event: "<< EventID+1<<"/"<< config.get_NEvents() << " -------------------------------------|\n";
+		std::cout<< "    Event ID: " <<EventID << "       Event Seed: " << EventID << "\n"<<std::endl;}
+
+	while(!is_event_valid){
+
+		Nucleus A1(N1.A,N1.Z,N1.mode);
+		Nucleus A2(N2.A,N2.Z,N2.mode);
+		//Sample b
+		if(config.get_ImpactMode()== ImpSample::Fixed){get_impact_from_value(config.get_ImpactValue(),0);}
+		else if(config.get_ImpactMode()== ImpSample::dbSampled){sample_db_impact(config.get_MinImpact(), config.get_MaxImpact());}
+		else if(config.get_ImpactMode()== ImpSample::bdbSampled){sample_bdb_impact(config.get_MinImpact(), config.get_MaxImpact());}
+		else{
+			std::cerr<<"Error! Impact Sampling mode invalid"<<std::endl;
+			std::cerr<<"       Use - 0 for fixed value b"<<std::endl;
+			std::cerr<<"           - 1 for uniform b-sampling (P(b) = K )"<<std::endl;
+			std::cerr<<"           - 2 for quadratic b-sampling (P(b) = K*b )"<<std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		A1.shift_nucleus_by_impact(b1[0],b1[1]);
+		A2.shift_nucleus_by_impact(b2[0],b2[1]);
+
+		#if OPTICAL==0
+		if(config.get_Verbose()){std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;}
+		is_event_valid=true;
+		for (size_t ix = 0; ix < config.get_NX(); ix++) {
+			for (size_t iy = 0; iy < config.get_NY(); iy++) {
+				double x_t= get_x(ix);
+				double y_t= get_y(iy);
+				T1p (ix,iy)= A1.get_Z()*A1.nuclear_thickness_optical(x_t-b1[0], y_t-b1[1]);
+				T1n (ix,iy)= (A1.get_A()-A1.get_Z() )*A1.nuclear_thickness_optical(x_t-b1[0], y_t-b1[1]);
+				T2p (ix,iy)= A2.get_Z()*A2.nuclear_thickness_optical(x_t-b2[0], y_t-b2[1]);
+				T2n (ix,iy)= (A2.get_A()-A2.get_Z() )*A2.nuclear_thickness_optical(x_t-b2[0], y_t-b2[1]);
+			}
+		}
+		MakeGlobalQuantities();
+
+		#elif OPTICAL==1
+
+		CheckParticipants(&A1,&A2);
+
+		is_event_valid = (A1.get_number_of_participants()>0) && (A2.get_number_of_participants()>0);
+		if(is_event_valid){
+			if(config.get_Verbose()){
+				std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;
+				std::cout<< "    Number of Participants: " <<A1.get_number_of_participants() + A2.get_number_of_participants() <<  "\n";
+				std::cout<< "    Number of Collisions: " <<A1.get_NColl()+A2.get_NColl() <<  "\n";
+			}
+
+			dump_nucleon_pos(&A1,&A2);
+
+			if(config.get_Verbose()){std::cout<<"    Nucleon Positions written out\n";}
+
+			for (size_t ix = 0; ix < config.get_NX(); ix++) {
+				for (size_t iy = 0; iy < config.get_NY(); iy++) {
+					double x_t= get_x(ix);
+					double y_t= get_y(iy);
+					T1p (ix,iy)= A1.GetThickness_p(x_t,y_t, config.get_BG());
+					T1n (ix,iy)= A1.GetThickness_n(x_t,y_t, config.get_BG());
+					T2p (ix,iy)= A2.GetThickness_p(x_t,y_t, config.get_BG());
+					T2n (ix,iy)= A2.GetThickness_n(x_t,y_t, config.get_BG());
+				}
+			}
+
+			double eg_t,eq_t,nu_t,nd_t,ns_t;
+			double t1p_t,t1n_t,t2p_t,t2n_t;
+			double t1_t,t2_t;
+
+			x_cm.assign(config.get_NETA(),0.0);
+			y_cm.assign(config.get_NETA(),0.0);
+			std::vector<double> x_cm_unnorm(config.get_NETA(),0.0);
+			std::vector<double> y_cm_unnorm(config.get_NETA(),0.0);
+
+			int izero = int( -config.get_ETAMIN()/config.get_dETA());
+
+			double x_cm_global_unnorm=0.;
+			double y_cm_global_unnorm=0.;
+ 			x_cm_global=0.;
+			y_cm_global=0.;
+
+			for (size_t ieta = 0; ieta < config.get_NETA(); ieta++) {
+				double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
+				for (size_t ix = 0; ix < config.get_NX(); ix++) {
+					for (size_t iy = 0; iy < config.get_NY(); iy++) {
+
+						double x_t= get_x(ix);
+						double y_t= get_y(iy);
+
+						t1p_t=T1p(ix,iy);
+						t1n_t=T1n(ix,iy);
+						t2p_t=T2p(ix,iy);
+						t2n_t=T2n(ix,iy);
+						t1_t = t1p_t+t1n_t;
+						t2_t = t2p_t+t2n_t;
+
+						eg_t=ChargeMaker->gluon_energy(eta_t, t1_t, t2_t) * config.get_KFactor() ;
+						eq_t=ChargeMaker->quark_energy(eta_t, t1_t, t2_t) ;
+						//nu_t=ChargeMaker->u_density(eta_t, t1p_t, t1n_t, t2p_t, t2n_t) ;
+						//nd_t=ChargeMaker->d_density(eta_t, t1p_t, t1n_t, t2p_t, t2n_t) ;
+						//ns_t=ChargeMaker->s_density(eta_t, t1_t, t2_t) ;
+
+						// fill array with values
+						density_array[ix+config.get_NX()*iy+config.get_NX()*config.get_NY()*ieta] = eg_t + eq_t;
+					}
+				}
+			}
+		}
+		#endif
+	}
+
+	if(config.get_Verbose()){
+		std::cout<< "\n|------------------------------------- End Event ----------------------------------------|\n";
+	}
+}
