@@ -22,9 +22,10 @@ class Event{
 		void get_impact_from_value(double AbsB, double ThetaB);
 		void sample_db_impact(double bmin, double bmax);
 		void sample_bdb_impact(double bmin, double bmax);
+		Nucleus CreateNucleusObject(int A, int Z, int mode);
 
-		// Function to fill a density array (used for a use of the code as a library)
-		void FillEventDensityArray(int EventID, double *density_array);
+		// Function to return density at given (x,y,eta) point (used for a use of the code as a library)
+		void EventDensitySpacepoint(int EventID, Nucleus A1, Nucleus A2, double x, double y, double eta, double& density, int mode);
 
 		void MakeEventByEvent();
 
@@ -66,6 +67,8 @@ class Event{
 		int get_ID(int ev,int Nruns){return Nruns*id + ev; }
 		int get_nmax(){return n_max;}
 		void set_nmax(double n_max_new){n_max=n_max_new;}
+		NucStruct get_N1(){return N1;}
+		NucStruct get_N2(){return N2;}
 
 		//Spectator Selection
 
