@@ -12,6 +12,18 @@
 
 enum class WeightMode : int { epsGluon = 0, epsQuark = 1, epsTot = 2};
 
+struct ExternalGrid{
+	int NX_EXT;
+	int NY_EXT;
+	int NETA_EXT;
+	double XMIN_EXT;
+	double XMAX_EXT;
+	double YMIN_EXT;
+	double YMAX_EXT;
+	double ETAMIN_EXT;
+	double ETAMAX_EXT;
+};
+
 class Event{
 	public:
 		Event(Config ConfInput);
@@ -25,7 +37,7 @@ class Event{
 		Nucleus CreateNucleusObject(int A, int Z, int mode);
 
 		// Function to return density at given (x,y,eta) point (used for a use of the code as a library)
-		void EventDensitySpacepoint(int EventID, Nucleus A1, Nucleus A2, double x, double y, double eta, double& density, int mode);
+		void EventDensitySpacepoint(int EventID, ExternalGrid ExtGrid, double *density, int mode);
 
 		void MakeEventByEvent();
 
