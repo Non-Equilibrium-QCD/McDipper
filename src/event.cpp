@@ -811,9 +811,10 @@ Nucleus Event::CreateNucleusObject(int A, int Z, int mode){
 	return Nucl;
 }
 
-void Event::EventDensitySpacepoint(int EventID, Nucleus A1, Nucleus A2, double x, double y, double eta, double& density, int mode){
-	// Use the ID as a seed to avoid confusion if MPI is used
-	srand48(EventID);// Dump this in the config?
+void Event::EventDensitySpacepoint(int EventID_ext, ExternalGrid ExtGrid, double *density, int mode){
+	EventID = 1;
+	// Use the external ID as a seed to avoid confusion if MPI is used
+	srand48(EventID_ext);// Dump this in the config?
 
 	double T1p_tmp;
 	double T1n_tmp;
@@ -822,11 +823,10 @@ void Event::EventDensitySpacepoint(int EventID, Nucleus A1, Nucleus A2, double x
 
 	// Create Nuclei
 	bool is_event_valid=false;
-	if(config.get_Verbose()){
-		std::cout<< "|---------------------------------- New Event: "<< EventID+1<<"/"<< config.get_NEvents() << " -------------------------------------|\n";
-		std::cout<< "    Event ID: " <<EventID << "       Event Seed: " << EventID << "\n"<<std::endl;}
-
 	while(!is_event_valid){
+
+		Nucleus A1(N1.A,N1.Z,N1.mode);
+		Nucleus A2(N2.A,N2.Z,N2.mode);
 
 		//Sample b
 		if(config.get_ImpactMode()== ImpSample::Fixed){get_impact_from_value(config.get_ImpactValue(),0);}
@@ -839,12 +839,11 @@ void Event::EventDensitySpacepoint(int EventID, Nucleus A1, Nucleus A2, double x
 			std::cerr<<"           - 2 for quadratic b-sampling (P(b) = K*b )"<<std::endl;
 			exit(EXIT_FAILURE);
 		}
-
+		
 		A1.shift_nucleus_by_impact(b1[0],b1[1]);
 		A2.shift_nucleus_by_impact(b2[0],b2[1]);
-
+		
 		#if OPTICAL==0
-		if(config.get_Verbose()){std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;}
 		is_event_valid=true;
 		T1p_tmp = A1.get_Z()*A1.nuclear_thickness_optical(x-b1[0], y-b1[1]);
 		T1n_tmp = (A1.get_A()-A1.get_Z())*A1.nuclear_thickness_optical(x-b1[0], y-b1[1]);
@@ -854,47 +853,55 @@ void Event::EventDensitySpacepoint(int EventID, Nucleus A1, Nucleus A2, double x
 		#elif OPTICAL==1
 
 		CheckParticipants(&A1,&A2);
-
+		
 		is_event_valid = (A1.get_number_of_participants()>0) && (A2.get_number_of_participants()>0);
 		if(is_event_valid){
-			if(config.get_Verbose()){
-				std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;
-				std::cout<< "    Number of Participants: " <<A1.get_number_of_participants() + A2.get_number_of_participants() <<  "\n";
-				std::cout<< "    Number of Collisions: " <<A1.get_NColl()+A2.get_NColl() <<  "\n";
-			}
-
-			T1p_tmp = A1.GetThickness_p(x,y, config.get_BG());
-			T1n_tmp = A1.GetThickness_n(x,y, config.get_BG());
-			T2p_tmp = A2.GetThickness_p(x,y, config.get_BG());
-			T2n_tmp = A2.GetThickness_n(x,y, config.get_BG());
-
+			double dETA_EXT = (ExtGrid.ETAMAX_EXT-ExtGrid.ETAMIN_EXT)/(ExtGrid.NETA_EXT-1);
+			double dX_EXT = (ExtGrid.XMAX_EXT-ExtGrid.XMIN_EXT)/(ExtGrid.NX_EXT-1);
+			double dY_EXT = (ExtGrid.YMAX_EXT-ExtGrid.YMIN_EXT)/(ExtGrid.NY_EXT-1);
+			int super_index;
 			double eg_t,eq_t,nu_t,nd_t,ns_t;
 
-			eg_t = ChargeMaker->gluon_energy(eta, T1p_tmp+T1n_tmp, T2p_tmp+T2n_tmp) * config.get_KFactor() ;
-			eq_t = ChargeMaker->quark_energy(eta, T1p_tmp+T1n_tmp, T2p_tmp+T2n_tmp) ;
+			for (int ieta = 0; ieta < ExtGrid.NETA_EXT; ieta++) {
+        		double eta = ExtGrid.ETAMIN_EXT + ieta * dETA_EXT;
 
-			nu_t=ChargeMaker->u_density(eta, T1p_tmp, T1n_tmp, T2p_tmp, T2n_tmp) ;
-			nd_t=ChargeMaker->d_density(eta, T1p_tmp, T1n_tmp, T2p_tmp, T2n_tmp) ;
-			ns_t=ChargeMaker->s_density(eta, T1p_tmp+T1n_tmp, T2p_tmp+T2n_tmp) ;
+		        for (int ix = 0; ix < ExtGrid.NX_EXT; ix++) {
+        		    double x = ExtGrid.XMIN_EXT + ix * dX_EXT;
 
-			if(mode == 0){ // energy density
-				density = eg_t + eq_t;
-			} else if(mode == 1){ // baryon density
-				density = (nu_t+nd_t)/3.;
-			} else if(mode == 2){ // charge density
-				density = (2.*nu_t-nd_t)/3.;
-			} else if(mode == 3){ // strangeness density
-				density = ns_t;
-			} else {
-				std::cout << "Requested mode in 'EventDensitySpacepoint' not available." << std::endl;
-				exit(1);
-			}
-			
+            		for (int iy = 0; iy < ExtGrid.NY_EXT; iy++) {
+                		double y = ExtGrid.YMIN_EXT + iy * dY_EXT;
+						
+						T1p_tmp = A1.GetThickness_p(x,y, config.get_BG());
+						T1n_tmp = A1.GetThickness_n(x,y, config.get_BG());
+						T2p_tmp = A2.GetThickness_p(x,y, config.get_BG());
+						T2n_tmp = A2.GetThickness_n(x,y, config.get_BG());
+
+						
+
+						super_index = ix+ExtGrid.NX_EXT*iy+ExtGrid.NX_EXT*ExtGrid.NY_EXT*ieta;
+						if(mode == 0){ // energy density
+							eg_t = ChargeMaker->gluon_energy(eta, T1p_tmp+T1n_tmp, T2p_tmp+T2n_tmp) * config.get_KFactor() ;
+							eq_t = ChargeMaker->quark_energy(eta, T1p_tmp+T1n_tmp, T2p_tmp+T2n_tmp) ;
+							density[super_index] = eg_t + eq_t;
+						} else if(mode == 1){ // baryon density
+							nu_t = ChargeMaker->u_density(eta, T1p_tmp, T1n_tmp, T2p_tmp, T2n_tmp) ;
+							nd_t = ChargeMaker->d_density(eta, T1p_tmp, T1n_tmp, T2p_tmp, T2n_tmp) ;
+							density[super_index] = (nu_t+nd_t)/3.;
+						} else if(mode == 2){ // charge density
+							nu_t = ChargeMaker->u_density(eta, T1p_tmp, T1n_tmp, T2p_tmp, T2n_tmp) ;
+							nd_t = ChargeMaker->d_density(eta, T1p_tmp, T1n_tmp, T2p_tmp, T2n_tmp) ;
+							density[super_index] = (2.*nu_t-nd_t)/3.;
+						} else if(mode == 3){ // strangeness density
+							ns_t = ChargeMaker->s_density(eta, T1p_tmp+T1n_tmp, T2p_tmp+T2n_tmp) ;
+							density[super_index] = ns_t;
+						} else {
+							std::cout << "Requested mode in 'EventDensitySpacepoint' not available." << std::endl;
+							exit(1);
+						}
+					}
+				}
+			}			
 		}
 		#endif
-	}
-
-	if(config.get_Verbose()){
-		std::cout<< "\n|------------------------------------- End Event ----------------------------------------|\n";
 	}
 }
