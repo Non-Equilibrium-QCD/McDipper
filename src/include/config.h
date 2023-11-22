@@ -80,6 +80,8 @@ class Config{
     double get_KFactor(){return KFactor;}
     int get_NEvents(){return NEvents;}
     GlauberMode get_GlauberAcceptance(){return GMode;}
+    
+    void set_KFactor(double val){KFactor = val;}
 
     //Grid!
 
