@@ -81,6 +81,11 @@ class Config{
     int get_NEvents(){return NEvents;}
     GlauberMode get_GlauberAcceptance(){return GMode;}
     
+    // setter functions if the code is used as a library
+    void set_ImpactMode(ImpSample val){ImpactMode = val;}
+    void set_ImpactValue(double val){ImpactValue = val;}
+    void set_MaxImpact(double val){bMax = val;}
+    void set_MinImpact(double val){bMin = val;}
     void set_KFactor(double val){KFactor = val;}
 
     //Grid!
