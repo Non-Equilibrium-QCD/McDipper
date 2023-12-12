@@ -24,6 +24,7 @@ class Event{
 		void sample_bdb_impact(double bmin, double bmax);
 
 		void MakeEventByEvent();
+		void InitializeAverageEvent();
 
 		double uni_nu_rn(){return drand48();}
 
@@ -43,14 +44,36 @@ class Event{
 		double T1(int64_t nx, int64_t ny);
 		double T2(int64_t nx, int64_t ny);
 
+		//AVG EVENT 
+
+		const double& EgAvg (int64_t neta, int64_t nx, int64_t ny) const;
+		double& EgAvg (int64_t neta, int64_t nx, int64_t ny);
+
+		const double& EqAvg (int64_t neta, int64_t nx, int64_t ny) const;
+		double& EqAvg (int64_t neta, int64_t nx, int64_t ny);
+
+		const double& nuAvg (int64_t neta, int64_t nx, int64_t ny) const;
+		double& nuAvg (int64_t neta, int64_t nx, int64_t ny);
+
+		const double& ndAvg (int64_t neta, int64_t nx, int64_t ny) const;
+		double& ndAvg (int64_t neta, int64_t nx, int64_t ny);
+
+		const double& nsAvg (int64_t neta, int64_t nx, int64_t ny) const;
+		double& nsAvg (int64_t neta, int64_t nx, int64_t ny);
+
+
 		// OUTPUT
 		void Initialize_output();
 		void dump_nucleon_pos(Nucleus * A1,Nucleus * A2);
 		void MakeChargeOutput();
 		void MakeGlobalQuantities();
+		void MakeGlobalQuantities_AverageEvent();
+		void MakeChargeOutput_AverageEvent();
 		void MakeThicknessOutput();
 		void MakeChargeOutput_Transverse(double eta);
 		void Make_Event_Output();
+
+		void MakeChargeOutputMidrapidity();
 
 		
 
@@ -89,6 +112,7 @@ class Event{
 
 		int NX;
 		int NY;
+		int NETA;
 		double cell_trans_volume;
 
 		int EventID;
@@ -104,6 +128,12 @@ class Event{
 		double *T1n_ptr;
 		double *T2p_ptr;
 		double *T2n_ptr;
+
+		double * EgAvg_ptr;
+		double * EqAvg_ptr;
+		double * nuAvg_ptr;
+		double * ndAvg_ptr;
+		double * nsAvg_ptr;
 
 		std::vector<double> x_cm;
 		std::vector<double> y_cm;

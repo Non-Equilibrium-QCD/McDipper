@@ -227,6 +227,14 @@ void Config::process_output_parameters(std::string testline){
     remove_char(value_t,'"');
     format[n_formats-1] = value_t;
   }
+  if(name_t == "PrintAvg"){
+    if(value_t == "False"){print_avg=0;}
+    else if(value_t == "ObservablesOnly"){print_avg=1;}
+    else if(value_t == "True"){print_avg=2;}
+    else{std::cerr<<"Error: Average-Event output mode not implemented! Exiting.";exit(EXIT_FAILURE);}
+  }
+  if(name_t == "BoostInvariant"){ boost_invariant= make_bool(value_t);}
+  // 
  
 }
  
@@ -263,8 +271,16 @@ void Config::terminal_setup_output(){
   }
   std::cout<< "|-------------------------------------- Output ------------------------------------------|\n";
   std::cout<< "  Writing output to : " << path_to_output << " \n";
+  std::cout<< "  Boost invariant output : " ;
+  if(boost_invariant){ std::cout<<"True\n";}
+  else{ std::cout<<"False\n";}
   std::cout<< "  Chosen output Formats : ";
   for (size_t i = 0; i < n_formats; i++) { if(i==n_formats-1){std::cout<< format[i] << "\n";}else{std::cout<< format[i] << ", ";}}
+  std::cout<< "  Average Event output: ";
+  if(print_avg==0){std::cout<< "None \n";}
+  else if(print_avg==1){std::cout<< "Only Observables \n";}
+  else if(print_avg==2){std::cout<< "All \n";}
+  else{std::cerr<<"Error: Average-Event output mode not implemented! Exiting.";exit(EXIT_FAILURE);}
   std::cout<< "|----------------------------------------------------------------------------------------|\n";
 }
 
@@ -334,6 +350,13 @@ void Config::dump(std::string OUTPATH){
   config_f << "    path_to_output: "<< path_to_output<<"\n";
   config_f << "    Format:  [";
   for (size_t i = 0; i < n_formats; i++) { if(i==n_formats-1){config_f << "\"" << format[i] << "\"]\n";}else{config_f << "\"" << format[i] << "\", ";}}
+  config_f << "PrintAvg: ";
+  if(print_avg==0){config_f<< "False\n";}
+  else if(print_avg==1){config_f<< "ObservablesOnly\n";}
+  else if(print_avg==2){config_f<< "True\n";}
+  config_f<< "  BoostInvariant: " ;
+  if(boost_invariant){ config_f<<"True\n";}
+  else{ config_f<<"False\n";}
   config_f << "\n";
 config_f.close();
 }
@@ -477,6 +500,8 @@ Config::Config(const Config& OldConf){
    run_name=OldConf.run_name;
    is_run_renamed=OldConf.is_run_renamed;
    format=new std::string[n_formats];
+   print_avg=OldConf.print_avg;
+   boost_invariant=OldConf.boost_invariant;
    for (size_t i = 0; i < n_formats; i++) {format[i]=OldConf.format[i];}
    //Thickness_Parameters
    TMax= OldConf.TMax;

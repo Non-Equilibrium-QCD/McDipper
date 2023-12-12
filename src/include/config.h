@@ -131,6 +131,8 @@ class Config{
       }
       return false;
     }
+    int print_avg_event(){return print_avg;}
+    bool is_boost_invariant(){return boost_invariant;}
 
   private:
 
@@ -179,6 +181,9 @@ class Config{
     std::string run_name;
     bool is_run_renamed=false;
     std::string * format;
+    int print_avg=0;
+    bool boost_invariant=false;
+
     // Thickness_Parameters
     double TMax=-1;
     double TMin=-1;

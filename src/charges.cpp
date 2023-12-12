@@ -113,7 +113,7 @@ bool Charges::import_charges(){
   if(is_table_set){
     MakeGrid();
     import_is_success = import_is_success && read_in_energy_gluons();
-    if(config.get_Verbose()){std::cout<< "[ Charges ] Gluon energy density    -->  Imported "<< std::endl;}
+    if(config.get_Verbose()){std::cout<< "[ Charges ] Gluon energy density    -->  Imported " << std::endl;}
     import_is_success = import_is_success && read_in_nK_quark(0, QuarkID::u );
     import_is_success = import_is_success && read_in_nK_quark(1, QuarkID::u );
     if(config.get_Verbose()){std::cout<< "[ Charges ] U-Quark constructions   -->  Imported "<< std::endl;}
