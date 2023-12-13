@@ -284,7 +284,12 @@ void IPSat::MakeTable(std::string path_to_set){
 	config.set_dump(SETPATH);
   
 	if(config.get_Verbose()){std::cout<<"New config written to "<<SETPATH  << std::endl;}
-  
+  TestDump(1,1);
+  TestDump(1,2);
+  TestDump(1,4);
+  TestDump(2,2);
+  TestDump(4,4);
+  exit(0);
   if(config.get_Verbose()){std::cout<<"--> Tabulating conserved charges in the IP-Sat model framework"<<SETPATH  << std::endl;}
   make_gluon_energy();
 	if(config.get_Verbose()){std::cout<<"\nGluon Energy written to"<<SETPATH  << std::endl;}

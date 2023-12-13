@@ -42,3 +42,5 @@ Output:
     path_to_output: Runs/
     run_name: PbPb_2760GeV_IPSat_Set1
     Format: ["EMoments","NMoments","Charges"]
+    PrintAvg: False
+    BoostInvariant: False

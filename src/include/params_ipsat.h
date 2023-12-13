@@ -31,8 +31,8 @@ namespace IPsat_pars{
 
   const double RMaxTol = 0.2;
 
-  const double KTMAX=10;
-  const double KTMIN=0.1;
+  const double KTMAX=50;
+  const double KTMIN=0.01;
   const double KTDIST=3;
 
 
