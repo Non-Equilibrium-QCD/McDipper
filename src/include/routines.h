@@ -18,7 +18,7 @@
 namespace Routines{
 
     const double chispar = 0.5;
-    const size_t calls_miser_min    = pow(10,3);
+    const int calls_miser_min    = pow(10,3);
 
     // GSL VEGAS  args
     const int INCREASE =10;
@@ -43,12 +43,12 @@ namespace Routines{
     const double flatness= 25.;
     const int seed=0;
 
-    void make_vegas_gen( gsl_rng *r_ptr, gsl_monte_function f2b, double * xl, double * xu, size_t DIM, size_t mc_calls_def, double &result, double &error)
+    void make_vegas_gen( gsl_rng *r_ptr, gsl_monte_function f2b, double * xl, double * xu, int DIM, int mc_calls_def, double &result, double &error)
     {
         bool MCcheck = true;
         int counter = 0;
 
-        size_t MC_CALLS=mc_calls_def;
+        int MC_CALLS=mc_calls_def;
         do {
             // ====================== THIS IS THE ROUTINE =============================//
             gsl_monte_vegas_state *mcstate = gsl_monte_vegas_alloc(DIM);

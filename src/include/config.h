@@ -126,7 +126,7 @@ class Config{
     std::string get_version(){return version;}
     bool is_output_named(){return is_run_renamed;}
     bool is_format(std::string test_format){
-      for (size_t i = 0; i < n_formats; i++){
+      for (int i = 0; i < n_formats; i++){
         if(format[i]==test_format){return true;}
       }
       return false;
@@ -176,7 +176,7 @@ class Config{
     double ModelPars[10];
     int NModelParams;
     // Output
-    size_t n_formats;
+    int n_formats;
     std::string path_to_output;
     std::string run_name;
     bool is_run_renamed=false;

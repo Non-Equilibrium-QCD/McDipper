@@ -65,7 +65,7 @@ void Config::process_parameters(){
 
 void Config::check_version(std::string testline){
   std::string line_temp= testline;
-  size_t pos = line_temp.find(":");
+  int pos = line_temp.find(":");
   version = line_temp.substr(pos+1, line_temp.length()-pos );
   version.erase(std::remove(version.begin(), version.end(), ' '), version.end());
   /// Later on, checks version and if not compatible, exits. For now this is just a placeholder.
@@ -216,8 +216,8 @@ void Config::process_output_parameters(std::string testline){
     n_formats = 1 + std::count(value_t.begin(), value_t.end(), ',');
     format=new std::string[n_formats];
     remove_char(value_t,'[');remove_char(value_t,']');
-    size_t pos = 0;
-    for (size_t i = 0; i < n_formats-1; i++) {
+    int pos = 0;
+    for (int i = 0; i < n_formats-1; i++) {
       pos = value_t.find(delimiter);
       token = value_t.substr(0, pos);
       value_t.erase(0, pos + delimiter.length());
@@ -275,7 +275,7 @@ void Config::terminal_setup_output(){
   if(boost_invariant){ std::cout<<"True\n";}
   else{ std::cout<<"False\n";}
   std::cout<< "  Chosen output Formats : ";
-  for (size_t i = 0; i < n_formats; i++) { if(i==n_formats-1){std::cout<< format[i] << "\n";}else{std::cout<< format[i] << ", ";}}
+  for (int i = 0; i < n_formats; i++) { if(i==n_formats-1){std::cout<< format[i] << "\n";}else{std::cout<< format[i] << ", ";}}
   std::cout<< "  Average Event output: ";
   if(print_avg==0){std::cout<< "None \n";}
   else if(print_avg==1){std::cout<< "Only Observables \n";}
@@ -349,7 +349,7 @@ void Config::dump(std::string OUTPATH){
   config_f << "Output:\n";
   config_f << "    path_to_output: "<< path_to_output<<"\n";
   config_f << "    Format:  [";
-  for (size_t i = 0; i < n_formats; i++) { if(i==n_formats-1){config_f << "\"" << format[i] << "\"]\n";}else{config_f << "\"" << format[i] << "\", ";}}
+  for (int i = 0; i < n_formats; i++) { if(i==n_formats-1){config_f << "\"" << format[i] << "\"]\n";}else{config_f << "\"" << format[i] << "\", ";}}
   config_f << "PrintAvg: ";
   if(print_avg==0){config_f<< "False\n";}
   else if(print_avg==1){config_f<< "ObservablesOnly\n";}
@@ -428,7 +428,7 @@ std::string Config::get_header(std::string testline){
 
 void Config::get_name_and_value(std::string testline,std::string &name, std::string &value){
   std::string line_temp= testline;
-  size_t pos = line_temp.find(":");
+  int pos = line_temp.find(":");
   name = line_temp.substr(0,pos);
   value = line_temp.substr(pos+1, line_temp.length()-pos );
   name.erase(std::remove(name.begin(),name.end(), ' '),name.end());
@@ -446,7 +446,7 @@ bool Config::make_bool(std::string boolstr){
 void Config::retrieve_range(std::string rangestring, double &xmin, double &xmax){
     std::string tempstr=rangestring;
     remove_char(tempstr,'[');remove_char(tempstr,']');
-    size_t pos = tempstr.find(",");
+    int pos = tempstr.find(",");
     std::string min = tempstr.substr(0,pos);
     std::string max = tempstr.substr(pos+1, tempstr.length()-pos );
     min.erase(std::remove(min.begin(),min.end(), ' '),min.end());
@@ -492,7 +492,7 @@ Config::Config(const Config& OldConf){
    dX=OldConf.dX;dY=OldConf.dY;dETA=OldConf.dETA; /* fm */
    BG = OldConf.BG; /// In fm^2
    // Model Parameters
-   for (size_t i = 0; i < 10; i++) {ModelPars[i]=OldConf.ModelPars[i];}
+   for (int i = 0; i < 10; i++) {ModelPars[i]=OldConf.ModelPars[i];}
    NModelParams=OldConf.NModelParams;
    //OutPut params
    n_formats= OldConf.n_formats;
@@ -502,7 +502,7 @@ Config::Config(const Config& OldConf){
    format=new std::string[n_formats];
    print_avg=OldConf.print_avg;
    boost_invariant=OldConf.boost_invariant;
-   for (size_t i = 0; i < n_formats; i++) {format[i]=OldConf.format[i];}
+   for (int i = 0; i < n_formats; i++) {format[i]=OldConf.format[i];}
    //Thickness_Parameters
    TMax= OldConf.TMax;
    TMin= OldConf.TMin;
@@ -531,7 +531,7 @@ bool Config::compare_model_parameters (Config * OldConf, double tolerance){
   bool is_equal=false;
   if(cModel == OldConf->get_model()){
     is_equal=true;
-    for (size_t i = 0; i < get_mpars_number(); i++) {
+    for (int i = 0; i < get_mpars_number(); i++) {
       if(ModelPars[i]==0 && OldConf->get_ModelParams(i) == 0){continue;}
       else{
         double diff = NDiff(ModelPars[i],OldConf->get_ModelParams(i));

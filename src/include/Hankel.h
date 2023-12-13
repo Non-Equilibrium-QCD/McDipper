@@ -113,9 +113,9 @@ public:
   void Transform(){
     double Fx_t[NPoints];
     double Fk_t[NPoints];
-    for (size_t i = 0; i < NPoints; i++) {Fx_t[i]=Fx.at(i);}
+    for (int i = 0; i < NPoints; i++) {Fx_t[i]=Fx.at(i);}
 		gsl_dht_apply(tf,Fx_t,Fk_t);
-    for (size_t i = 0; i < NPoints; i++) {Fk.at(i)=Fk_t[i];}
+    for (int i = 0; i < NPoints; i++) {Fk.at(i)=Fk_t[i];}
   }
 
   //Auxiliary

@@ -155,8 +155,8 @@ void Event::NewEvent(int EventID_in){
 		#if OPTICAL==1
 		if(config.get_Verbose()){std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;}
 		is_event_valid=true;
-		for (size_t ix = 0; ix < config.get_NX(); ix++) {
-			for (size_t iy = 0; iy < config.get_NY(); iy++) {
+		for (int ix = 0; ix < config.get_NX(); ix++) {
+			for (int iy = 0; iy < config.get_NY(); iy++) {
 				double x_t= get_x(ix);
 				double y_t= get_y(iy);
 				T1p (ix,iy)= A1.get_Z()*A1.nuclear_thickness_optical(x_t-b1[0], y_t-b1[1]);
@@ -185,8 +185,8 @@ void Event::NewEvent(int EventID_in){
 
 			if(config.get_Verbose()){std::cout<<"    Nucleon Positions written out\n";}
 
-			for (size_t ix = 0; ix < config.get_NX(); ix++) {
-				for (size_t iy = 0; iy < config.get_NY(); iy++) {
+			for (int ix = 0; ix < config.get_NX(); ix++) {
+				for (int iy = 0; iy < config.get_NY(); iy++) {
 					double x_t= get_x(ix);
 					double y_t= get_y(iy);
 					T1p (ix,iy)= A1.GetThickness_p(x_t,y_t, config.get_BG());
@@ -219,7 +219,7 @@ void Event::MakeEventByEvent(){
 	/* This function iterates over the number of listed EVENTS */
 	if( ev0 < config.get_NEvents()){
 		std::cerr<< "[ Warning::Event ]: Event generation starting from event # "<< ev0 << std::endl;
-		for (size_t ev = ev0; ev < config.get_NEvents(); ev++) {NewEvent(get_ID(ev,config.get_NEvents()));}
+		for (int ev = ev0; ev < config.get_NEvents(); ev++) {NewEvent(get_ID(ev,config.get_NEvents()));}
 	}
 	else{std::cerr<< "[ Error::Event ]: Initial event ID="<< ev0 << " larger than Nevents in config file. Exiting."<<std::endl;}
 	
@@ -267,7 +267,7 @@ void Event::Initialize_output(){
 		ev0=0;
 		if ( !(fs::create_directories(dirpath))){
 			std::cerr<< "[ Warning::Event ]: Output directory ("<< OUTPATH<< ") already exists!"<< std::endl ;
-			for (size_t iev = 0; iev < config.get_NEvents(); iev++)
+			for (int iev = 0; iev < config.get_NEvents(); iev++)
 			{
 				std::ostringstream filename_t;
 				filename_t << config.get_out_path()<<"/" <<config.get_run_name() << "/global_"<< iev<< ".dat"	;
@@ -312,12 +312,12 @@ void Event::dump_nucleon_pos(Nucleus *A1,Nucleus *A2){
   pos_f.open(posname.str());
 
 	double x_t,y_t,z_t;
-  for (size_t i = 0; i < A1->get_A(); i++) {
+  for (int i = 0; i < A1->get_A(); i++) {
 		A1->get_position_nucleon(i, x_t,y_t,z_t);
 		pos_f<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<< A1->get_ParticipantStatus(i)<<std::endl;
 	}
 		pos_f<<std::endl;
-	for (size_t i = 0; i < A2->get_A(); i++) {
+	for (int i = 0; i < A2->get_A(); i++) {
 		A2->get_position_nucleon(i, x_t,y_t,z_t);
 		pos_f<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<< A2->get_ParticipantStatus(i)<<std::endl;
 	}
@@ -369,10 +369,10 @@ void Event::MakeGlobalQuantities(){
 
 	if(config.get_Verbose()){std::cout<< "\n Making global observables and observables for Event " << EventID <<std::endl;}
 
-	for (size_t ieta = 0; ieta < config.get_NETA(); ieta++) {
+	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
 		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
-		for (size_t ix = 0; ix < config.get_NX(); ix++) {
-			for (size_t iy = 0; iy < config.get_NY(); iy++) {
+		for (int ix = 0; ix < config.get_NX(); ix++) {
+			for (int iy = 0; iy < config.get_NY(); iy++) {
 
 				double x_t= get_x(ix);
 				double y_t= get_y(iy);
@@ -540,7 +540,7 @@ void Event::MakeChargeOutput(){
 
 	if(config.get_Verbose()){std::cout<< "\nWriting out charges and moments for Event " << EventID <<std::endl;}
 
-	for (size_t ieta = 0; ieta < config.get_NETA(); ieta++) {
+	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
 		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
 
 		double lattice_sum_dint23dy = 0.;
@@ -564,8 +564,8 @@ void Event::MakeChargeOutput(){
 		std::vector<double> lattice_sum_nd_sin(n_max+1, 0.0);
 
 
-		for (size_t ix = 0; ix < config.get_NX(); ix++) {
-			for (size_t iy = 0; iy < config.get_NY(); iy++) {
+		for (int ix = 0; ix < config.get_NX(); ix++) {
+			for (int iy = 0; iy < config.get_NY(); iy++) {
 
 				double x_t= get_x(ix)-x_cm_global;
 				double y_t= get_y(iy)-y_cm_global;
@@ -629,7 +629,7 @@ void Event::MakeChargeOutput(){
 			nd_moments_f << eta_t;
 		}	
 
-		for (size_t j = 0; j <= n_max; j++) {
+		for (int j = 0; j <= n_max; j++) {
 			if(config.is_format("EMoments")){
 				e_moments_f << "\t" << lattice_sum_eg[j]<< "\t" <<lattice_sum_eq[j];
 				e_moments_f << "\t" << lattice_sum_eg_cos[j]<< "\t" <<lattice_sum_eq_cos[j];
@@ -730,8 +730,8 @@ void Event::MakeChargeOutputMidrapidity(){
 	std::vector<double> lattice_sum_nd_sin(n_max+1, 0.0);
 
 
-	for (size_t ix = 0; ix < config.get_NX(); ix++) {
-		for (size_t iy = 0; iy < config.get_NY(); iy++) {
+	for (int ix = 0; ix < config.get_NX(); ix++) {
+		for (int iy = 0; iy < config.get_NY(); iy++) {
 
 			double x_t= get_x(ix)-x_cm_global;
 			double y_t= get_y(iy)-y_cm_global;
@@ -795,7 +795,7 @@ void Event::MakeChargeOutputMidrapidity(){
 		nd_moments_f << EventID;
 	}	
 
-	for (size_t j = 0; j <= n_max; j++) {
+	for (int j = 0; j <= n_max; j++) {
 		if(config.is_format("EMoments")){
 			e_moments_f << "\t" << lattice_sum_eg[j]<< "\t" <<lattice_sum_eq[j];
 			e_moments_f << "\t" << lattice_sum_eg_cos[j]<< "\t" <<lattice_sum_eq_cos[j];
@@ -837,8 +837,8 @@ void Event::MakeChargeOutput_Transverse(double eta){
 	double t1p_t,t1n_t,t2p_t,t2n_t;
 	double t1_t,t2_t;
 
-	for (size_t ix = 0; ix < config.get_NX(); ix++) {
-		for (size_t iy = 0; iy < config.get_NY(); iy++) {
+	for (int ix = 0; ix < config.get_NX(); ix++) {
+		for (int iy = 0; iy < config.get_NY(); iy++) {
 
 			double x_t= get_x(ix);
 			double y_t= get_y(iy);
@@ -871,8 +871,8 @@ void Event::MakeThicknessOutput(){
 	  chargesname << OUTPATH <<"/Event_"<<EventID<< "_Thickness.dat" ;
 	  charges_f.open(chargesname.str());
 
-		for (size_t ix = 0; ix < config.get_NX(); ix++) {
-			for (size_t iy = 0; iy < config.get_NY(); iy++) {
+		for (int ix = 0; ix < config.get_NX(); ix++) {
+			for (int iy = 0; iy < config.get_NY(); iy++) {
 				double x_t= get_x(ix);
 				double y_t= get_y(iy);
 				charges_f<< x_t <<"\t"<< y_t <<"\t"<< T1p(ix,iy) <<"\t"<< T1n(ix,iy) <<"\t"<< T2p(ix,iy) <<"\t"<< T2n(ix,iy) <<std::endl;
@@ -1028,9 +1028,9 @@ void Event::print_glauber_data_to_file(Nucleus * N1,Nucleus * N2){
 }
 
 void Event::InitializeAverageEvent(){
-	for (size_t ieta = 0; ieta < config.get_NETA(); ieta++) {
-		for (size_t ix = 0; ix < config.get_NX(); ix++) {
-			for (size_t iy = 0; iy < config.get_NY(); iy++) {
+	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
+		for (int ix = 0; ix < config.get_NX(); ix++) {
+			for (int iy = 0; iy < config.get_NY(); iy++) {
 				EgAvg (ieta, ix, iy)=0.0;
 				EqAvg (ieta, ix, iy)=0.0;
 				nuAvg (ieta, ix, iy)=0.0;
@@ -1088,10 +1088,10 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 
 	if(config.get_Verbose()){std::cout<< "\n Making global observables and observables for Average Event "<<std::endl;}
 
-	for (size_t ieta = 0; ieta < config.get_NETA(); ieta++) {
+	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
 		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
-		for (size_t ix = 0; ix < config.get_NX(); ix++) {
-			for (size_t iy = 0; iy < config.get_NY(); iy++) {
+		for (int ix = 0; ix < config.get_NX(); ix++) {
+			for (int iy = 0; iy < config.get_NY(); iy++) {
 
 				double x_t= get_x(ix);
 				double y_t= get_y(iy);
@@ -1251,7 +1251,7 @@ void Event::MakeChargeOutput_AverageEvent(){
 
 	if(config.get_Verbose()){std::cout<< "\nWriting out charges and moments for Average Event "<<std::endl;}
 
-	for (size_t ieta = 0; ieta < config.get_NETA(); ieta++) {
+	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
 		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
 
 		double lattice_sum_dint23dy = 0.;
@@ -1275,8 +1275,8 @@ void Event::MakeChargeOutput_AverageEvent(){
 		std::vector<double> lattice_sum_nd_sin(n_max+1, 0.0);
 
 
-		for (size_t ix = 0; ix < config.get_NX(); ix++) {
-			for (size_t iy = 0; iy < config.get_NY(); iy++) {
+		for (int ix = 0; ix < config.get_NX(); ix++) {
+			for (int iy = 0; iy < config.get_NY(); iy++) {
 
 				double x_t= get_x(ix)-x_cm_global;
 				double y_t= get_y(iy)-y_cm_global;
@@ -1337,7 +1337,7 @@ void Event::MakeChargeOutput_AverageEvent(){
 			nd_moments_f << eta_t;
 		}	
 
-		for (size_t j = 0; j <= n_max; j++) {
+		for (int j = 0; j <= n_max; j++) {
 			if(config.print_avg_event()>0){
 				e_moments_f << "\t" << lattice_sum_eg[j]<< "\t" <<lattice_sum_eq[j];
 				e_moments_f << "\t" << lattice_sum_eg_cos[j]<< "\t" <<lattice_sum_eq_cos[j];

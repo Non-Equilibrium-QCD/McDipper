@@ -182,7 +182,7 @@ namespace IPSatYields{
           double k_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[2]+ IPsat_pars::KTMIN;
           
           double p_t=  P(q_t,k_t,phi_t); 
-          double cutP2 = pow(pcut,2.) + p_t*p_t  ;
+          double cutP2 = pow(pars->p_reg,2.) + p_t*p_t  ;
           // double p_t = sqrt(pow(P(q_t,k_t,phi_t),2.) + pow(pcut,2.));
 
           if(p_t==0){ff[0]=0;}
@@ -193,19 +193,11 @@ namespace IPSatYields{
               double D1 =(pars->dip)->AdjointDipole_k(x1,q_t,pars->T1);
               double D2 =(pars->dip)->AdjointDipole_k(x2,k_t,pars->T2);
               
-              // if(D1<0){D1=0.0;}
-              // if(D2<0){D2=0.0;}
-              // if(D1<0){D1=std::fabs(D1);}
-              // if(D2<0){D2=std::fabs(D2);}
-              // double result= 2*M_PI * pow(IPsat_pars::KTMAX-IPsat_pars::KTMIN,2.) * ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t* pow( q_t,3.)* pow(k_t,3.)/cutP2) * D1*D2 *gen_pars::GeV2_to_fmm2 ;
-              double result= 2*M_PI * pow(IPsat_pars::KTMAX-IPsat_pars::KTMIN,2.) * ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,3.)* pow(k_t,3.)/ cutP2) * D1*D2 *gen_pars::GeV2_to_fmm2 ;
-              if(result>=0){
-                ff[0] = result;
-              }
-              else{
-                ff[0] = 0;
-              }
-              // ff[0]= result; 
+              if(D1<0){D1=0.0;}
+              if(D2<0){D2=0.0;}
+              ff[0]= 2*M_PI * pow(IPsat_pars::KTMAX-IPsat_pars::KTMIN,2.) * ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,3.)* pow(k_t,3.)/ cutP2) * D1*D2 *gen_pars::GeV2_to_fmm2 ;
+
+              
           }
           return 0 ;
         }
@@ -260,6 +252,8 @@ IPSat::IPSat(Config ConfInput){
   config=Config(ConfInput);
   p_set= int( config.get_ModelParams(0) );
   xscaling = config.get_ModelParams(1);
+  p_reg = config.get_ModelParams(2);
+  std::cout<< "Regulator : " << p_reg << std::endl;
 
   if(config.get_Verbose()){
     std::cout<< std::endl;
@@ -290,12 +284,7 @@ void IPSat::MakeTable(std::string path_to_set){
 	config.set_dump(SETPATH);
   
 	if(config.get_Verbose()){std::cout<<"New config written to "<<SETPATH  << std::endl;}
-  TestDump(1,1);
-  TestDump(1,2);
-  TestDump(1,4);
-  TestDump(2,2);
-  TestDump(4,4);
-  exit(0);
+  
   if(config.get_Verbose()){std::cout<<"--> Tabulating conserved charges in the IP-Sat model framework"<<SETPATH  << std::endl;}
   make_gluon_energy();
 	if(config.get_Verbose()){std::cout<<"\nGluon Energy written to"<<SETPATH  << std::endl;}
@@ -315,17 +304,18 @@ void IPSat::make_gluon_energy(){
 	GluonParsIPSat parameters;
 	parameters.sqrts= config.get_collEnergy();
   parameters.dip= Dip;
+  parameters.p_reg=p_reg;
   
 	double res=0;
   int counter = 0;
   density_f.open(densityname.str());
-	for (size_t iy = 0; iy < config.get_NETA(); iy++) {
+	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 		parameters.y =y_t ;
-		for (size_t i1 = 0; i1 < config.get_NT(); i1++) {
+		for (int i1 = 0; i1 < config.get_NT(); i1++) {
 			double T1_t = i1*config.get_dT() + config.get_TMin();
 			parameters.T1 = T1_t;
-			for (size_t i2 = 0; i2 < config.get_NT(); i2++) {
+			for (int i2 = 0; i2 < config.get_NT(); i2++) {
 				double T2_t = i2*config.get_dT() + config.get_TMin();
 				parameters.T2 = T2_t;
 
@@ -370,10 +360,10 @@ void IPSat::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
   int status12q,status12aq,status21q,status21aq;
 
 	density_f.open(densityname.str());
-	for (size_t iy = 0; iy < config.get_NETA(); iy++) {
+	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 
-		for (size_t i1 = 0; i1 < config.get_NT(); i1++) {
+		for (int i1 = 0; i1 < config.get_NT(); i1++) {
 			double T_t = i1*config.get_dT() + config.get_TMin();
 
       bool is_null12 = check_if_zero_F(y_t,T_t);
@@ -528,15 +518,15 @@ void IPSat::TestDump(double T1,double T2){
 //Dynamical
   std::cout<<"sqrts="<< parametersG.sqrts<< std::endl;
   std::cout<<"y="<< parametersG.y<< std::endl;
-  std::cout<<"qt="<< parametersG.qt<< std::endl;
-  std::cout<<"kt="<< parametersG.kt<< std::endl;
+  std::cout<<"qt="<< parametersG.p_reg<< std::endl;
+
 
 //Geometrical
   std::cout<<"T1="<< parametersG.T1<< std::endl;
   std::cout<<"T2="<< parametersG.T2<< std::endl;
 
 
-	for (size_t iy = 0; iy < config.get_NETA(); iy++) {
+	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 		parametersG.y =y_t ;
     resEG = IPSatYields::GluonEnergyDens(&parametersG);

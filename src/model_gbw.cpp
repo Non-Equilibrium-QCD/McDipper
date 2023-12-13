@@ -122,7 +122,7 @@ namespace GBW_funcs{
 	{
 		double res=0;
 		double p_t = gen_pars::PMIN;
-		for (size_t ip = 0; ip < gen_pars::NP; ip++) {
+		for (int ip = 0; ip < gen_pars::NP; ip++) {
 			p_t += gen_pars::DP * ip;
 			if(ip==0 || ip==gen_pars::NP-1){res += p_t*p_t*gluon_density(p_t, pars) /2. ;}
 			else{res += p_t*p_t*gluon_density(p_t, pars) ;}
@@ -191,13 +191,13 @@ void GBW::make_gluon_energy(){
 
 	double res,err;
   density_f.open(densityname.str());
-	for (size_t iy = 0; iy < config.get_NETA(); iy++) {
+	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 		parameters.y =y_t ;
-		for (size_t i1 = 0; i1 < config.get_NT(); i1++) {
+		for (int i1 = 0; i1 < config.get_NT(); i1++) {
 			double T1_t = i1*config.get_dT() + config.get_TMin();
 			parameters.T1 = T1_t;
-			for (size_t i2 = 0; i2 < config.get_NT(); i2++) {
+			for (int i2 = 0; i2 < config.get_NT(); i2++) {
 				double T2_t = i2*config.get_dT() + config.get_TMin();
 				parameters.T2 = T2_t;
 				double Q12_t,Q22_t;
@@ -258,10 +258,10 @@ void GBW::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
 	double res21aq,err21aq;
 
 	density_f.open(densityname.str());
-	for (size_t iy = 0; iy < config.get_NETA(); iy++) {
+	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 
-		for (size_t i1 = 0; i1 < config.get_NT(); i1++) {
+		for (int i1 = 0; i1 < config.get_NT(); i1++) {
 			double T_t = i1*config.get_dT() + config.get_TMin();
 
 			if(T_t==0.){

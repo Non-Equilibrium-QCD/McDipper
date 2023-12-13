@@ -171,8 +171,8 @@ Dipole::Dipole(int set, bool Verbose){
 		}
 	}
 
-	size_t ny = sizeof(Y) / sizeof(Y[0]);
-	size_t nu = sizeof(u) / sizeof(u[0]);
+	int ny = sizeof(Y) / sizeof(Y[0]);
+	int nu = sizeof(u) / sizeof(u[0]);
 
 	const gsl_interp2d_type *T= gsl_interp2d_bicubic;
 	G_spl = gsl_spline2d_alloc(T, ny, nu);
@@ -215,7 +215,7 @@ Dipole::~Dipole(){
   	gsl_interp_accel_free (xaccPP);
 		gsl_interp_accel_free (yaccPP);
 
-		for (size_t i = 0; i < IPsat_pars::NY; i++) {
+		for (int i = 0; i < IPsat_pars::NY; i++) {
 	    gsl_spline2d_free(DA_spl[i]);
 	    gsl_spline2d_free(DF_spl[i]);
 	    gsl_interp_accel_free (xaccA[i]);
@@ -631,16 +631,16 @@ void Dipole::Make_Dipole_Grids(){
 	// First Make the K-grid
 	k_grid_homo= new double[N1];
 	q_grid_homo= new double[N1];
-	for (size_t ik = 0; ik < N1; ik++) {
+	for (int ik = 0; ik < N1; ik++) {
 			q_grid_homo[ik]=ik*DK;
 			k_grid_homo[ik]=K_MIN*exp(ik*DK);
 	}
 
 	Y_grid= new double[N2];
-	for (size_t iy = 0; iy < N2; iy++) {Y_grid[iy]=Y_MIN + iy*DY;}
+	for (int iy = 0; iy < N2; iy++) {Y_grid[iy]=Y_MIN + iy*DY;}
 
 	T_grid= new double[N3];
-	for (size_t iT = 0; iT < N3; iT++) {T_grid[iT]=T_MIN + iT*DT;}
+	for (int iT = 0; iT < N3; iT++) {T_grid[iT]=T_MIN + iT*DT;}
 
 	if(DipVerbose){std::cout<<"---> Grid created for Dipoles with Nk = " << N1<< " and  NY = " << N2<<std::endl;}
 	is_initialized=true;
@@ -708,10 +708,10 @@ void Dipole::Transform_Dipole(Rep rep){
 	}  
 	dip_f.open(path_to_dip.str());
 
-	for (size_t iT = 0; iT < IPsat_pars::T_dip_points; iT++) {
+	for (int iT = 0; iT < IPsat_pars::T_dip_points; iT++) {
 		T_t=IPsat_pars::T_dip_min + iT * IPsat_pars::T_dip_dT;
 
-		for (size_t iy = 0; iy < N2; iy++) {
+		for (int iy = 0; iy < N2; iy++) {
 			x_t=get_X(Y_grid[iy]);
 			// Set Hankel Environment around the characteristic scale of the the dipole
 			RDom_t= EffectiveRadius(2,x_t,T_t,rep);
@@ -720,7 +720,7 @@ void Dipole::Transform_Dipole(Rep rep){
 				if(DipVerbose){ std::cout<< "Transforming for discretized function using "<< Hank.get_Npoints() << " points "<<std::endl; }
 			}
 			//Set points
-			for (size_t ix = 0; ix < Hank.get_Npoints(); ix++) {
+			for (int ix = 0; ix < Hank.get_Npoints(); ix++) {
 				if(rep==Rep::Fundamental){
 					Hank.set_FX(ix,FundamentalDipole(x_t,Hank.get_X(ix),T_t)) ;
 				}else if(rep==Rep::Adjoint){
@@ -734,7 +734,7 @@ void Dipole::Transform_Dipole(Rep rep){
 			double k_int_grid[Hank.get_Npoints()];
 			double Dk_int_grid[Hank.get_Npoints()];
 
-			for (size_t ik = 0; ik < Hank.get_Npoints(); ik++) {
+			for (int ik = 0; ik < Hank.get_Npoints(); ik++) {
 				// Important to get the right UNITS!!
 				// k needs conversion fm^{-1}-> GeV
 				// Dk needs conversion fm^{2}-> GeV^{-2}
@@ -750,7 +750,7 @@ void Dipole::Transform_Dipole(Rep rep){
 
 
 			// Here extrapolation goes on
-			for (size_t iq = 0; iq < N1; iq++) {
+			for (int iq = 0; iq < N1; iq++) {
 
 				if(k_grid_homo[iq]>k_int_grid[Hank.get_Npoints()-1]){ Dip_k =0;}
 				else if(k_grid_homo[iq]<k_int_grid[0]){
@@ -802,12 +802,12 @@ void Dipole::Transform_Dipole_Naive(Rep rep){
 	}
 	dip_f.open(path_to_dip.str());
 
-	for (size_t iT = 0; iT < IPsat_pars::T_dip_points; iT++) {
+	for (int iT = 0; iT < IPsat_pars::T_dip_points; iT++) {
 		T_t=IPsat_pars::T_dip_min + iT * IPsat_pars::T_dip_dT;
 
-		for (size_t iy = 0; iy < N2; iy++) {
+		for (int iy = 0; iy < N2; iy++) {
 			x_t=get_X(Y_grid[iy]);
-			for (size_t ik = 0; ik < N1; ik++) {
+			for (int ik = 0; ik < N1; ik++) {
 				if(T_t==0){
 					dip_f<< T_t<<"\t"<< Y_grid[iy]<<"\t"<< q_grid_homo[ik]<<"\t" << 0 << std::endl;
 				}
@@ -846,7 +846,7 @@ void Dipole::Transform_Dipole_Naive_Test(Rep rep,double Tt){
 	double y[ Nx_t ];
 	double Y_MIN_OUT = Y_MIN *1.01;
 	double Y_MAX_OUT = Y_MAX *0.99;
-	for (size_t iy = 0; iy < Nx_t; iy++) {
+	for (int iy = 0; iy < Nx_t; iy++) {
  		y[iy] = Y_MIN_OUT + iy*(Y_MAX_OUT-Y_MIN_OUT)/(Nx_t-1.);
 		x[iy] = get_X(y[iy]);
 	}
@@ -865,17 +865,13 @@ void Dipole::Transform_Dipole_Naive_Test(Rep rep,double Tt){
 	}
 	dip_f.open(path_to_dip.str());
 	dip_f<< "# k";
-	for (size_t ix = 0; ix < Nx_t; ix++) {dip_f<< "\t D(x="<<x[ix]<<")";}
+	for (int ix = 0; ix < Nx_t; ix++) {dip_f<< "\t D(x="<<x[ix]<<")";}
 	dip_f<< std::endl;
 
-	for (size_t ik = 0; ik < N1; ik++) {
+	for (int ik = 0; ik < N1; ik++) {
 		dip_f<< K_MIN*exp(q_grid_homo[ik]);
-		for (size_t iy = 0; iy < Nx_t; iy++) {
+		for (int iy = 0; iy < Nx_t; iy++) {
 			x_t=get_X(y[iy]);
-
-			// DipFT HTPars={k_grid_homo[ik],x_t,Tt,this};
-			// if(rep==Rep::Fundamental){Dip_k = HankelDipole::DipoleFunFT(&HTPars);}
-			// else if(rep==Rep::Adjoint){Dip_k = HankelDipole::DipoleAdjFT(&HTPars);}
 			DipFT HTPars={k_grid_homo[ik]*gen_pars::GeV_to_fmm1,x_t,Tt,this};
 			if(rep==Rep::Fundamental){Dip_k = HankelDipole::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
 			else if(rep==Rep::Adjoint){Dip_k = HankelDipole::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
@@ -895,7 +891,7 @@ double Dipole::MomentDipole(int n, double x, double T, Rep rep){
 	double r_t,u_t,c_n;
 	double MomentSum=0;
 
-	for (size_t iu = 0; iu < IPsat_pars::N_UMAX_INT; iu++) {
+	for (int iu = 0; iu < IPsat_pars::N_UMAX_INT; iu++) {
 		 u_t= IPsat_pars::du*iu;
 		 r_t= IPsat_pars::rmin*exp(u_t);
 		 if(iu==0 || iu==IPsat_pars::N_UMAX_INT-1){c_n=1/2.;}
@@ -917,8 +913,8 @@ double Dipole::EffectiveRadius(int n, double x, double T, Rep rep){
 
 double Dipole::FundamentalDipole_k(double x, double k, double T){
 	double tmp=0;
-
-	if ( k<0 || k >= K_MAX ){return 0.0;}
+	if( x>=0.999 ){return 0.0;}
+	else if ( k<0 || k >= K_MAX ){return 0.0;}
 	else if ( T <= T_MIN || T >= T_MAX ){return 0.0;}
 	else if(x <= X_MIN ){return 0;}
 	else{
@@ -928,13 +924,13 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 			double Q20= gsl_spline2d_eval(Q2F_spl,T,Y0,xaccQ2F, yaccQ2F);
 			double Q2X; 
 			if ( x > X_MAX ){
-				double x1= get_X(Y_grid[N2-1]);
-				double x2= get_X(Y_grid[N2-2]);
-				double Q21= gsl_spline2d_eval(Q2F_spl,T,Y_grid[N2-1],xaccQ2F, yaccQ2F);
-				double Q22= gsl_spline2d_eval(Q2F_spl,T,Y_grid[N2-2],xaccQ2F, yaccQ2F);
+				double x1= get_X(Y_grid[0]);
+				double x2= get_X(Y_grid[1]);
+				double Q21= gsl_spline2d_eval(Q2F_spl,T,Y_grid[0],xaccQ2F, yaccQ2F);
+				double Q22= gsl_spline2d_eval(Q2F_spl,T,Y_grid[1],xaccQ2F, yaccQ2F);
 				double b= log(Q21/Q22)/ log(  (1-x1)/(1-x2) );
 				double a= Q21 *pow(1-x1,-b);
-				Q2X = a*pow(1-x,2.);
+				Q2X = a*pow(1-x,b);
 			}
 			else{
 				Q2X = gsl_spline2d_eval(Q2A_spl,T,Y_t,xaccQ2A, yaccQ2A);
@@ -983,9 +979,10 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 
 double Dipole::AdjointDipole_k(double x, double k, double T){
 	double tmp=0;
-	if (  k<0 || k >= K_MAX ){return 0.0;}
-	else if ( T <= T_MIN || T >= T_MAX ){return 0.0;}
-	else if(x <= X_MIN ){return 0.0;}
+	if( x>=0.999 ){tmp=0.0;}
+	else if (  k<0 || k >= K_MAX ){tmp=0.0;}
+	else if ( T <= T_MIN || T >= T_MAX ){tmp=0.0;}
+	else if(x <= X_MIN ){tmp=0.0;}
 	else{
 		double Y_t = get_Y(x);
 		if(x > xscaling){
@@ -993,18 +990,19 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 			double Q20= gsl_spline2d_eval(Q2A_spl,T,Y0,xaccQ2A, yaccQ2A);
 			double Q2X; 
 			if ( x > X_MAX ){
-				double x1= get_X(Y_grid[N2-1]);
-				double x2= get_X(Y_grid[N2-2]);
-				double Q21= gsl_spline2d_eval(Q2A_spl,T,Y_grid[N2-1],xaccQ2A, yaccQ2A);
-				double Q22= gsl_spline2d_eval(Q2A_spl,T,Y_grid[N2-2],xaccQ2A, yaccQ2A);
+				double x1= get_X(Y_grid[0]);
+				double x2= get_X(Y_grid[1]);
+				double Q21= gsl_spline2d_eval(Q2A_spl,T,Y_grid[0],xaccQ2A, yaccQ2A);
+				double Q22= gsl_spline2d_eval(Q2A_spl,T,Y_grid[1],xaccQ2A, yaccQ2A);
 				double b= log(Q21/Q22)/ log(  (1-x1)/(1-x2) );
 				double a= Q21 *pow(1-x1,-b);
-				Q2X = a*pow(1-x,2.);
+				Q2X = a*pow(1-x,b);
 			}
 			else{
 				Q2X = gsl_spline2d_eval(Q2A_spl,T,Y_t,xaccQ2A, yaccQ2A);
 			}
 			tmp= (Q20/Q2X)*AdjointDipole_k(xscaling, k * sqrt(Q20/Q2X), T);
+			// if(tmp!=tmp){std::cerr<<"TEST"<<x<<"\t"<<k<<"\t"<<T<< std::endl;}
 
 		}
 		else{
@@ -1047,8 +1045,6 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 	return tmp;
 }
 
-
-
 //////////////////////////////////////////////////////////
 //////              Importing Methods             ////////
 //////////////////////////////////////////////////////////
@@ -1070,15 +1066,15 @@ bool Dipole::import_dipole(Rep dipole_rep){
 
   double Yarray[N2];
 	double Qarray[N1];
-	for (size_t iY = 0; iY < N2; iY++) {Yarray[iY]= Y_MIN + iY*DY;}
-	for (size_t iQ = 0; iQ < N1; iQ++) {Qarray[iQ]= iQ*DK;}
+	for (int iY = 0; iY < N2; iY++) {Yarray[iY]= Y_MIN + iY*DY;}
+	for (int iQ = 0; iQ < N1; iQ++) {Qarray[iQ]= iQ*DK;}
 
 	//
 	FILE *table = fopen(tablename.str().c_str(),"r");
   double T_t,y_t,q_t,Dip_t;
-	for (size_t iT = 0; iT < N3; iT++) {
-		for (size_t iY = 0; iY < N2; iY++) {
-			for (size_t iq = 0; iq < N1; iq++) {
+	for (int iT = 0; iT < N3; iT++) {
+		for (int iY = 0; iY < N2; iY++) {
+			for (int iq = 0; iq < N1; iq++) {
 				if (fscanf(table,"%lf %lf %lf %lf", &T_t, &y_t, &q_t, &Dip_t) != 4){printf("Error reading distribution table!\n");exit(1);}
 				DipArray[N1*iY + iq]=Dip_t;
 			}
@@ -1137,7 +1133,7 @@ std::string Dipole::get_set_name(int n){
 
 void Dipole::get_name_and_value(std::string testline,std::string &name, std::string &value){
   std::string line_temp= testline;
-  size_t pos = line_temp.find(":");
+  int pos = line_temp.find(":");
   name = line_temp.substr(0,pos);
   value = line_temp.substr(pos+1, line_temp.length()-pos );
   name.erase(std::remove(name.begin(),name.end(), ' '),name.end());
@@ -1378,7 +1374,7 @@ void Dipole::dump_transformed_norm(double T){
 	int Nx_t = 100;
 	double Y_MIN_OUT = Y_MIN *1.01;
 	double Y_MAX_OUT = Y_MAX *0.99;
-	for (size_t iy = 0; iy <Nx_t; iy++) {
+	for (int iy = 0; iy <Nx_t; iy++) {
  		double y_t = Y_MIN_OUT + iy*(Y_MAX_OUT-Y_MIN_OUT)/(Nx_t-1.);
 		double x_t = get_X(y_t);
 		dip_A_f<< x_t << "\t" <<AdjointDipole_k(x_t,0, T) << std::endl  ;
@@ -1394,7 +1390,7 @@ void Dipole::dump_momentum_Dipole(double T){
 	double y[ Nx_t ];
 	double Y_MIN_OUT = Y_MIN *1.01;
 	double Y_MAX_OUT = Y_MAX *0.99;
-	for (size_t iy = 0; iy < Nx_t; iy++) {
+	for (int iy = 0; iy < Nx_t; iy++) {
  		y[iy] = Y_MIN_OUT + iy*(Y_MAX_OUT-Y_MIN_OUT)/(Nx_t-1.);
 		x[iy] = get_X(y[iy]);
 	}
@@ -1411,21 +1407,21 @@ void Dipole::dump_momentum_Dipole(double T){
 	dip_A_f<< "# k";
 	dip_F_f<< "# k";
 
-	for (size_t ix = 0; ix < Nx_t; ix++) {
+	for (int ix = 0; ix < Nx_t; ix++) {
 		dip_A_f<< "\tQ2(x="<<x[ix]<<")\t D(x="<<x[ix]<<")";
 		dip_F_f<< "\tQ2(x="<<x[ix]<<")\t D(x="<<x[ix]<<")";
 	}
 	dip_A_f<< std::endl;
 	dip_F_f<< std::endl;
 
-	for (size_t ik = 0; ik < N1; ik++) {
+	for (int ik = 0; ik < N1; ik++) {
 		double q_t = ik*DK;
 		double k_t = K_MIN*exp(q_t );
 
 		dip_A_f<< k_t ;
 		dip_F_f<< k_t ;
 
-		for (size_t j = 0; j < Nx_t; j++) {
+		for (int j = 0; j < Nx_t; j++) {
 			double Q2A_t= gsl_spline2d_eval(Q2A_spl,T,y[j],xaccQ2A, yaccQ2A);
 			double Q2F_t= gsl_spline2d_eval(Q2F_spl,T,y[j],xaccQ2F, yaccQ2F);
 
@@ -1477,16 +1473,16 @@ void Dipole::get_Q2(){
 	//Output to plot out the Scaling Q
 	double T_t, x_t;
 	int ix;
-	for (size_t iT = 0; iT < N3; iT++) {
+	for (int iT = 0; iT < N3; iT++) {
 		T_t=T_MIN + iT * DT;
-		for (size_t iy = 0; iy < N2; iy++) {
+		for (int iy = 0; iy < N2; iy++) {
 			x_t=get_X(Y_grid[iy]);
 
 			// Find  Q2 for both representations
 			bool is_adj_found=false;
 			bool is_fund_found=false;
 
-			for (size_t iu = 0; iu < IPsat_pars::NR - 1; iu++) {
+			for (int iu = 0; iu < IPsat_pars::NR - 1; iu++) {
 				double r1 = IPsat_pars::rmin *exp(iu*IPsat_pars::du);
 				double r2 = IPsat_pars::rmin *exp( (iu+1)*IPsat_pars::du);
 
@@ -1520,9 +1516,9 @@ void Dipole::get_Q2(){
 	}
 
 	//Output to plot out the Scaling Q
-	for (size_t iT = 0; iT < N3; iT++) {
+	for (int iT = 0; iT < N3; iT++) {
 		T_t=T_MIN + iT * DT;
-		for (size_t iy = 0; iy < N2; iy++) {
+		for (int iy = 0; iy < N2; iy++) {
 			ix= N2-1-iy;
 			x_t=get_X(Y_grid[ix]);
 			Q2_scaling_f<< T_t << "\t"<< x_t<< "\t"<< Q2F[N3*ix+iT]<< "\t"<< Q2A[N3*ix+iT] << std::endl;

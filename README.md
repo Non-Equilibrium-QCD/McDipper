@@ -1,6 +1,6 @@
 # McDIPPER (Monte-Carlo Dipole Event-geneRator )
 
-The ```McDIPPER``` is a saturation-based heavy-ion initial condition MC generator. It used the input from diverse saturation models and fits to produce a 3D energy and charge deposition. 
+The ```McDIPPER``` is a saturation-based heavy-ion initial condition MC generator. It used the input from diverse saturation models and fits to produce a 3D energy and charge deposition. The main reference to cite is [2308.11713](https://arxiv.org/abs/2308.11713).
 
 ## Requisites 
 
@@ -36,7 +36,15 @@ and to run
 ```
 ./mcDip -i config.yaml
 ```
-This will change, as I change the configuration option.
+
+### Build with CMake
+
+In case someone wants to compile the code using `cmake`, there is the possibility to do so.
+```
+mkdir build && cd build
+cmake .. -DCUBA_PATH=<path> -DLHAPDF_PATH=<path>
+```
+
 
 ## The structure of the code
 
@@ -58,16 +66,7 @@ For the input needed in the simulation please see the example configuration file
 
 ## Output 
 
-There are three flags for 
-
-
-## Analysis suite
-
-Additionally, I have included a set of python classes that can help the user analyze data. These are stored in the ``` analysis ``` folder, and consist of
-
-```
-analysis/analysis
-```
+There are several options for output. Please see the documentation file. 
 
 ## Dealing with issues in MacOS 
 
