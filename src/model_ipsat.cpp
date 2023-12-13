@@ -176,10 +176,10 @@ namespace IPSatYields{
 
           struct GluonParsIPSat * pars = (struct GluonParsIPSat *) params;
 
-          double phi_t=(phi_max-phi_min)*xx[0]+phi_min;
+          double phi_t=(phi_max-phi_min)*xx[2]+phi_min;
       
-          double q_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[1]+ IPsat_pars::KTMIN;
-          double k_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[2]+ IPsat_pars::KTMIN;
+          double q_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[0]+ IPsat_pars::KTMIN;
+          double k_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[1]+ IPsat_pars::KTMIN;
           
           double p_t=  P(q_t,k_t,phi_t); 
           double cutP2 = pow(pars->p_reg,2.) + p_t*p_t  ;

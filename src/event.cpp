@@ -1053,7 +1053,7 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 
 	double eg_t,eq_t,nu_t,nd_t,ns_t;
 	double t1p_t,t1n_t,t2p_t,t2n_t;
-	double t1_t,t2_t;
+	// double t1_t,t2_t;
 
 	double total_energy_event_q=0;
 	double total_energy_event_g=0;
@@ -1089,7 +1089,7 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 	if(config.get_Verbose()){std::cout<< "\n Making global observables and observables for Average Event "<<std::endl;}
 
 	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
-		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
+		// double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
 		for (int ix = 0; ix < config.get_NX(); ix++) {
 			for (int iy = 0; iy < config.get_NY(); iy++) {
 
@@ -1100,8 +1100,8 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 				t1n_t=T1n(ix,iy);
 				t2p_t=T2p(ix,iy);
 				t2n_t=T2n(ix,iy);
-				t1_t = t1p_t+t1n_t;
-				t2_t = t2p_t+t2n_t;
+				// t1_t = t1p_t+t1n_t;
+				// t2_t = t2p_t+t2n_t;
 
 				eg_t= EgAvg (ieta, ix, iy);
 				eq_t= EqAvg (ieta, ix, iy);
@@ -1246,7 +1246,7 @@ void Event::MakeChargeOutput_AverageEvent(){
 
 	double eg_t,eq_t,nu_t,nd_t,ns_t;
 	double t1p_t,t1n_t,t2p_t,t2n_t;
-	double t1_t,t2_t;
+	// double t1_t,t2_t;
 
 
 	if(config.get_Verbose()){std::cout<< "\nWriting out charges and moments for Average Event "<<std::endl;}
@@ -1285,8 +1285,8 @@ void Event::MakeChargeOutput_AverageEvent(){
 				t1n_t=T1n(ix,iy);
 				t2p_t=T2p(ix,iy);
 				t2n_t=T2n(ix,iy);
-				t1_t = t1p_t+t1n_t;
-				t2_t = t2p_t+t2n_t;
+				// t1_t = t1p_t+t1n_t;
+				// t2_t = t2p_t+t2n_t;
 
 				eg_t= EgAvg (ieta, ix, iy);
 				eq_t= EqAvg (ieta, ix, iy);
