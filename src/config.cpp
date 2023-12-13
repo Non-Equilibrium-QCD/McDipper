@@ -243,7 +243,7 @@ void Config::write_config_file(std::string target_folder){}
 void Config::terminal_setup_output(){
   std::cout<< "|----------------------------------------------------------------------------------------|"<<std::endl;
   std::cout<< "|----------------------------------------------------------------------------------------|"<<std::endl;
-  std::cout<< "                             Running McDip. Version " << version <<std::endl;
+  std::cout<< "                             Running McDipper. Version " << version <<std::endl;
   std::cout<< "|----------------------------------------------------------------------------------------|"<<std::endl;
   std::cout<< "|------------------------------- General Parameters -------------------------------------|\n";
   std::cout<< "       Running model: " << cModelStr << " for sqrt(S)= "<<sqrtsNN << "\n";

@@ -36,7 +36,7 @@ Grid:
 Model_Parameters:
     Set:   1
     XScaling: 0.01
-    P_reg: 0.01 
+    P_reg: 0.1 
 
 Output:
     path_to_output: Runs/

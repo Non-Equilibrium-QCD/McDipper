@@ -34,7 +34,7 @@ make
 ```
 and to run
 ```
-./mcDip -i config.yaml
+./mcDipper -i config.yaml
 ```
 
 ### Build with CMake
