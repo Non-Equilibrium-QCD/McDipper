@@ -35,52 +35,52 @@ namespace  NuclearData { ///TO DO, get more elements!
       switch (Z) {
         case 8: // Oxygen 
           if(A==16){
-            if(mode==0){for (size_t i = 0; i < 2; i++) { pars[i]=O_sph[i];} }
+            if(mode==0){for (int i = 0; i < 2; i++) { pars[i]=O_sph[i];} }
             else{std::cerr<< "Error! Non-spherical parametrization not implemented for O-16!" ;exit(EXIT_FAILURE);}
             }
           break;
         case 13:
           if(A==27){
-            if(mode==1){for (size_t i = 0; i < 4; i++) { pars[i]=Al_def[i];} }
+            if(mode==1){for (int i = 0; i < 4; i++) { pars[i]=Al_def[i];} }
             else{std::cerr<< "Error! Non-deformed parametrization not implemented for Al-27!" ;exit(EXIT_FAILURE);}
           }
           break;
         case 18:
           if(A==40){
-            if(mode==0){for (size_t i = 0; i < 2; i++) { pars[i]=Ar_sph[i];} }
+            if(mode==0){for (int i = 0; i < 2; i++) { pars[i]=Ar_sph[i];} }
             else{std::cerr<< "Error! Non-spherical parametrization not implemented for Ar-40!" ;exit(EXIT_FAILURE);}
           }
           break;
         case 29:
           if(A==63){
-            if(mode==0){for (size_t i = 0; i < 2; i++) { pars[i]=Cu_sph[i];} }
-            else if(mode==1){for (size_t i = 0; i < 4; i++) { pars[i]=Cu_def[i];} }
+            if(mode==0){for (int i = 0; i < 2; i++) { pars[i]=Cu_sph[i];} }
+            else if(mode==1){for (int i = 0; i < 4; i++) { pars[i]=Cu_def[i];} }
             else{std::cerr<< "Error! Selected parametrization not implemented for Cu-63!" ;exit(EXIT_FAILURE);}
           }
           break;
         case 54:
           if(A==129){
-            if(mode==0){for (size_t i = 0; i < 2; i++) { pars[i]=Xe_sph[i];} }
-            else if(mode==1){for (size_t i = 0; i < 4; i++) { pars[i]=Xe_def[i];} }
+            if(mode==0){for (int i = 0; i < 2; i++) { pars[i]=Xe_sph[i];} }
+            else if(mode==1){for (int i = 0; i < 4; i++) { pars[i]=Xe_def[i];} }
             else{std::cerr<< "Error! Selected parametrization not implemented for Xe-129!" ;exit(EXIT_FAILURE);}
           }
           break;
         case 79:
           if(A==197){
-            if(mode==0){for (size_t i = 0; i < 2; i++) { pars[i]=Au_sph[i];} }
-            else if(mode==1){for (size_t i = 0; i < 4; i++) { pars[i]=Au_def[i];} }
+            if(mode==0){for (int i = 0; i < 2; i++) { pars[i]=Au_sph[i];} }
+            else if(mode==1){for (int i = 0; i < 4; i++) { pars[i]=Au_def[i];} }
             else{std::cerr<< "Error! Selected parametrization not implemented for Au-197!" ;exit(EXIT_FAILURE);}
           }
           break;
         case 82:
           if(A==208){
-            if(mode==0){for (size_t i = 0; i < 2; i++) { pars[i]=Pb_sph[i];} }
+            if(mode==0){for (int i = 0; i < 2; i++) { pars[i]=Pb_sph[i];} }
             else{std::cerr<< "Error! Non-spherical parametrization not implemented for Pb-208!" ;exit(EXIT_FAILURE);}
           }          
           break;
         case 92:
           if(A==238){
-            if(mode==1){for (size_t i = 0; i < 4; i++) { pars[i]=U_def[i];} }
+            if(mode==1){for (int i = 0; i < 4; i++) { pars[i]=U_def[i];} }
             else{std::cerr<< "Error! Non-deformed parametrization not implemented for U-238!" ;exit(EXIT_FAILURE);}
           }
           break;

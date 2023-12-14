@@ -16,8 +16,7 @@ struct GluonParsIPSat{
 //Dynamical
   double sqrts;
   double y;
-  double qt;
-  double kt;
+  double p_reg;
 
 //Geometrical
   double T1;
@@ -64,6 +63,7 @@ class IPSat{
 		std::string path_to_set;
     int p_set;
     double xscaling;
+    double p_reg;
 
     double S0;
 		double dT;
