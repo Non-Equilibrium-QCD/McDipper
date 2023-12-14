@@ -27,6 +27,7 @@ Event::Event(Config ConfInput){
 	N2.A=config.get_A(2);N2.Z=config.get_Z(2);N2.mode=config.get_NuclearMode(2);
 
 	PrimalSeed=config.get_seed();
+	srand48(PrimalSeed);
 
 	b1=new double[2];
 	b2=new double[2];
@@ -124,14 +125,15 @@ double& Event:: nsAvg (int64_t ieta, int64_t nx, int64_t ny){return (nsAvg_ptr)[
 
 void Event::NewEvent(int EventID_in){
 	EventID=EventID_in;
-	EventSeed =std::rand(); //  CHECK THIS !
+	// EventSeed =std::rand(); //  CHECK THIS !
 
-	srand48(EventSeed);// Dump this in the config?
+	// srand48(EventSeed);// Dump this in the config?
 	// Create Nuclei
 	bool is_event_valid=false;
 	if(config.get_Verbose()){
 		std::cout<< "|---------------------------------- New Event: "<< EventID+1<<"/"<< config.get_NEvents() << " -------------------------------------|\n";
-		std::cout<< "    Event ID: " <<EventID << "       Event Seed: " << EventSeed << "\n"<<std::endl;}
+		std::cout<< "                       Event ID: " <<EventID <<std::endl;
+	}
 
 	while(!is_event_valid){
 
@@ -1052,8 +1054,6 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 	global_f.open(global_name.str(), std::ios_base::app);
 
 	double eg_t,eq_t,nu_t,nd_t,ns_t;
-	double t1p_t,t1n_t,t2p_t,t2n_t;
-	// double t1_t,t2_t;
 
 	double total_energy_event_q=0;
 	double total_energy_event_g=0;
@@ -1096,12 +1096,6 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 				double x_t= get_x(ix);
 				double y_t= get_y(iy);
 
-				t1p_t=T1p(ix,iy);
-				t1n_t=T1n(ix,iy);
-				t2p_t=T2p(ix,iy);
-				t2n_t=T2n(ix,iy);
-				// t1_t = t1p_t+t1n_t;
-				// t2_t = t2p_t+t2n_t;
 
 				eg_t= EgAvg (ieta, ix, iy);
 				eq_t= EqAvg (ieta, ix, iy);
@@ -1245,8 +1239,6 @@ void Event::MakeChargeOutput_AverageEvent(){
 	}
 
 	double eg_t,eq_t,nu_t,nd_t,ns_t;
-	double t1p_t,t1n_t,t2p_t,t2n_t;
-	// double t1_t,t2_t;
 
 
 	if(config.get_Verbose()){std::cout<< "\nWriting out charges and moments for Average Event "<<std::endl;}
@@ -1280,13 +1272,6 @@ void Event::MakeChargeOutput_AverageEvent(){
 
 				double x_t= get_x(ix)-x_cm_global;
 				double y_t= get_y(iy)-y_cm_global;
-
-				t1p_t=T1p(ix,iy);
-				t1n_t=T1n(ix,iy);
-				t2p_t=T2p(ix,iy);
-				t2n_t=T2n(ix,iy);
-				// t1_t = t1p_t+t1n_t;
-				// t2_t = t2p_t+t2n_t;
 
 				eg_t= EgAvg (ieta, ix, iy);
 				eq_t= EqAvg (ieta, ix, iy);

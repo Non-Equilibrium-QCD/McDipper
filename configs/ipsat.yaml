@@ -19,6 +19,7 @@ General:
     Impact:
         Range: [0, 40]
         Sampling: Quadratic
+    Seed: 1979994328
     PDFs:
       PDFSet: CT18NNLO
       ForcePositive: 1
@@ -40,7 +41,7 @@ Model_Parameters:
 
 Output:
     path_to_output: Runs/
-    run_name: PbPb_2760GeV_IPSat_Set1
-    Format: ["EMoments","NMoments","Charges"]
+    run_name: Test_Run
+    Format: ["EMoments","NMoments"]
     PrintAvg: False
     BoostInvariant: False

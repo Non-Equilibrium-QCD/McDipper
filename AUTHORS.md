@@ -8,6 +8,6 @@ Author  |  &ensp;E-Mail&ensp; | Copyright ©
 
 ## External contributors
 
-Author  |  &ensp;E-Mail&ensp; | Copyright © 
+Author  |  &ensp;E-Mail&ensp; | Year
  :----:  |  :----: | :--------- 
  Hendrik Roch | [✉](mailto:roch@fias.uni-frankfurt.de) | `2023-`

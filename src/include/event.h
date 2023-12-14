@@ -117,7 +117,6 @@ class Event{
 
 		int EventID;
 		int PrimalSeed;
-		int EventSeed;
 
 		double sqrtsNN;
 
