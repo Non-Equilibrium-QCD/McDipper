@@ -31,13 +31,13 @@ Charges::Charges(Config ConfInput){
 }
 
 Charges::~Charges(){
-  for (size_t i = 0; i < NETA; i++) {
+  for (int i = 0; i < NETA; i++) {
     gsl_spline2d_free(e_g_spl[i]);
     gsl_interp_accel_free (xaccEG[i]);
     gsl_interp_accel_free (yaccEG[i]);
 	}
 
-  for (size_t i = 0; i < NQComp; i++) {
+  for (int i = 0; i < NQComp; i++) {
     gsl_spline2d_free(N0u_spl[i]);
     gsl_spline2d_free(N0d_spl[i]);
     gsl_spline2d_free(N0s_spl[i]);
@@ -113,7 +113,7 @@ bool Charges::import_charges(){
   if(is_table_set){
     MakeGrid();
     import_is_success = import_is_success && read_in_energy_gluons();
-    if(config.get_Verbose()){std::cout<< "[ Charges ] Gluon energy density    -->  Imported "<< std::endl;}
+    if(config.get_Verbose()){std::cout<< "[ Charges ] Gluon energy density    -->  Imported " << std::endl;}
     import_is_success = import_is_success && read_in_nK_quark(0, QuarkID::u );
     import_is_success = import_is_success && read_in_nK_quark(1, QuarkID::u );
     if(config.get_Verbose()){std::cout<< "[ Charges ] U-Quark constructions   -->  Imported "<< std::endl;}
@@ -230,7 +230,7 @@ std::string Charges::get_set_name(int n){
 
 void Charges::get_name_and_value(std::string testline,std::string &name, std::string &value){
   std::string line_temp= testline;
-  size_t pos = line_temp.find(":");
+  int pos = line_temp.find(":");
   name = line_temp.substr(0,pos);
   value = line_temp.substr(pos+1, line_temp.length()-pos );
   name.erase(std::remove(name.begin(),name.end(), ' '),name.end());
@@ -266,11 +266,11 @@ bool Charges::read_in_energy_gluons(){
         etau0_g[NX*i2+i1]=edensG_t;
       }
     }
-    for (size_t i1 = 0; i1 < NX; i1++) {T1array[i1]=T1Grid[i1]; }
-    for (size_t i2 = 0; i2 < NY; i2++) {T2array[i2]=T2Grid[NX*i2]; }
+    for (int i1 = 0; i1 < NX; i1++) {T1array[i1]=T1Grid[i1]; }
+    for (int i2 = 0; i2 < NY; i2++) {T2array[i2]=T2Grid[NX*i2]; }
 
-    size_t nx = sizeof(T1array) / sizeof(T1array[0]);
-    size_t ny = sizeof(T2array) / sizeof(T2array[0]);
+    int nx = sizeof(T1array) / sizeof(T1array[0]);
+    int ny = sizeof(T2array) / sizeof(T2array[0]);
 
     const gsl_interp2d_type *T= gsl_interp2d_bilinear;
     e_g_spl[iY] = gsl_spline2d_alloc(T, nx, ny);
@@ -316,10 +316,10 @@ bool Charges::read_in_nK_quark(int k, QuarkID qid){
   }
   fclose(table);
 
-  size_t neta = sizeof(Yarray) / sizeof(Yarray[0]);
-  size_t nx = sizeof(Tarray) / sizeof(Tarray[0]);
+  int neta = sizeof(Yarray) / sizeof(Yarray[0]);
+  int nx = sizeof(Tarray) / sizeof(Tarray[0]);
 
-  for (size_t ik = 0; ik < NQComp; ik++) {
+  for (int ik = 0; ik < NQComp; ik++) {
     const gsl_interp2d_type *T= gsl_interp2d_bilinear;
     if(k==0){
       if(qid==QuarkID::u){
@@ -603,7 +603,7 @@ void Charges::dump_charges(double T1,double T2){
   densityname << path_to_set <<"/charges_dump_T1_"<< T1<< "_T2_"<< T2<<".dat";
 	density_f.open(densityname.str());
 
-	for (size_t iy = 0; iy < config.get_NETA(); iy++) {
+	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 		// density_f<< std::endl;
     density_f<<y_t<< "\t"<<gluon_energy(y_t, T1,T2);
@@ -625,9 +625,9 @@ void Charges::dump_charges_eta(double eta ){
   double Tmax_t=8.;
   double Tmin_t=0;
   double dT_t= (Tmax_t-Tmin_t)/(double(NX) - 1.);
-  for (size_t i1 = 0; i1 < NX; i1++) {
+  for (int i1 = 0; i1 < NX; i1++) {
     double T1= i1*dT_t + Tmin_t;
-    for (size_t i2 = 0; i2 < NY; i2++) {
+    for (int i2 = 0; i2 < NY; i2++) {
       double T2= i2*dT_t + Tmin_t;
       density_f<<T1<< "\t"<<T2<< "\t"<<gluon_energy(eta, T1,T2);
       density_f<< "\t"<<quark_energy(eta, T1,T2);
