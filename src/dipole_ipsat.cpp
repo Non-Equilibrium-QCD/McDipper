@@ -678,7 +678,7 @@ void Dipole::Make_Momentum_Dipoles(){
 		Transform_Dipole(Rep::Adjoint);
 	}
 	else if(IPsat_pars::HankelTransMode==1){
-		if(DipVerbose){std::cerr<<"Transforming IP-Sat Dipoles using the Bessel-Zero method integration method" <<std::endl;}
+		if(DipVerbose){std::cerr<<"Transforming IP-Sat Dipoles using the Bessel-Zero integration method" <<std::endl;}
 		Transform_Dipole_Naive(Rep::Fundamental);
 		Transform_Dipole_Naive(Rep::Adjoint);
 	}
