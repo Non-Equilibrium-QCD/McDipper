@@ -48,8 +48,6 @@ include_directories(${CUBA_PATH}/src)
 list(APPEND LIBRARIES_TO_LINK ${CUBA_PATH}/libcuba.a)
 
 
-
-
 # Option for specifying LHAPDF path via command line
 option(LHAPDF_PATH "Path to LHAPDF library")
 if(NOT LHAPDF_FOUND)
@@ -80,6 +78,24 @@ set(SRC
     # Add other source files here
 )
 
+# Create the library
+add_library(McDIPPER_lib ${SRC})
+
+# Link libraries
+target_link_libraries(McDIPPER_lib
+    ${LIBRARIES_TO_LINK}
+)
+
+# Specify include directories for the library
+target_include_directories(McDIPPER_lib
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
+    # Add other include directories if needed
+)
+
+# Export the library as a target
+export(TARGETS McDIPPER_lib
+       FILE "${CMAKE_CURRENT_BINARY_DIR}/McDIPPER_libTargets.cmake"
+)
 file(COPY ${CMAKE_SOURCE_DIR}/ipsat DESTINATION  ${CMAKE_BINARY_DIR})
 
 # Create the executable
@@ -88,10 +104,3 @@ add_executable(mcDipper ${SRC})
 
 # Link libraries
 target_link_libraries(mcDipper ${LIBRARIES_TO_LINK}) # Add more libraries here if needed
-
-
-
-
-
-
-

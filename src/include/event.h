@@ -12,6 +12,19 @@
 
 enum class WeightMode : int { epsGluon = 0, epsQuark = 1, epsTot = 2};
 
+// STRUCT TO DEFINE AN EXTERNAL GRID - FOR USE AS LIBRARY //
+struct ExternalGrid{
+	int NX_EXT;
+	int NY_EXT;
+	int NETA_EXT;
+	double XMIN_EXT;
+	double XMAX_EXT;
+	double YMIN_EXT;
+	double YMAX_EXT;
+	double ETAMIN_EXT;
+	double ETAMAX_EXT;
+};
+
 class Event{
 	public:
 		Event(Config ConfInput);
@@ -22,6 +35,10 @@ class Event{
 		void get_impact_from_value(double AbsB, double ThetaB);
 		void sample_db_impact(double bmin, double bmax);
 		void sample_bdb_impact(double bmin, double bmax);
+		Nucleus CreateNucleusObject(int A, int Z, int mode);
+
+		// Function to return density at given (x,y,eta) point (used for a use of the code as a library)
+		void EventDensityCustomGrid(int EventID, ExternalGrid ExtGrid, double *density, int mode);
 
 		void MakeEventByEvent();
 		void InitializeAverageEvent();
@@ -86,6 +103,8 @@ class Event{
 		int get_ID(int ev,int Nruns){return Nruns*id + ev; }
 		int get_nmax(){return n_max;}
 		void set_nmax(double n_max_new){n_max=n_max_new;}
+		NucStruct get_N1(){return N1;}
+		NucStruct get_N2(){return N2;}
 
 		//Spectator Selection
 

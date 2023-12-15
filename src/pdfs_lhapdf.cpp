@@ -32,7 +32,7 @@ PDFs::PDFs(Config * ConfInput){
 	NF=flavour_vector.size();
 	if(PDF_Verbose){
 		std::cout<< PDFName << " distributions loaded for"<< std::endl ;
-		for (size_t i = 0; i < NF; i++) {
+		for (int i = 0; i < NF; i++) {
 			std::cout<< "  " << get_parton_name(flavour_vector[i]);
 		}
 		std::cout << std::endl;

@@ -11,3 +11,4 @@ Author  |  &ensp;E-Mail&ensp; | Copyright ©
 Author  |  &ensp;E-Mail&ensp; | Year
  :----:  |  :----: | :--------- 
  Hendrik Roch | [✉](mailto:roch@fias.uni-frankfurt.de) | `2023-`
+ Renata Krupczak | [✉](mailto:rkrupczak@physik.uni-bielefeld.de) | `2023-`

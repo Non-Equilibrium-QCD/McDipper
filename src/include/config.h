@@ -80,6 +80,13 @@ class Config{
     double get_KFactor(){return KFactor;}
     int get_NEvents(){return NEvents;}
     GlauberMode get_GlauberAcceptance(){return GMode;}
+    
+    // setter functions if the code is used as a library
+    void set_ImpactMode(ImpSample val){ImpactMode = val;}
+    void set_ImpactValue(double val){ImpactValue = val;}
+    void set_MaxImpact(double val){bMax = val;}
+    void set_MinImpact(double val){bMin = val;}
+    void set_KFactor(double val){KFactor = val;}
 
     //Grid!
 
@@ -92,6 +99,16 @@ class Config{
     double get_YMAX(){return YMAX;}
     double get_ETAMIN(){return ETAMIN;}
     double get_ETAMAX(){return ETAMAX;}
+
+    void set_NX(int val){NX=val;}
+    void set_NY(int val){NY=val;}
+    void set_NETA(int val){NETA=val;}
+    void set_XMIN(double val){XMIN=val;}
+    void set_XMAX(double val){XMAX=val;}
+    void set_YMIN(double val){YMIN=val;}
+    void set_YMAX(double val){YMAX=val;}
+    void set_ETAMIN(double val){ETAMIN=val;}
+    void set_ETAMAX(double val){ETAMAX=val;}
 
     double get_dX(){return dX;}
     double get_dY(){return dY;}
