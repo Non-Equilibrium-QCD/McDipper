@@ -1053,7 +1053,7 @@ Nucleus Event::CreateNucleusObject(int A, int Z, int mode){
 void Event::EventDensityCustomGrid(int EventID_ext, ExternalGrid ExtGrid, double *density, int mode){
 	EventID = 1;
 	// Use the external ID as a seed to avoid confusion if MPI is used
-	srand48(EventID_ext);// Dump this in the config?
+	srand48(EventID_ext);
 
 	double T1p_tmp;
 	double T1n_tmp;
@@ -1081,15 +1081,6 @@ void Event::EventDensityCustomGrid(int EventID_ext, ExternalGrid ExtGrid, double
 		
 		A1.shift_nucleus_by_impact(b1[0],b1[1]);
 		A2.shift_nucleus_by_impact(b2[0],b2[1]);
-		
-		#if OPTICAL==0
-		is_event_valid=true;
-		T1p_tmp = A1.get_Z()*A1.nuclear_thickness_optical(x-b1[0], y-b1[1]);
-		T1n_tmp = (A1.get_A()-A1.get_Z())*A1.nuclear_thickness_optical(x-b1[0], y-b1[1]);
-		T2p_tmp = A2.get_Z()*A2.nuclear_thickness_optical(x-b2[0], y-b2[1]);
-		T2n_tmp = (A2.get_A()-A2.get_Z())*A2.nuclear_thickness_optical(x-b2[0], y-b2[1]);
-		
-		#elif OPTICAL==1
 
 		CheckParticipants(&A1,&A2);
 		
@@ -1115,8 +1106,6 @@ void Event::EventDensityCustomGrid(int EventID_ext, ExternalGrid ExtGrid, double
 						T2p_tmp = A2.GetThickness_p(x,y, config.get_BG());
 						T2n_tmp = A2.GetThickness_n(x,y, config.get_BG());
 
-						
-
 						super_index = ix+ExtGrid.NX_EXT*iy+ExtGrid.NX_EXT*ExtGrid.NY_EXT*ieta;
 						if(mode == 0){ // energy density
 							eg_t = ChargeMaker->gluon_energy(eta, T1p_tmp+T1n_tmp, T2p_tmp+T2n_tmp) * config.get_KFactor() ;
@@ -1140,8 +1129,7 @@ void Event::EventDensityCustomGrid(int EventID_ext, ExternalGrid ExtGrid, double
 					}
 				}
 			}			
-		}
-		#endif
+		}.
 	}
 }
 
