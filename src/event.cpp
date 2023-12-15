@@ -1129,7 +1129,7 @@ void Event::EventDensityCustomGrid(int EventID_ext, ExternalGrid ExtGrid, double
 					}
 				}
 			}			
-		}.
+		}
 	}
 }
 
