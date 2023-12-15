@@ -271,8 +271,8 @@ void GBW::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
 				res21aq=0;err21aq=0;
 			}
 			else{
-				double x1min=gen_pars::PMIN *exp(y_t)/ config.get_collEnergy();
-				double x2min=gen_pars::PMIN *exp(-y_t)/ config.get_collEnergy();
+				//double x1min=gen_pars::PMIN *exp(y_t)/ config.get_collEnergy();
+				//double x2min=gen_pars::PMIN *exp(-y_t)/ config.get_collEnergy();
 				parameters.y = y_t ;
 				parameters.T = T_t;
 				parameters.quark_id = qid;

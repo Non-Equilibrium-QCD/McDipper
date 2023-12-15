@@ -139,10 +139,10 @@ Dipole::Dipole(int set, bool Verbose){
 	double d2Gfdu2[IPsat_pars::NY*IPsat_pars::NR];
 
 	double Y[IPsat_pars::NY];
-	double rY[IPsat_pars::NY][IPsat_pars::NR];
-	double r[IPsat_pars::NR];
+	[[maybe_unused]] double rY[IPsat_pars::NY][IPsat_pars::NR];
+	[[maybe_unused]] double r[IPsat_pars::NR];
 
-	double uY[IPsat_pars::NY][IPsat_pars::NR];
+	[[maybe_unused]] double uY[IPsat_pars::NY][IPsat_pars::NR];
 	double u[IPsat_pars::NR];
 
 	double y_t,r_t,G_t,Gp_t,Gpp_t,u_t;

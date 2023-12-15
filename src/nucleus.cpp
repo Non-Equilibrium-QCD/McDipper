@@ -69,7 +69,7 @@ Nucleus::~Nucleus(){
 
 double Nucleus::nuclear_density(double x,double y, double z){
 	double r_t = sqrt(x*x + y*y +z*z );
-	double R_t;
+	double R_t = 1.0; // set to dummy value to circumvent compiler warning, reset below
 	if(mode==0){R_t=NucPars[0];}
 	if(mode==1){
 		double Cos_th = z/r_t;
