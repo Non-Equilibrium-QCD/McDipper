@@ -96,6 +96,7 @@ target_include_directories(McDIPPER_lib
 export(TARGETS McDIPPER_lib
        FILE "${CMAKE_CURRENT_BINARY_DIR}/McDIPPER_libTargets.cmake"
 )
+file(COPY ${CMAKE_SOURCE_DIR}/ipsat DESTINATION  ${CMAKE_BINARY_DIR})
 
 # Create the executable
 add_executable(mcDipper ${SRC})

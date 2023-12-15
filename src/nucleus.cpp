@@ -69,7 +69,7 @@ Nucleus::~Nucleus(){
 
 double Nucleus::nuclear_density(double x,double y, double z){
 	double r_t = sqrt(x*x + y*y +z*z );
-	double R_t;
+	double R_t = 1.0; // set to dummy value to circumvent compiler warning, reset below
 	if(mode==0){R_t=NucPars[0];}
 	if(mode==1){
 		double Cos_th = z/r_t;
@@ -94,7 +94,7 @@ double Nucleus::nuclear_thickness_optical(double x,double y){
 		int NZ= int(2*ZMaxAbs/dz);
 
 		double thickness_unnorm=0;
-		for (size_t iz = 0; iz < NZ; iz++) {
+		for (int iz = 0; iz < NZ; iz++) {
 			double zz = dz*iz - ZMaxAbs;
 			if(iz==0 or iz==NZ-1){CC=1/2.;}
 			else{CC=1.;}

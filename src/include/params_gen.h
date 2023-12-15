@@ -55,7 +55,7 @@ namespace gen_pars{
   const double DP = (PMAX-PMIN)/(NP-1.);
   const int skip=2;
 
-  const size_t routine = 6;
+  const int routine = 6;
 
   //DipoleComputation
   const double pref_glue = dA*pow(2*M_PI,-4)/alpha_S/NC;
