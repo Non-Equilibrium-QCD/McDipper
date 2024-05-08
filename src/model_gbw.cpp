@@ -220,7 +220,8 @@ void GBW::make_gluon_energy(){
 			}
 			// density_f<<"\n";
 		}
-		density_f<<"\n";
+		density_f<<"\n";\
+		
 		if(config.get_Verbose()){
 			if(remainder(iy,gen_pars::skip)==0){double percentage_done = double(iy)/double(config.get_NETA());printProgress(percentage_done);}
 		}
@@ -271,8 +272,8 @@ void GBW::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
 				res21aq=0;err21aq=0;
 			}
 			else{
-				double x1min=gen_pars::PMIN *exp(y_t)/ config.get_collEnergy();
-				double x2min=gen_pars::PMIN *exp(-y_t)/ config.get_collEnergy();
+				// double x1min=gen_pars::PMIN *exp(y_t)/ config.get_collEnergy();
+				// double x2min=gen_pars::PMIN *exp(-y_t)/ config.get_collEnergy();
 				parameters.y = y_t ;
 				parameters.T = T_t;
 				parameters.quark_id = qid;

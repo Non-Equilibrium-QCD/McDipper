@@ -17,7 +17,7 @@ class Event{
 		Event(Config ConfInput);
 		virtual ~Event();
 
-		void NewEvent(int EventID);
+		void NewEvent(int EventID, Nucleus * A1, Nucleus *A2);
 		void MakeGrid();
 		void get_impact_from_value(double AbsB, double ThetaB);
 		void sample_db_impact(double bmin, double bmax);
@@ -27,6 +27,7 @@ class Event{
 		void InitializeAverageEvent();
 
 		double uni_nu_rn(){return drand48();}
+		int uni_nu_int(){return lrand48();}
 
 		// Interfaces of T1 and T2
 		const double& T1p (int64_t nx, int64_t ny) const ;
@@ -97,7 +98,8 @@ class Event{
 		// TOOLS!
 
 		double sigma_inelastic_fm2(double sqrts){return mb_to_fm2*(25.2 + 33.8/pow(sqrts,1.1) + 45.2/pow(sqrts,0.9) + 0.05*log(sqrts) + 0.56*pow(log(sqrts),2));}
-		double FifthOrderPoly(double x){return a5 * x + b5 * pow(x,2) + c5 * pow(x,3) + d5 * pow(x,4) + f5 * pow(x,5) + g5 ; }
+		// This function is the inverse to the dimensionless solution to the matching (sigmaInel/4piBG = F[sig_g/(4pi BG)])
+		double FitInverseInelXSec(double x){return  0.561459*exp(x) + 0.00615644*x - 0.0533597 ; } // Gives F^{-1}(sigmaInel/4piBG)
 
 
 
@@ -156,19 +158,13 @@ class Event{
 
 		void printProgress(double percentage);
 
-		//This are parameters for the MC-Glauber Sampling. 
-		double a5=0.339446;
-		double b5=0.00776864;
-		double c5=0.00819359;
-		double d5=-0.000767424;
-		double f5=0.0000886261;
-		double g5=-0.00637744;
+
 
 		double mb_to_fm2 = 0.1;
 	  	double fm2_to_mb = 1/mb_to_fm2;
 
-		double norm_sigma_inelastic_min= 0.5;
-		double norm_sigma_inelastic_max= 10.5;
+		double norm_sigma_inelastic_min= 1.0;
+		double norm_sigma_inelastic_max= 20.0;
 
 		/// Acceptance Functions//
 		bool is_sigma_in_range(double sigma){return (sigma > norm_sigma_inelastic_min && sigma < norm_sigma_inelastic_max ); }

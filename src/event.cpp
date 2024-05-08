@@ -21,10 +21,20 @@ namespace fs = std::filesystem;
 // Constructor and Destructor
 
 Event::Event(Config ConfInput){
-
 	config=Config(ConfInput);
+	
 	N1.A=config.get_A(1);N1.Z=config.get_Z(1);N1.mode=config.get_NuclearMode(1);
+	if(N1.mode==3){
+		N1.inputFile=config.get_NucleusInput(1);
+		N1.IsospinSpecified=config.get_IsospinDefinition(1);
+		N1.NConf=config.get_NConf(1);
+	}
 	N2.A=config.get_A(2);N2.Z=config.get_Z(2);N2.mode=config.get_NuclearMode(2);
+	if(N2.mode==3){
+		N2.inputFile=config.get_NucleusInput(2);
+		N2.IsospinSpecified=config.get_IsospinDefinition(2);
+		N2.NConf=config.get_NConf(2);
+	}
 
 	PrimalSeed=config.get_seed();
 	srand48(PrimalSeed);
@@ -39,13 +49,11 @@ Event::Event(Config ConfInput){
 	NETA= config.get_NETA();
 	MakeGrid();
 	if(config.print_avg_event()>0){InitializeAverageEvent();}
-	
+
 	ChargeMaker = new Charges(config);
-	
 	Initialize_output();
 
 	cell_trans_volume=config.get_dX()*config.get_dY();
-	
 }
 
 Event::~Event(){
@@ -122,12 +130,10 @@ double& Event:: nsAvg (int64_t ieta, int64_t nx, int64_t ny){return (nsAvg_ptr)[
 
 // Evaluation
 // Functions
-
-void Event::NewEvent(int EventID_in){
+		
+void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 	EventID=EventID_in;
-	// EventSeed =std::rand(); //  CHECK THIS !
 
-	// srand48(EventSeed);// Dump this in the config?
 	// Create Nuclei
 	bool is_event_valid=false;
 	if(config.get_Verbose()){
@@ -136,9 +142,8 @@ void Event::NewEvent(int EventID_in){
 	}
 
 	while(!is_event_valid){
-
-		Nucleus A1(N1.A,N1.Z,N1.mode);
-		Nucleus A2(N2.A,N2.Z,N2.mode);
+		A1->refresh_positions();
+		A2->refresh_positions();
 		//Sample b
 		if(config.get_ImpactMode()== ImpSample::Fixed){get_impact_from_value(config.get_ImpactValue(),0);}
 		else if(config.get_ImpactMode()== ImpSample::dbSampled){sample_db_impact(config.get_MinImpact(), config.get_MaxImpact());}
@@ -151,8 +156,8 @@ void Event::NewEvent(int EventID_in){
 			exit(EXIT_FAILURE);
 		}
 
-		A1.shift_nucleus_by_impact(b1[0],b1[1]);
-		A2.shift_nucleus_by_impact(b2[0],b2[1]);
+		A1->shift_nucleus_by_impact(b1[0],b1[1]);
+		A2->shift_nucleus_by_impact(b2[0],b2[1]);
 
 		#if OPTICAL==1
 		if(config.get_Verbose()){std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;}
@@ -161,10 +166,10 @@ void Event::NewEvent(int EventID_in){
 			for (int iy = 0; iy < config.get_NY(); iy++) {
 				double x_t= get_x(ix);
 				double y_t= get_y(iy);
-				T1p (ix,iy)= A1.get_Z()*A1.nuclear_thickness_optical(x_t-b1[0], y_t-b1[1]);
-				T1n (ix,iy)= (A1.get_A()-A1.get_Z() )*A1.nuclear_thickness_optical(x_t-b1[0], y_t-b1[1]);
-				T2p (ix,iy)= A2.get_Z()*A2.nuclear_thickness_optical(x_t-b2[0], y_t-b2[1]);
-				T2n (ix,iy)= (A2.get_A()-A2.get_Z() )*A2.nuclear_thickness_optical(x_t-b2[0], y_t-b2[1]);
+				T1p (ix,iy)= A1->get_Z()*A1->nuclear_thickness_optical(x_t-b1[0], y_t-b1[1]);
+				T1n (ix,iy)= (A1->get_A()-A1->get_Z() )*A1->nuclear_thickness_optical(x_t-b1[0], y_t-b1[1]);
+				T2p (ix,iy)= A2->get_Z()*A2->nuclear_thickness_optical(x_t-b2[0], y_t-b2[1]);
+				T2n (ix,iy)= (A2->get_A()-A2->get_Z() )*A2->nuclear_thickness_optical(x_t-b2[0], y_t-b2[1]);
 			}
 		}
 		MakeGlobalQuantities();
@@ -173,17 +178,17 @@ void Event::NewEvent(int EventID_in){
 
 		#elif OPTICAL==0
 
-		CheckParticipants(&A1,&A2);
+		CheckParticipants(A1,A2);
 
-		is_event_valid = (A1.get_number_of_participants()>0) && (A2.get_number_of_participants()>0);
+		is_event_valid = (A1->get_number_of_participants()>0) && (A2->get_number_of_participants()>0);
 		if(is_event_valid){
 			if(config.get_Verbose()){
 				std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;
-				std::cout<< "    Number of Participants: " <<A1.get_number_of_participants() + A2.get_number_of_participants() <<  "\n";
-				std::cout<< "    Number of Collisions: " <<A1.get_NColl()+A2.get_NColl() <<  "\n";
+				std::cout<< "    Number of Participants: " <<A1->get_number_of_participants() + A2->get_number_of_participants() <<  "\n";
+				std::cout<< "    Number of Collisions: " <<A1->get_NColl()+A2->get_NColl() <<  "\n";
 			}
 
-			dump_nucleon_pos(&A1,&A2);
+			dump_nucleon_pos(A1,A2);
 
 			if(config.get_Verbose()){std::cout<<"    Nucleon Positions written out\n";}
 
@@ -191,13 +196,13 @@ void Event::NewEvent(int EventID_in){
 				for (int iy = 0; iy < config.get_NY(); iy++) {
 					double x_t= get_x(ix);
 					double y_t= get_y(iy);
-					T1p (ix,iy)= A1.GetThickness_p(x_t,y_t, config.get_BG());
-					T1n (ix,iy)= A1.GetThickness_n(x_t,y_t, config.get_BG());
-					T2p (ix,iy)= A2.GetThickness_p(x_t,y_t, config.get_BG());
-					T2n (ix,iy)= A2.GetThickness_n(x_t,y_t, config.get_BG());
+					T1p (ix,iy)= A1->GetThickness_p(x_t,y_t, config.get_BG());
+					T1n (ix,iy)= A1->GetThickness_n(x_t,y_t, config.get_BG());
+					T2p (ix,iy)= A2->GetThickness_p(x_t,y_t, config.get_BG());
+					T2n (ix,iy)= A2->GetThickness_n(x_t,y_t, config.get_BG());
 				}
 			}
-			print_glauber_data_to_file(&A1,&A2);
+			print_glauber_data_to_file(A1,A2);
 
 			MakeGlobalQuantities();
 			bool is_charge_output= config.is_format("EMoments") || config.is_format("NMoments") || config.is_format("Charges");
@@ -218,10 +223,14 @@ void Event::NewEvent(int EventID_in){
 
 void Event::MakeEventByEvent(){
 
-	/* This function iterates over the number of listed EVENTS */
+	/* Create the nuclei for the evaluation */
+	Nucleus A1=Nucleus(N1);
+	Nucleus A2=Nucleus(N2);
+
+	
 	if( ev0 < config.get_NEvents()){
 		std::cerr<< "[ Warning::Event ]: Event generation starting from event # "<< ev0 << std::endl;
-		for (int ev = ev0; ev < config.get_NEvents(); ev++) {NewEvent(get_ID(ev,config.get_NEvents()));}
+		for (int ev = ev0; ev < config.get_NEvents(); ev++) {NewEvent(get_ID(ev,config.get_NEvents()),&A1,&A2);}
 	}
 	else{std::cerr<< "[ Error::Event ]: Initial event ID="<< ev0 << " larger than Nevents in config file. Exiting."<<std::endl;}
 	
@@ -904,9 +913,9 @@ double Event::ComputeIndividualOverlap_Exponential (Nucleus *N1,int ind1,Nucleus
 
 double Event::ComputeInteractionProbability(double CollisionOverlap){
     // DETERMINE NUCLEON-NUCLEON INELASTIC CROSS-SECTION //
-		double sigma0=2*M_PI*config.get_BG();
+		double sigma0=4*M_PI*config.get_BG();
 		double sigma_inelastic= sigma_inelastic_fm2(config.get_collEnergy());
-		double sigmaNN =sigma0 * FifthOrderPoly(sigma_inelastic/sigma0);
+		double sigmaNN =sigma0 * FitInverseInelXSec(sigma_inelastic/sigma0);
 
 		if(!is_sigma_in_range(sigma_inelastic/sigma0)){
 			// WARNING MESSAGE //
