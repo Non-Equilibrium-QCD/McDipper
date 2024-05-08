@@ -5,6 +5,7 @@
 #define NUCLEUS_H
 #include <iostream>
 
+#include "config.h"
 enum class Nucleon : int { proton = 0, neutron=1};
 
 class Nucleus{
@@ -12,7 +13,7 @@ class Nucleus{
 	according to Wood-Saxon's sampling, and it can compute the thickness for such realization. The nucleus class does not contain 
 	any memory allocated for a "Thickness Grid", that is in the event class. */
 	public:
-		Nucleus(int AtomicNumber,int ChargeNumber,int NucleusType);
+		Nucleus(NucStruct NucIn);
 		virtual ~Nucleus();
 		// 
 
@@ -22,7 +23,16 @@ class Nucleus{
 		void sample_single_position(double * x_t);
 		void set_nucleon_positions();
 		void rotate_nucleus();
+		void refresh_positions();
 		void shift_nucleus_by_impact(double bx,double by);
+
+		//Nuclear structure functions 	
+		void import_nuclear_configurations();
+		int ConfIndex(int ie,int n,int ix);
+		//Retrievers
+		const double& Configuration(int64_t ie, int64_t n, int64_t ix) const;
+		double& Configuration (int64_t ie, int64_t n, int64_t ix);
+		
 
 		// Thickness functions
 		double NucleonThickness(double x,double y,double x0,double y0,double BG);
@@ -36,6 +46,7 @@ class Nucleus{
 
 		// Tools
 		double uni_nu_rn(){return drand48();}
+		int uni_nu_int(){return lrand48();}
 
 		int get_A(){return A;}
 		int get_Z(){return Z;}
@@ -61,7 +72,11 @@ class Nucleus{
 		int Z; // Charge Number
  		int mode; //mode 0-> Spherical, 1-> deformed
 		std::string modeStr;
+		std::string InputName;
+		bool IsIsospinSpecified;
 
+		double * Configurations_ptr;
+		int NConf;
 
 		double * NucPars;
 
@@ -83,6 +98,8 @@ class Nucleus{
 		void rotate_X_axis(double *r, double theta);
 		void rotate_Y_axis(double *r, double theta);
 		void rotate_Z_axis(double *r, double theta);
+
+		void shuffle(int *array, size_t n);
 
 };
 

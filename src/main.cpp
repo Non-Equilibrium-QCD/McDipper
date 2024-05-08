@@ -22,6 +22,7 @@
 
 // -------------------------- HERE STARTS THE MAIN -------------------------------- //
 
+
 int main (int argc, char **argv) {
 
   if (argc!=3) {
@@ -29,10 +30,11 @@ int main (int argc, char **argv) {
     std::cerr << argv[0] << " -i path/to/config.yaml" << std::endl;
     exit(EXIT_FAILURE) ;
   }
-
+  
   std::string path_to_config(argv[2]);
   Config config(path_to_config);
-  
+
+
   Event EventGen(config);
   EventGen.MakeEventByEvent();
   
