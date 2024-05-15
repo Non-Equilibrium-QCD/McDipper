@@ -8,6 +8,7 @@
 #include <random>
 #include <string>
 #include <sstream>
+#include <algorithm>
 
 
 #include "include/config.h"
@@ -106,11 +107,32 @@ void Config::process_general_parameters(std::string testline){
       if(subheader=="Nucleus2"){Z2=std::stoi(value_t);}
     }
     if(name_t=="mode"){
-      if(subheader=="Nucleus1"){mode1=std::stoi(value_t);
-        if(mode1==0){mode1name="Spherical";}else if(mode1==1){mode1name="Deformed";}else if(mode1==2){mode1name="Non-Spherical";}
+      if(subheader=="Nucleus1"){
+        mode1=std::stoi(value_t);
+        if(mode1==0){mode1name="Spherical";}
+        else if(mode1==1){mode1name="Deformed";}
+        else if(mode1==2){mode1name="Non-Spherical";}
+        else if(mode1==3){mode1name="Input-Sampling";}
       }
-      if(subheader=="Nucleus2"){mode2=std::stoi(value_t);
-        if(mode2==0){mode2name="Spherical";}else if(mode2==1){mode2name="Deformed";}else if(mode2==2){mode2name="Non-Spherical";}}
+      if(subheader=="Nucleus2"){
+        mode2=std::stoi(value_t);
+        if(mode2==0){mode2name="Spherical";}
+        else if(mode2==1){mode2name="Deformed";}
+        else if(mode2==2){mode2name="Non-Spherical";}
+        else if(mode2==3){mode2name="Input-Sampling";}
+        }
+    }
+    if(name_t== "InputFile"){
+      if(subheader=="Nucleus1"){Nucleus1ListFile=value_t;}
+      if(subheader=="Nucleus2"){Nucleus2ListFile=value_t;}
+    }
+    if(name_t== "IsospinSpecified"){
+      if(subheader=="Nucleus1"){N1IsospinSpec=make_bool(value_t);}
+      if(subheader=="Nucleus2"){N2IsospinSpec=make_bool(value_t);}
+    }
+    if(name_t== "Configurations"){
+      if(subheader=="Nucleus1"){NConf1=std::stoi(value_t);}
+      if(subheader=="Nucleus2"){NConf2=std::stoi(value_t);}
     }
     if(name_t=="GlauberAcceptance"){
       if(value_t=="Standard"){GMode=GlauberMode::Standard;GModeStr="Standard";}
@@ -194,6 +216,11 @@ void Config::process_thickness_parameters(std::string testline){
   if(name_t=="TMax"){TMax=std::stod(value_t);}
   if(name_t=="TMin"){TMin=std::stod(value_t);}
   if(name_t=="NT"){NT=std::stoi(value_t);}
+  //set_TMax(TMax);                                        
+  //set_TMin(TMin);                                        
+  //set_NT(NT);                                            
+  if(name_t=="thick_fluct"){thick_fluct=std::stoi(value_t);}
+  if(name_t=="fluct_mode"){fluct_mode=value_t;}
 }
 
 
@@ -257,6 +284,7 @@ void Config::terminal_setup_output(){
   if(ImpactMode==ImpSample::bdbSampled){std::cout<< "       Impact Parameter Mode: 'Range'  for  b = [ "<<bMin<<" , "<< bMax <<" ] fm, Sampling: Quadratic  \n";}
   if(ImpactMode==ImpSample::dbSampled){std::cout<< "       Impact Parameter Mode: 'Range'  for  b = [ "<<bMin<<" , "<< bMax <<" ] fm, Sampling: Uniform \n";}
   std::cout<< "       Number of Events: "<< NEvents <<" , using a K-factor = "<< KFactor <<" for the gluon energy\n";
+  std::cout<< "       Running seed: "<< seed <<"\n";
   std::cout<< "|--------------------------------- Grid Parameters --------------------------------------|\n";
   std::cout<< "                       X=["<<XMIN<<","<< XMAX<< "] ,   NX = "<<NX<<" ,   dX = "<< dX << " fm \n";
   std::cout<< "                       Y=["<<YMIN<<","<< YMAX<< "] ,   NY = "<<NY<<" ,   dY = "<< dY << " fm \n";
@@ -300,11 +328,25 @@ void Config::dump(std::string OUTPATH){
   config_f << "    Nucleus1:\n";
   config_f << "        A: "<< A1<<"\n";
   config_f << "        Z: "<< Z1<<"\n";
-  if(A1>3){config_f << "        mode: "<< mode1<<"\n"; }
+  if(A1>3){
+    config_f << "        mode: "<< mode1<<"\n";
+    if(mode1==3){
+      config_f << "        InputFile: "<< Nucleus1ListFile<<"\n";
+      config_f << "        IsospinSpecified: "<< N1IsospinSpec<<"\n";
+      config_f << "        Configurations: "<< NConf1<<"\n";
+    } 
+  }
   config_f << "    Nucleus2:\n";
   config_f << "        A: "<< A2<<"\n";
   config_f << "        Z: "<< Z2<<"\n";
-  if(A2>3){config_f << "        mode: "<< mode2<<"\n"; }
+  if(A2>3){
+    config_f << "        mode: "<< mode2<<"\n";
+    if(mode2==3){
+      config_f << "        InputFile: "<< Nucleus2ListFile<<"\n";
+      config_f << "        IsospinSpecified: "<< N2IsospinSpec<<"\n";
+      config_f << "        Configurations: "<< NConf2<<"\n";
+    }
+  }
   config_f << "    Events: "<< NEvents << "\n";
   if(cModel==Model::GBW){config_f << "    Model: 0\n";}
   if(cModel==Model::IPSat){config_f << "    Model: 1\n";}
@@ -406,6 +448,8 @@ void Config::set_dump(std::string OUTPATH){
   config_f << "    TMax: "<< TMax<<"\n";
   config_f << "    TMin: "<< TMin<<"\n";
   config_f << "    NT: "<< NT<<"\n";
+  config_f << "    fluct_mode: "<< fluct_mode<<"\n"; 
+  config_f << "    thick_fluct: "<< thick_fluct<<"\n";
   config_f << "\n";
 config_f.close();
 }
@@ -416,7 +460,7 @@ config_f.close();
 
 int Config::count_indent(std::string testline){
   char cset[] = " ";
-  return std::strspn (testline.c_str(),cset);
+  return strspn (testline.c_str(),cset);
 }
 
 std::string Config::get_header(std::string testline){
@@ -459,7 +503,12 @@ void Config::remove_char(std::string &str_rem,char rem_char){
   str_rem.erase(std::remove(str_rem.begin(),str_rem.end(), rem_char),str_rem.end());
 }
 
-void Config::set_seed(){if(seed < 0){std::srand(time(NULL)); seed=std::rand();}}
+void Config::set_seed(){
+    if(seed < 0){
+      int time_seed = time(NULL);
+      std::srand(time_seed); seed=std::rand();
+    }
+  }
 
 
 
@@ -475,6 +524,13 @@ Config::Config(const Config& OldConf){
    Z1=OldConf.Z1;Z2=OldConf.Z2;
    mode1=OldConf.mode1;mode2=OldConf.mode2;
    mode1name=OldConf.mode1name;mode2name=OldConf.mode2name;
+   Nucleus1ListFile=OldConf.Nucleus1ListFile; 
+   Nucleus2ListFile=OldConf.Nucleus2ListFile;
+   N1IsospinSpec=OldConf.N1IsospinSpec;
+   N2IsospinSpec=OldConf.N2IsospinSpec;
+   NConf1=OldConf.NConf1;
+   NConf2=OldConf.NConf2;
+   
    sqrtsNN=OldConf.sqrtsNN;
    ImpactMode=OldConf.ImpactMode;
    ImpactValue=OldConf.ImpactValue;
@@ -506,6 +562,8 @@ Config::Config(const Config& OldConf){
    //Thickness_Parameters
    TMax= OldConf.TMax;
    TMin= OldConf.TMin;
+   fluct_mode=OldConf.fluct_mode;                    
+   thick_fluct=OldConf.thick_fluct;
    NT= OldConf.NT;
    // if(Verbose){terminal_setup_output();}
 }
@@ -518,6 +576,13 @@ bool Config::compare_grid_parameters (Config *OldConf, double tolerance){
   is_equal= is_equal && ( NDiff(ETAMIN,OldConf->get_ETAMIN())<tolerance ) ;
   is_equal= is_equal && ( NDiff(ETAMAX,OldConf->get_ETAMAX())<tolerance ) ;
   return is_equal;
+}
+
+bool Config::compare_Thickness_parameters (Config *OldConf, double tolerance){
+    bool is_equal= ( NT==OldConf->get_NT()) ;
+    is_equal= is_equal && ( NDiff(TMin,OldConf->get_TMin())<tolerance ) ;
+    is_equal= is_equal && ( NDiff(TMax,OldConf->get_TMax())<tolerance ) ;
+    return is_equal;
 }
 
 bool Config::compare_PDF_parameters (Config *OldConf, double tolerance){

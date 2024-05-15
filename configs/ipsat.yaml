@@ -1,4 +1,4 @@
-Version: 1.0
+Version: 1.1
 
 Logging:
     Verbose: True
@@ -19,11 +19,10 @@ General:
     Impact:
         Range: [0, 40]
         Sampling: Quadratic
-    Seed: 1979994328
     PDFs:
       PDFSet: CT18NNLO
       ForcePositive: 1
-    K-Factor: 1.
+    K-Factor: 2.25
 
 Grid:
     NX:        241

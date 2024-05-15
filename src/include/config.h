@@ -13,7 +13,7 @@ enum class Model : int { GBW = 0, IPSat = 1, MV = 2, GBWSimp = 3};
 enum class QuarkID : int { u = 2, d = 1, s = 3,ubar = -2, dbar = -1, sbar = -3, g=21 };
 enum class GlauberMode : int { Standard = 0, Gaussian=1, Exponential=2};
 
-struct NucStruct{ int A; int Z;int mode;};
+struct NucStruct{ int A; int Z;int mode;std::string inputFile; bool IsospinSpecified; int NConf;};
 
 class Config{
   /*  This is the config class. It reads in configuration files necessary for the EbE HICs initial conditions */ 
@@ -52,6 +52,7 @@ class Config{
     // Operational Instructions
 
     bool compare_grid_parameters (Config *OldConf, double tolerance);
+    bool compare_Thickness_parameters (Config *OldConf, double tolerance);
     bool compare_model_parameters (Config *OldConf, double tolerance);
     bool compare_PDF_parameters (Config *OldConf, double tolerance);
 
@@ -66,6 +67,18 @@ class Config{
     int get_A(int i){int A_t=-1;if(i==1){A_t=A1;}else if(i==2){A_t=A2;}return A_t;};
     int get_Z(int i){int Z_t=-1;if(i==1){Z_t=Z1;}else if(i==2){Z_t=Z2;}return Z_t;};
     int get_NuclearMode(int i){int mode_t=-1; if(i==1){mode_t=mode1;}else if(i==2){mode_t=mode2;}return mode_t;};
+    std::string get_NucleusInput(int i){
+      std::string input=""; 
+      if(i==1 && mode1==3){input=Nucleus1ListFile;}
+      else if(i==2 && mode2==3){input=Nucleus2ListFile;}
+      return input;
+    };
+    bool get_IsospinDefinition(int i){
+      int IsoDef_t=false;
+      if(i==1 && mode1==3){IsoDef_t= N1IsospinSpec;}
+      else if(i==2 && mode2 ==3){IsoDef_t= N2IsospinSpec;}
+      return IsoDef_t;};
+    int get_NConf(int i){int NConf_t=0;if(i==1){NConf_t=NConf1;}else if(i==2){NConf_t=NConf2;}return NConf_t;};
 
     std::string get_PDFSet(){return cPDFSetStr;}
     int get_ForcedPositive(){return cForcedMode;}
@@ -113,6 +126,8 @@ class Config{
     double get_TMin(){return TMin;}
     int get_NT(){return NT;}
     double get_dT(){return dT;}
+    double get_thick_fluct(){return thick_fluct;}
+    std::string get_fluct_mode(){return fluct_mode;}
 
     void set_TMax(double TMax_new){TMax=TMax_new;}
     void set_TMin(double TMin_new){TMin=TMin_new;}
@@ -148,6 +163,13 @@ class Config{
     int A1,A2;
     int Z1,Z2;
     int mode1, mode2;
+    std::string Nucleus1ListFile="";
+    std::string Nucleus2ListFile="";
+    bool N1IsospinSpec=false;
+    bool N2IsospinSpec=false;
+    int NConf1 = 0;
+    int NConf2 = 0;
+    
     std::string mode1name,mode2name;
     double sqrtsNN;
     GlauberMode GMode=GlauberMode::Standard;
@@ -189,7 +211,8 @@ class Config{
     double TMin=-1;
     int NT=-1;
     double dT;
-
+    double thick_fluct=-1.0;
+    std::string fluct_mode="Uniform";
     
     //Tools
     int count_indent(std::string testline);
@@ -202,7 +225,11 @@ class Config{
     void remove_char(std::string &str_rem,char rem_char);
     void retrieve_range(std::string rangestring, double &xmin, double &xmax);
 
-    double NDiff(double a, double b){ return fabs( (a-b)/a );}
+    double NDiff(double a, double b)
+    {
+        if (a==0.0 || b==0.0) {return fabs(a-b);}
+        else {return fabs( (a-b)/a );}
+    }
 
     //Temps
     std::string subheader;
