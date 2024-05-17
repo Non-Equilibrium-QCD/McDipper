@@ -13,7 +13,13 @@ enum class Model : int { GBW = 0, IPSat = 1, MV = 2, GBWSimp = 3};
 enum class QuarkID : int { u = 2, d = 1, s = 3,ubar = -2, dbar = -1, sbar = -3, g=21 };
 enum class GlauberMode : int { Standard = 0, Gaussian=1, Exponential=2};
 
-struct NucStruct{ int A; int Z;int mode;std::string inputFile; bool IsospinSpecified; int NConf;};
+struct NucStruct{ 
+    int A; int Z;int mode;
+    std::string inputFile; 
+    bool IsospinSpecified; int NConf; 
+    int hotspots_num; double hotspots_width; double hotspots_dist_width;
+    std::string fluct_mode; double thick_fluct;
+};
 
 class Config{
   /*  This is the config class. It reads in configuration files necessary for the EbE HICs initial conditions */ 
@@ -52,6 +58,7 @@ class Config{
     // Operational Instructions
 
     bool compare_grid_parameters (Config *OldConf, double tolerance);
+    bool compare_Thickness_parameters (Config *OldConf, double tolerance);
     bool compare_model_parameters (Config *OldConf, double tolerance);
     bool compare_PDF_parameters (Config *OldConf, double tolerance);
 
@@ -78,6 +85,11 @@ class Config{
       else if(i==2 && mode2 ==3){IsoDef_t= N2IsospinSpec;}
       return IsoDef_t;};
     int get_NConf(int i){int NConf_t=0;if(i==1){NConf_t=NConf1;}else if(i==2){NConf_t=NConf2;}return NConf_t;};
+
+    int get_hotspots_num() {return hotspots_num;}
+    double get_hotspots_width() {return hotspots_width;}
+    double get_hotspots_width_sqr() {return hotspots_width_sqr;}
+    double get_hotspots_dist_width() {return pow( (BG-hotspots_width_sqr) / (1.0-1.0/hotspots_num), 0.5);}
 
     std::string get_PDFSet(){return cPDFSetStr;}
     int get_ForcedPositive(){return cForcedMode;}
@@ -125,6 +137,8 @@ class Config{
     double get_TMin(){return TMin;}
     int get_NT(){return NT;}
     double get_dT(){return dT;}
+    double get_thick_fluct(){return thick_fluct;}
+    std::string get_fluct_mode() {return fluct_mode;}
 
     void set_TMax(double TMax_new){TMax=TMax_new;}
     void set_TMin(double TMin_new){TMin=TMin_new;}
@@ -167,6 +181,11 @@ class Config{
     int NConf1 = 0;
     int NConf2 = 0;
     
+    int hotspots_num = 1;
+    double hotspots_width = 0.0;
+    double hotspots_width_sqr = 0.0;
+    double hotspots_dist_width = 0.0;
+     
     std::string mode1name,mode2name;
     double sqrtsNN;
     GlauberMode GMode=GlauberMode::Standard;
@@ -208,7 +227,8 @@ class Config{
     double TMin=-1;
     int NT=-1;
     double dT;
-
+    double thick_fluct=-1.0;
+    std::string fluct_mode="Uniform";
     
     //Tools
     int count_indent(std::string testline);
@@ -221,7 +241,11 @@ class Config{
     void remove_char(std::string &str_rem,char rem_char);
     void retrieve_range(std::string rangestring, double &xmin, double &xmax);
 
-    double NDiff(double a, double b){ return fabs( (a-b)/a );}
+    double NDiff(double a, double b)                       
+    {                                                    
+        if (a==0.0 || b==0.0) {return fabs(a-b);}        
+        else {return fabs( (a-b)/a );}                   
+    }
 
     //Temps
     std::string subheader;

@@ -8,6 +8,7 @@
 #include <random>
 #include <string>
 #include <sstream>
+#include <algorithm>
 
 
 #include "include/config.h"
@@ -169,6 +170,11 @@ void Config::process_grid_parameters(std::string testline){
   if(name_t=="Y_RANGE"){retrieve_range(value_t,YMIN,YMAX);}
   if(name_t=="ETA_RANGE"){retrieve_range(value_t,ETAMIN,ETAMAX);}
   if(name_t=="BG"){BG=std::stod(value_t);} // In fm2
+  if(name_t=="HOTSPOTS_NUM"){hotspots_num=std::stod(value_t);}
+  if(name_t=="HOTSPOTS_WIDTH"){
+      hotspots_width=std::stod(value_t);
+      hotspots_width_sqr=hotspots_width*hotspots_width;    
+    }
 }
 
 void Config::fill_up_grid_params(){
@@ -215,6 +221,8 @@ void Config::process_thickness_parameters(std::string testline){
   if(name_t=="TMax"){TMax=std::stod(value_t);}
   if(name_t=="TMin"){TMin=std::stod(value_t);}
   if(name_t=="NT"){NT=std::stoi(value_t);}
+  if(name_t=="thick_fluct"){thick_fluct=std::stoi(value_t);}
+  if(name_t=="fluct_mode"){fluct_mode=value_t;}
 }
 
 
@@ -424,6 +432,8 @@ void Config::set_dump(std::string OUTPATH){
   config_f << "    Y_RANGE: ["<< YMIN<<","<< YMAX <<"]\n";
   config_f << "    ETA_RANGE: ["<< ETAMIN<<","<< ETAMAX <<"]\n";
   config_f << "    BG: "<< BG<<"\n";
+  config_f << "    HOTSPOTS_WIDTH: "<< hotspots_width <<"\n";
+  config_f << "    HOTSPOTS_NUM: "<< hotspots_num << "\n";
   config_f << "\n";
   config_f << "Model_Parameters:\n";
   if(cModel==Model::GBW){
@@ -442,6 +452,7 @@ void Config::set_dump(std::string OUTPATH){
   config_f << "    TMax: "<< TMax<<"\n";
   config_f << "    TMin: "<< TMin<<"\n";
   config_f << "    NT: "<< NT<<"\n";
+  config_f << "    thick_fluct: "<< thick_fluct<<"\n";
   config_f << "\n";
 config_f.close();
 }
@@ -452,7 +463,7 @@ config_f.close();
 
 int Config::count_indent(std::string testline){
   char cset[] = " ";
-  return std::strspn (testline.c_str(),cset);
+  return strspn (testline.c_str(),cset);
 }
 
 std::string Config::get_header(std::string testline){
@@ -555,6 +566,8 @@ Config::Config(const Config& OldConf){
    TMax= OldConf.TMax;
    TMin= OldConf.TMin;
    NT= OldConf.NT;
+   fluct_mode=OldConf.fluct_mode;
+   thick_fluct=OldConf.thick_fluct;
    // if(Verbose){terminal_setup_output();}
 }
 
@@ -566,6 +579,13 @@ bool Config::compare_grid_parameters (Config *OldConf, double tolerance){
   is_equal= is_equal && ( NDiff(ETAMIN,OldConf->get_ETAMIN())<tolerance ) ;
   is_equal= is_equal && ( NDiff(ETAMAX,OldConf->get_ETAMAX())<tolerance ) ;
   return is_equal;
+}
+
+bool Config::compare_Thickness_parameters (Config *OldConf, double tolerance){
+    bool is_equal= ( NT==OldConf->get_NT()) ;
+    is_equal= is_equal && ( NDiff(TMin,OldConf->get_TMin())<tolerance ) ;
+    is_equal= is_equal && ( NDiff(TMax,OldConf->get_TMax())<tolerance ) ;
+    return is_equal;
 }
 
 bool Config::compare_PDF_parameters (Config *OldConf, double tolerance){

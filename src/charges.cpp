@@ -179,6 +179,7 @@ bool Charges::check_config(){
   is_config = is_config && config.compare_model_parameters(set_conf,double_tolerance);
   is_config = is_config && config.compare_collEnergy(set_conf->get_collEnergy(), double_tolerance);
   is_config = is_config && config.compare_PDF_parameters(set_conf, double_tolerance);
+  is_config = is_config && config.compare_Thickness_parameters(set_conf, double_tolerance);
 
   if(is_config){config_set = Config(path_to_config.str());}
   return is_config;

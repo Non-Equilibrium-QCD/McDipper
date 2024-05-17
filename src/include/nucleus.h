@@ -4,6 +4,8 @@
 #ifndef NUCLEUS_H
 #define NUCLEUS_H
 #include <iostream>
+#include <random>
+#include "random.h"
 
 #include "config.h"
 enum class Nucleon : int { proton = 0, neutron=1};
@@ -21,8 +23,10 @@ class Nucleus{
 		double nuclear_thickness_optical(double x,double y);
 		double random_position();
 		void sample_single_position(double * x_t);
+        void sample_hotspots(double * x_t);
 		void set_nucleon_positions();
 		void rotate_nucleus();
+        void Thickness_fluct();
 		void refresh_positions();
 		void shift_nucleus_by_impact(double bx,double by);
 
@@ -35,7 +39,7 @@ class Nucleus{
 		
 
 		// Thickness functions
-		double NucleonThickness(double x,double y,double x0,double y0,double BG);
+		double NucleonThickness(double x,double y,double x0,double y0,int n,double BG);
 		double GetThickness(double xt,double yt,double BG);
 		double GetThickness_p(double xt,double yt,double BG);
 		double GetThickness_n(double xt,double yt,double BG);
@@ -43,10 +47,16 @@ class Nucleus{
 		// Nucleon positions
 		void get_position_nucleon(int n, double &x, double &y,  double &z);
 		void get_trans_position_nucleon(int n, double &x, double &y);
+		void get_trans_position_hotspot(int n, double &x, double &y, int hotspoti);
 
 		// Tools
 		double uni_nu_rn(){return drand48();}
 		int uni_nu_int(){return lrand48();}
+
+        std::gamma_distribution<double> gamma_dist;
+        std::lognormal_distribution<double> lognorm_dist;
+        std::normal_distribution<double> hotspots_posi_dist;
+
 
 		int get_A(){return A;}
 		int get_Z(){return Z;}
@@ -66,6 +76,7 @@ class Nucleus{
 		void add_Participant(){NumberOfParticipants++;}
 
 		int get_number_of_participants(){return NumberOfParticipants;}
+		int get_number_of_hotspots(){return hotspots_num;}
 
 	private:
 		int A;  // Atomic Number
@@ -78,10 +89,20 @@ class Nucleus{
 		double * Configurations_ptr;
 		int NConf;
 
+        int hotspots_num;
+        double hotspots_width;
+        double hotspots_width_sqr;
+        double hotspots_dist_width;
+        
+        double thick_fluct;
+        std::string fluct_mode;
+
 		double * NucPars;
 
-		double ** r;
+		double ** r;// r is a vector which contains each nucleon's information (x,y,z, hotspot_1x, hotspot_1y, hotspot_2x, hotspot_2y, ...)
 		double * rBar;
+
+        double ** w;
 
 		Nucleon * NucleonType;
 		int * ParticipantStatus;
