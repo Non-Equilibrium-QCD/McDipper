@@ -269,7 +269,7 @@ void Nucleus::Thickness_fluct(){
         {
             if (ParticipantStatus[i]==1)
             {
-                w[i]=lognorm_dist(engine);
+                w[i]=lognorm_dist(engine)/exp(thick_fluct*thick_fluct/2.0);
             }
             else
             {w[i]=0.0;}
