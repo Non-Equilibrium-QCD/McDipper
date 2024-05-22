@@ -170,7 +170,7 @@ void Config::process_grid_parameters(std::string testline){
   if(name_t=="Y_RANGE"){retrieve_range(value_t,YMIN,YMAX);}
   if(name_t=="ETA_RANGE"){retrieve_range(value_t,ETAMIN,ETAMAX);}
   if(name_t=="BG"){BG=std::stod(value_t);} // In fm2
-  if(name_t=="HOTSPOTS_NUM"){hotspots_num=std::stod(value_t);}
+  if(name_t=="HOTSPOTS_NUM"){hotspots_num=std::stoi(value_t);}
   if(name_t=="HOTSPOTS_WIDTH"){
       hotspots_width=std::stod(value_t);
       hotspots_width_sqr=hotspots_width*hotspots_width;    
@@ -221,7 +221,7 @@ void Config::process_thickness_parameters(std::string testline){
   if(name_t=="TMax"){TMax=std::stod(value_t);}
   if(name_t=="TMin"){TMin=std::stod(value_t);}
   if(name_t=="NT"){NT=std::stoi(value_t);}
-  if(name_t=="thick_fluct"){thick_fluct=std::stoi(value_t);}
+  if(name_t=="thick_fluct"){thick_fluct=std::stod(value_t);}
   if(name_t=="fluct_mode"){fluct_mode=value_t;}
 }
 
