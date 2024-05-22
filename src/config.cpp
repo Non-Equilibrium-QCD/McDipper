@@ -388,6 +388,15 @@ void Config::dump(std::string OUTPATH){
 
   }
   config_f << "\n";
+  
+  config_f << "Thickness:\n";
+  config_f << "    TMax: "<< TMax<<"\n";
+  config_f << "    TMin: "<< TMin<<"\n";
+  config_f << "    NT: "<< NT<<"\n";
+  config_f << "    fluct_mode: "<< fluct_mode<<"\n"; 
+  config_f << "    thick_fluct: "<< thick_fluct<<"\n";
+  config_f << "\n";
+
   config_f << "Output:\n";
   config_f << "    path_to_output: "<< path_to_output<<"\n";
   config_f << "    Format:  [";
