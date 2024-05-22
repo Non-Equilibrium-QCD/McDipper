@@ -333,6 +333,8 @@ void Nucleus::Thickness_fluct(){
             { for (int j=0; j<hotspots_num; j++) {w[i][j]=0.0;} }
         }
     }
+    else
+    { std::cerr << "Please choose fluct_mode from Gamma, Log_Normal or Uniform!!!" << std::endl;}
 }
 
 void Nucleus::refresh_positions(){
