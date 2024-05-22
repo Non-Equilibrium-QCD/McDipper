@@ -375,6 +375,8 @@ void Config::dump(std::string OUTPATH){
   config_f << "    Y_RANGE: ["<< YMIN<<","<< YMAX <<"]\n";
   config_f << "    ETA_RANGE: ["<< ETAMIN<<","<< ETAMAX <<"]\n";
   config_f << "    BG: "<< BG<<"\n";
+  config_f << "    HOTSPOTS_WIDTH: "<< hotspots_width <<"\n";
+  config_f << "    HOTSPOTS_NUM: "<< hotspots_num << "\n";
   config_f << "\n";
   config_f << "Model_Parameters:\n";
   if(cModel==Model::GBW){
@@ -389,6 +391,12 @@ void Config::dump(std::string OUTPATH){
     config_f << "    P_reg: "<<ModelPars[2]<<  "\n";
 
   }
+  config_f << "\n";
+  config_f << "Thickness:\n";
+  config_f << "    TMax: "<< TMax<<"\n";
+  config_f << "    TMin: "<< TMin<<"\n";
+  config_f << "    NT: "<< NT<<"\n";
+  config_f << "    thick_fluct: "<< thick_fluct<<"\n";
   config_f << "\n";
   config_f << "Output:\n";
   config_f << "    path_to_output: "<< path_to_output<<"\n";
@@ -432,8 +440,6 @@ void Config::set_dump(std::string OUTPATH){
   config_f << "    Y_RANGE: ["<< YMIN<<","<< YMAX <<"]\n";
   config_f << "    ETA_RANGE: ["<< ETAMIN<<","<< ETAMAX <<"]\n";
   config_f << "    BG: "<< BG<<"\n";
-  config_f << "    HOTSPOTS_WIDTH: "<< hotspots_width <<"\n";
-  config_f << "    HOTSPOTS_NUM: "<< hotspots_num << "\n";
   config_f << "\n";
   config_f << "Model_Parameters:\n";
   if(cModel==Model::GBW){
@@ -447,12 +453,6 @@ void Config::set_dump(std::string OUTPATH){
     config_f << "    XScaling: "<<ModelPars[1]<<  "\n";
     config_f << "    P_reg: "<<ModelPars[2]<<  "\n";
   }
-  config_f << "\n";
-  config_f << "Thickness:\n";
-  config_f << "    TMax: "<< TMax<<"\n";
-  config_f << "    TMin: "<< TMin<<"\n";
-  config_f << "    NT: "<< NT<<"\n";
-  config_f << "    thick_fluct: "<< thick_fluct<<"\n";
   config_f << "\n";
 config_f.close();
 }
