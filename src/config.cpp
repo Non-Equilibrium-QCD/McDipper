@@ -219,7 +219,7 @@ void Config::process_thickness_parameters(std::string testline){
   //set_TMax(TMax);                                        
   //set_TMin(TMin);                                        
   //set_NT(NT);                                            
-  if(name_t=="thick_fluct"){thick_fluct=std::stoi(value_t);}
+  if(name_t=="thick_fluct"){thick_fluct=std::stod(value_t);}
   if(name_t=="fluct_mode"){fluct_mode=value_t;}
 }
 
