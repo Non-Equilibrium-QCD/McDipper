@@ -33,9 +33,9 @@ Nucleus::Nucleus(NucStruct NucIn){
         fluct_mode=NucIn.fluct_mode;
         thick_fluct=NucIn.thick_fluct;
 
-        if (fluct_mode=="Gamma"){std::gamma_distribution<double> gamma_dist(thick_fluct, 1.0/thick_fluct);}
-        if (fluct_mode=="Log_Normal"){std::lognormal_distribution<double> lognorm_dist(0.0,thick_fluct);}
-        if (hotspots_num>1){std::normal_distribution<double> hotspots_posi_dist(0.0, hotspots_dist_width);}
+        if (fluct_mode=="Gamma"){gamma_dist=std::gamma_distribution<double>(thick_fluct, 1.0/thick_fluct);}
+        if (fluct_mode=="Log_Normal"){lognorm_dist=std::lognormal_distribution<double>(0.0,thick_fluct);}
+        if (hotspots_num>1){hotspots_posi_dist=std::normal_distribution<double>(0.0, hotspots_dist_width);}
 
 		// Chose parameter structure according to
 		if(mode<3){
