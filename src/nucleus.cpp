@@ -25,8 +25,8 @@ Nucleus::Nucleus(NucStruct NucIn, double thick_fluct, std::string fluct_mode): t
 		InputName=NucIn.inputFile;
 		IsIsospinSpecified=NucIn.IsospinSpecified;
 		NConf=NucIn.NConf;
-        if (fluct_mode=="Gamma"){std::gamma_distribution<double> gamma_dist(thick_fluct, 1.0/thick_fluct);}
-        if (fluct_mode=="Log_Normal"){std::lognormal_distribution<double> lognorm_dist(0.0,thick_fluct);}
+        	if (fluct_mode=="Gamma"){gamma_dist=std::gamma_distribution<double>(thick_fluct, 1.0/thick_fluct);}
+        	if (fluct_mode=="Log_Normal"){lognorm_dist=std::lognormal_distribution<double>(0.0,thick_fluct);}
 		// Chose parameter structure according to
 		if(mode<3){
 			if(A==1){modeStr="Proton";}
