@@ -397,6 +397,7 @@ void Config::dump(std::string OUTPATH){
   config_f << "    TMin: "<< TMin<<"\n";
   config_f << "    NT: "<< NT<<"\n";
   config_f << "    thick_fluct: "<< thick_fluct<<"\n";
+  config_f << "    fluct_mode:  "<< fluct_mode <<"\n";
   config_f << "\n";
   config_f << "Output:\n";
   config_f << "    path_to_output: "<< path_to_output<<"\n";
@@ -550,6 +551,9 @@ Config::Config(const Config& OldConf){
    ETAMAX=OldConf.ETAMAX;ETAMIN=OldConf.ETAMIN;
    dX=OldConf.dX;dY=OldConf.dY;dETA=OldConf.dETA; /* fm */
    BG = OldConf.BG; /// In fm^2
+   hotspots_num=OldConf.hotspots_num;
+   hotspots_width=OldConf.hotspots_width;
+   hotspots_width_sqr=OldConf.hotspots_width_sqr;
    // Model Parameters
    for (int i = 0; i < 10; i++) {ModelPars[i]=OldConf.ModelPars[i];}
    NModelParams=OldConf.NModelParams;
