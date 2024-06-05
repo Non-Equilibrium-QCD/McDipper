@@ -455,6 +455,13 @@ void Config::set_dump(std::string OUTPATH){
     config_f << "    P_reg: "<<ModelPars[2]<<  "\n";
   }
   config_f << "\n";
+  config_f << "Thickness:\n";
+  config_f << "    TMax: "<< TMax<<"\n";
+  config_f << "    TMin: "<< TMin<<"\n";
+  config_f << "    NT: "<< NT<<"\n";
+  config_f << "    thick_fluct: "<< thick_fluct<<"\n";
+  config_f << "    fluct_mode:  "<< fluct_mode <<"\n";
+  config_f << "\n";
 config_f.close();
 }
 
