@@ -103,9 +103,9 @@ class Event{
     
 		// This function is the inverse to the solution to the matching (sigmaInel = F[sig_g] in hotspot case)
 		double FitInverse_parton_sigma(double x)
-        {return exp(0.000668144874*pow(x,5)-0.0179029924*pow(x,4) +0.178578559*pow(x,3)-0.621370047*pow(x,2)+2.05178913*x-1.2402280);}
-
-
+        	{return exp(0.000307231898*pow(x,5)-0.00941060923*pow(x,4)+0.110155447*pow(x,3)-0.556793005*pow(x,2)+1.95110038*x-1.30207108);}//v=0.2fm
+		//{return exp(0.000668144874*pow(x,5)-0.0179029924*pow(x,4) +0.178578559*pow(x,3)-0.621370047*pow(x,2)+2.05178913*x-1.2402280);}//v=0.116fm
+		
 	private:
 		//int Nthreads=1;
 		int id=0;
