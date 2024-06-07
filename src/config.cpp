@@ -347,6 +347,8 @@ void Config::dump(std::string OUTPATH){
       config_f << "        Configurations: "<< NConf2<<"\n";
     }
   }
+  
+  config_f << " GlauberAcceptance: " << GModeStr << "\n";
   config_f << "    Events: "<< NEvents << "\n";
   if(cModel==Model::GBW){config_f << "    Model: 0\n";}
   if(cModel==Model::IPSat){config_f << "    Model: 1\n";}
@@ -539,7 +541,9 @@ Config::Config(const Config& OldConf){
    N2IsospinSpec=OldConf.N2IsospinSpec;
    NConf1=OldConf.NConf1;
    NConf2=OldConf.NConf2;
-   
+   GMode=OldConf.GMode;
+   GModeStr=OldConf.GModeStr;
+  
    sqrtsNN=OldConf.sqrtsNN;
    ImpactMode=OldConf.ImpactMode;
    ImpactValue=OldConf.ImpactValue;
