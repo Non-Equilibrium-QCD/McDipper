@@ -27,7 +27,7 @@ Nucleus::Nucleus(NucStruct NucIn){
 		NConf=NucIn.NConf;
 
 		// Chose parameter structure according to
-		if(mode<3){
+		if(mode<10){
 			if(A==1){modeStr="Proton";}
 			else if(A==2 && Z==1){modeStr="Deuteron";}
 			else if(A==3 && Z==2){modeStr="He3";}
@@ -42,6 +42,9 @@ Nucleus::Nucleus(NucStruct NucIn){
 					case 2:
 						NucPars=new double[5];
 						modeStr="Non-Spherical";break;
+					case 3:
+						NucPars=new double[3];
+						modeStr="Neutron-Skin";break;
 					default:
 						std::cerr<<"Error: Nucleus type not implemented. Exiting.";exit(EXIT_FAILURE);
 				}
@@ -53,7 +56,7 @@ Nucleus::Nucleus(NucStruct NucIn){
 			}
 			else{std::cerr<<"Error: Nucleus type not implemented. Exiting.";exit(EXIT_FAILURE); }
 		}
-		else if(mode==3){
+		else if(mode==10){
 			modeStr="Input-Sampling";
 			import_nuclear_configurations();
 			// Here we open the configurations file and import the positions.
@@ -85,7 +88,7 @@ Nucleus::~Nucleus(){
 	delete[] NucleonType;
 	delete[] ParticipantStatus;
 	delete[] CollisionNumber;
-	if(mode==3){delete[] Configurations_ptr;}
+	if(mode==10){delete[] Configurations_ptr;}
 
   // delete participants;
   // delete collisionNum;
@@ -98,17 +101,24 @@ double& Nucleus::Configuration (int64_t ie, int64_t n, int64_t ix){return (Confi
 
 // Functions
 
-double Nucleus::nuclear_density(double x,double y, double z){
+double Nucleus::nuclear_density(double x,double y, double z, Nucleon type){
 	double r_t = sqrt(x*x + y*y +z*z );
 	double R_t;
-	if(mode==0){R_t=NucPars[0];}
+	double a_t;
+	if(mode==0){R_t=NucPars[0];a_t=NucPars[1];}
 	if(mode==1){
 		double Cos_th = z/r_t;
 		double Y02 = Y02pref *(3*pow(Cos_th,2) -1);
 		double Y04 = Y04pref *(35*pow(Cos_th,4)-30*pow(Cos_th,2) + 3);
 		R_t=NucPars[0]*(1 + NucPars[2]*Y02 + NucPars[3]*Y04 ) ;
+		a_t=NucPars[1];
 	}
-	return (1+exp(-R_t/NucPars[1]))/(1+exp( (r_t - R_t)/NucPars[1]));
+	if(mode==3){
+		R_t=NucPars[0];
+		if(type==Nucleon::proton){a_t=NucPars[1];}
+		else if(type==Nucleon::neutron){a_t=NucPars[2];	}	
+	}
+	return (1+exp(-R_t/a_t))/(1+exp( (r_t - R_t)/a_t));
 
 }
 
@@ -129,7 +139,7 @@ double Nucleus::nuclear_thickness_optical(double x,double y){
 			double zz = dz*iz - ZMaxAbs;
 			if(iz==0 or iz==NZ-1){CC=1/2.;}
 			else{CC=1.;}
-			thickness_unnorm += dz*CC*nuclear_density(x, y, zz);
+			thickness_unnorm += dz*CC*nuclear_density(x, y, zz,Nucleon::proton);
 		}
 
 		return rho0 * thickness_unnorm;
@@ -144,7 +154,7 @@ double Nucleus::random_position(){
 }
 
 
-void Nucleus::sample_single_position(double * x_t){
+void Nucleus::sample_single_position(double * x_t, Nucleon type){
 	int Accept=0;
   while(Accept==0){
 	  // Sample positions //
@@ -152,13 +162,13 @@ void Nucleus::sample_single_position(double * x_t){
 	  x_t[1]=random_position();
 	  x_t[2]=random_position();
     // get rejection probability //
-    double Probability=nuclear_density(x_t[0],x_t[1],x_t[2]);
+    double Probability=nuclear_density(x_t[0],x_t[1],x_t[2], type);
     if(uni_nu_rn()<Probability){Accept=1;} //Check rejection criterion
 	}
 }
 
 void Nucleus::set_nucleon_positions(){
-	if(mode<3){
+	if(mode<10){
 		///Sample Glauber Positions
 		if(A==1){r[0][0]=0.0; r[0][1]=0.0; r[0][2]=0.0;NucleonType[0]=Nucleon::proton;}
 		else if(A==2){
@@ -173,14 +183,18 @@ void Nucleus::set_nucleon_positions(){
 			NucleonType[2]=Nucleon::neutron;
 		}
 		else{
-			for(int n=0;n<A;n++){
-				sample_single_position(r[n]);
-				if(n<=Z){NucleonType[n]=Nucleon::proton;}
-				else{NucleonType[n]=Nucleon::neutron;}
+			for(int n=0;n<Z;n++){
+				NucleonType[n]=Nucleon::proton;
+				sample_single_position(r[n],NucleonType[n]);
+			}
+			for (int n = Z; n < A; n++)
+			{
+				NucleonType[n]=Nucleon::neutron;
+				sample_single_position(r[n],NucleonType[n]);
 			}
 		} 
 	}
-	else if(mode==3){
+	else if(mode==10){
 		// Sample a configuration and set the positions
 		int conf_index = uni_nu_int()%NConf; 
 		for(int n=0;n<A;n++){
@@ -194,7 +208,7 @@ void Nucleus::set_nucleon_positions(){
 		if(IsIsospinSpecified){
 			/* Since the nucleons are sorted at importing-time, we only need to set them as in the WS case*/
 			for(int n=0;n<A;n++){
-				if(n<=Z){NucleonType[n]=Nucleon::proton;}
+				if(n<Z){NucleonType[n]=Nucleon::proton;}
 				else{NucleonType[n]=Nucleon::neutron;}
 			}
 		}
@@ -208,7 +222,7 @@ void Nucleus::set_nucleon_positions(){
 			// This needs to be changed when the new random is shown, were we can use a more modern library. For now it works
 			for(int n=0;n<A;n++){
 				int n_shuffled= nucleon_labels[n];
-				if(n<=Z){NucleonType[n_shuffled]=Nucleon::proton;}
+				if(n<Z){NucleonType[n_shuffled]=Nucleon::proton;}
 				else{NucleonType[n_shuffled]=Nucleon::neutron;}
 			}
 

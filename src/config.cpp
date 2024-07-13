@@ -62,7 +62,7 @@ void Config::process_parameters(){
 }
 
 ///////////////////// Version Check  ///////////////////////
-
+ 
 void Config::check_version(std::string testline){
   std::string line_temp= testline;
   int pos = line_temp.find(":");
@@ -111,14 +111,16 @@ void Config::process_general_parameters(std::string testline){
         if(mode1==0){mode1name="Spherical";}
         else if(mode1==1){mode1name="Deformed";}
         else if(mode1==2){mode1name="Non-Spherical";}
-        else if(mode1==3){mode1name="Input-Sampling";}
+        else if(mode1==3){mode1name="Neutron-Skin";}
+        else if(mode1==10){mode1name="Input-Sampling";}
       }
       if(subheader=="Nucleus2"){
         mode2=std::stoi(value_t);
         if(mode2==0){mode2name="Spherical";}
         else if(mode2==1){mode2name="Deformed";}
         else if(mode2==2){mode2name="Non-Spherical";}
-        else if(mode2==3){mode2name="Input-Sampling";}
+        else if(mode2==3){mode2name="Neutron-Skin";}
+        else if(mode2==10){mode2name="Input-Sampling";}
         }
     }
     if(name_t== "InputFile"){

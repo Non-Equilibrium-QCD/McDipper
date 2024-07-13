@@ -24,13 +24,13 @@ Event::Event(Config ConfInput){
 	config=Config(ConfInput);
 	
 	N1.A=config.get_A(1);N1.Z=config.get_Z(1);N1.mode=config.get_NuclearMode(1);
-	if(N1.mode==3){
+	if(N1.mode==10){
 		N1.inputFile=config.get_NucleusInput(1);
 		N1.IsospinSpecified=config.get_IsospinDefinition(1);
 		N1.NConf=config.get_NConf(1);
 	}
 	N2.A=config.get_A(2);N2.Z=config.get_Z(2);N2.mode=config.get_NuclearMode(2);
-	if(N2.mode==3){
+	if(N2.mode==10){
 		N2.inputFile=config.get_NucleusInput(2);
 		N2.IsospinSpecified=config.get_IsospinDefinition(2);
 		N2.NConf=config.get_NConf(2);
@@ -325,12 +325,12 @@ void Event::dump_nucleon_pos(Nucleus *A1,Nucleus *A2){
 	double x_t,y_t,z_t;
   for (int i = 0; i < A1->get_A(); i++) {
 		A1->get_position_nucleon(i, x_t,y_t,z_t);
-		pos_f<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<< A1->get_ParticipantStatus(i)<<std::endl;
+		pos_f<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<<int(A1->get_nucleon_type(i))<<"\t"<< A1->get_ParticipantStatus(i)<<std::endl;
 	}
 		pos_f<<std::endl;
 	for (int i = 0; i < A2->get_A(); i++) {
 		A2->get_position_nucleon(i, x_t,y_t,z_t);
-		pos_f<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<< A2->get_ParticipantStatus(i)<<std::endl;
+		pos_f<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<<int(A1->get_nucleon_type(i))<<"\t"<< A2->get_ParticipantStatus(i)<<std::endl;
 	}
 pos_f.close();
 }

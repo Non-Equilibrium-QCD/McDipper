@@ -6,7 +6,7 @@
 #include <iostream>
 
 #include "config.h"
-enum class Nucleon : int { proton = 0, neutron=1};
+enum class Nucleon : int { proton = 1, neutron=-1};
 
 class Nucleus{
 	/* This is the nuleus class. It creates a nucleus as an object. It contains knowledge of a single realization of the nucleus, 
@@ -17,10 +17,10 @@ class Nucleus{
 		virtual ~Nucleus();
 		// 
 
-		double nuclear_density(double x,double y,double z);
+		double nuclear_density(double x,double y,double z, Nucleon type);
 		double nuclear_thickness_optical(double x,double y);
 		double random_position();
-		void sample_single_position(double * x_t);
+		void sample_single_position(double * x_t, Nucleon type);
 		void set_nucleon_positions();
 		void rotate_nucleus();
 		void refresh_positions();
@@ -64,6 +64,8 @@ class Nucleus{
 		void set_NColl(int NColl_new){NumberOfCollisions=NColl_new;}
 		void update_NColl(int NColl_update){NumberOfCollisions+= NColl_update;}
 		void add_Participant(){NumberOfParticipants++;}
+
+		Nucleon get_nucleon_type(int n ){return NucleonType[n];}
 
 		int get_number_of_participants(){return NumberOfParticipants;}
 

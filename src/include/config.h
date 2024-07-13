@@ -174,7 +174,7 @@ class Config{
 
     // int ImpactMode=3;
     ImpSample ImpactMode=ImpSample::bdbSampled;
-    double ImpactValue;
+    double ImpactValue=0 ;
     double bMin, bMax;
     double KFactor=1.;
     int seed=-1;
