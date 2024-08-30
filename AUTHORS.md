@@ -12,6 +12,6 @@ Author  |  &ensp;E-Mail&ensp; | Year
  :----:  |  :----: | :--------- 
  Hendrik Roch | [✉](mailto:roch@fias.uni-frankfurt.de) | `2023-`
 
- Author  |  &ensp;E-Mail&ensp; | Year
+Author  |  &ensp;E-Mail&ensp; | Year
  :----:  |  :----: | :--------- 
  Jie Zhu | [✉](mailto:jzhu@physik.uni-bielefeld.de) | `2023-`

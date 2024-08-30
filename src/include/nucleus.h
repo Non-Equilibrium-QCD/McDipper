@@ -76,7 +76,7 @@ class Nucleus{
 		void add_Participant(){NumberOfParticipants++;}
 
 		int get_number_of_participants(){return NumberOfParticipants;}
-		int get_number_of_hotspots(){return hotspots_num;}
+		int get_Nq(){return Nq;}
 
 	private:
 		int A;  // Atomic Number
@@ -85,17 +85,18 @@ class Nucleus{
 		std::string modeStr;
 		std::string InputName;
 		bool IsIsospinSpecified;
+        bool is_hotspots_fluct=false;
+        bool is_thick_fluct=false;
 
 		double * Configurations_ptr;
 		int NConf;
 
-        int hotspots_num;
-        double hotspots_width;
-        double hotspots_width_sqr;
-        double hotspots_dist_width;
+        int Nq=1;
+        double Bq=0.0;
+        double Br=0.0;
         
-        double thick_fluct;
-        std::string fluct_mode;
+        double sigma=0.0;
+        std::string fluct_mode="";
 
 		double * NucPars;
 

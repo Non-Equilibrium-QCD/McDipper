@@ -4,7 +4,7 @@ Logging:
     Verbose: True
 
 General:
-    SqrtsNN: 5360.0
+    SqrtsNN: 2760.0
     Nucleus1:
         A:    208
         Z:    82
@@ -14,7 +14,7 @@ General:
         Z:    82
         mode: 0
     GlauberAcceptance: Gaussian
-    Events: 500
+    Events: 10 
     Model: 1
     Impact:
         Range: [0, 40]
@@ -23,24 +23,27 @@ General:
       PDFSet: CT18NNLO
       ForcePositive: 1
     K-Factor: 2.25
+    Fluctuations:
+        Thickness_fluct: False
+        Fluct_mode: Log_Normal
+        Sigma: 0.637
+        Hotspots_fluct: False
+        Bq: 0.04
+        Nq: 3
 
 Thickness:
-    TMax:   15.0
-    TMin:   0.0
-    NT:     151
-    fluct_mode: LogNormal
-    thick_fluct: 0.563
+    TMax: 25
+    TMin: 0
+    NT: 251
 
 Grid:
-    NX:        251
-    NY:        251
-    NETA:      251
-    X_RANGE:   [-15,15]
-    Y_RANGE:   [-15,15]
-    ETA_RANGE: [-15,15]
+    NX:        201
+    NY:        201
+    NETA:      201
+    X_RANGE:   [-12,12]
+    Y_RANGE:   [-12,12]
+    ETA_RANGE: [-12,12]
     BG: 0.156
-    HOTSPOTS_WIDTH: 0.116
-    HOTSPOTS_NUM: 3
 
 Model_Parameters:
     Set:   1
@@ -48,6 +51,6 @@ Model_Parameters:
     P_reg: 0.00001
 
 Output:
-    path_to_output: /work/temp/zhujie/McDipper_ini
-    run_name: PbPb_5360GeV_IPSat_Set1_batch110
-    Format: ["EMoments","Charges"]
+    path_to_output: ./test/
+    run_name: PbPb_2760GeV_IPSat_Set1
+    Format: ["EMoments","NMoments","Charges"]

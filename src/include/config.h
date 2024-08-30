@@ -15,10 +15,12 @@ enum class GlauberMode : int { Standard = 0, Gaussian=1, Exponential=2};
 
 struct NucStruct{ 
     int A; int Z;int mode;
-    std::string inputFile; 
+    std::string inputFile;
     bool IsospinSpecified; int NConf; 
-    int hotspots_num; double hotspots_width; double hotspots_dist_width;
-    std::string fluct_mode; double thick_fluct;
+    bool is_thick_fluct; 
+    bool is_hotspots_fluct;
+    int Nq; double Bq; double Br;
+    std::string fluct_mode; double sigma;
 };
 
 class Config{
@@ -62,14 +64,11 @@ class Config{
     bool compare_model_parameters (Config *OldConf, double tolerance);
     bool compare_PDF_parameters (Config *OldConf, double tolerance);
 
-
-
     //  RETRIEVING FUNCTIONS
     bool get_Verbose(){return Verbose;};
     // bool& getVerbose(){return Verbose;};
     //
     Model get_Model(){return cModel;};
-    bool is_fluctuating(){return fluctuations;}
     int get_A(int i){int A_t=-1;if(i==1){A_t=A1;}else if(i==2){A_t=A2;}return A_t;};
     int get_Z(int i){int Z_t=-1;if(i==1){Z_t=Z1;}else if(i==2){Z_t=Z2;}return Z_t;};
     int get_NuclearMode(int i){int mode_t=-1; if(i==1){mode_t=mode1;}else if(i==2){mode_t=mode2;}return mode_t;};
@@ -86,10 +85,14 @@ class Config{
       return IsoDef_t;};
     int get_NConf(int i){int NConf_t=0;if(i==1){NConf_t=NConf1;}else if(i==2){NConf_t=NConf2;}return NConf_t;};
 
-    int get_hotspots_num() {return hotspots_num;}
-    double get_hotspots_width() {return hotspots_width;}
-    double get_hotspots_width_sqr() {return hotspots_width_sqr;}
-    double get_hotspots_dist_width() {return pow( (BG-hotspots_width_sqr) / (1.0-1.0/hotspots_num), 0.5);}
+    bool is_hotspots_fluct(){return hotspots_fluct;}
+    int get_Nq() {return Nq;}
+    double get_Bq() {return Bq;}
+    double get_Br() {
+      //The sampling width of hotspots. Br=(BG-Bq)/(1-1/Nq)
+      double Br = (BG-Bq) / (1.0-1.0/Nq);
+      return Br;
+    }
 
     std::string get_PDFSet(){return cPDFSetStr;}
     int get_ForcedPositive(){return cForcedMode;}
@@ -137,7 +140,8 @@ class Config{
     double get_TMin(){return TMin;}
     int get_NT(){return NT;}
     double get_dT(){return dT;}
-    double get_thick_fluct(){return thick_fluct;}
+    bool is_thick_fluct(){return thick_fluct;}
+    double get_sigma(){return sigma;}
     std::string get_fluct_mode() {return fluct_mode;}
 
     void set_TMax(double TMax_new){TMax=TMax_new;}
@@ -169,7 +173,14 @@ class Config{
     bool Verbose=false;
     // General
     Model cModel;
-    bool fluctuations;
+    bool hotspots_fluct=false;
+    int Nq = 1;
+    double Bq = 0.0;
+
+    bool thick_fluct=false;
+    double sigma=-1.0;
+    std::string fluct_mode="Uniform";
+    
     std::string cModelStr;
     int A1,A2;
     int Z1,Z2;
@@ -181,11 +192,6 @@ class Config{
     int NConf1 = 0;
     int NConf2 = 0;
     
-    int hotspots_num = 1;
-    double hotspots_width = 0.0;
-    double hotspots_width_sqr = 0.0;
-    double hotspots_dist_width = 0.0;
-     
     std::string mode1name,mode2name;
     double sqrtsNN;
     GlauberMode GMode=GlauberMode::Standard;
@@ -227,8 +233,6 @@ class Config{
     double TMin=-1;
     int NT=-1;
     double dT;
-    double thick_fluct=-1.0;
-    std::string fluct_mode="Uniform";
     
     //Tools
     int count_indent(std::string testline);

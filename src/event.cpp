@@ -23,11 +23,13 @@ Event::Event(Config ConfInput){
 	config=Config(ConfInput);
 	
 	N1.A=config.get_A(1);N1.Z=config.get_Z(1);N1.mode=config.get_NuclearMode(1);
-    N1.hotspots_num=config.get_hotspots_num();
-    N1.hotspots_width=config.get_hotspots_width();
-    N1.hotspots_dist_width=config.get_hotspots_dist_width();
+    N1.is_hotspots_fluct=config.is_hotspots_fluct();
+    N1.Nq=config.get_Nq();
+    N1.Bq=config.get_Bq();
+    N1.Br=config.get_Br();
     
-    N1.thick_fluct=config.get_thick_fluct();
+    N1.is_thick_fluct=config.is_thick_fluct();
+    N1.sigma=config.get_sigma();
     N1.fluct_mode =config.get_fluct_mode();
         
 	if(N1.mode==3){
@@ -38,11 +40,13 @@ Event::Event(Config ConfInput){
 
 
 	N2.A=config.get_A(2);N2.Z=config.get_Z(2);N2.mode=config.get_NuclearMode(2);
-    N2.hotspots_num=config.get_hotspots_num();
-    N2.hotspots_width=config.get_hotspots_width();
-    N2.hotspots_dist_width=config.get_hotspots_dist_width();
+    N2.is_hotspots_fluct=config.is_hotspots_fluct();
+    N2.Nq=config.get_Nq();
+    N2.Bq=config.get_Bq();
+    N2.Br=config.get_Br();
     
-    N2.thick_fluct=config.get_thick_fluct();
+    N2.is_thick_fluct=config.is_thick_fluct();
+    N2.sigma=config.get_sigma();
     N2.fluct_mode =config.get_fluct_mode();
 
 	if(N2.mode==3){
@@ -193,7 +197,6 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 		if (is_charge_output){MakeChargeOutput();}
 
 		#elif OPTICAL==0
-
 		CheckParticipants(A1,A2);
 
 		is_event_valid = (A1->get_number_of_participants()>0) && (A2->get_number_of_participants()>0);
@@ -207,9 +210,10 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 			dump_nucleon_pos(A1,A2);
 
 			if(config.get_Verbose()){std::cout<<"    Nucleon Positions written out\n";}
-
-            A1->Thickness_fluct();
-            A2->Thickness_fluct();
+            if (config.is_thick_fluct()){
+              A1->Thickness_fluct();
+              A2->Thickness_fluct();
+            }
 			for (int ix = 0; ix < config.get_NX(); ix++) {
 				for (int iy = 0; iy < config.get_NY(); iy++) {
 					double x_t= get_x(ix);
@@ -856,7 +860,6 @@ void Event::MakeChargeOutputMidrapidity(){
 
 
 void Event::MakeChargeOutput_Transverse(double eta){
-
 	std::ofstream charges_f;
 	std::ostringstream chargesname;
 	chargesname << OUTPATH <<"/Event_"<<EventID<< "_Charges_eta_"<< eta << ".dat" ;
@@ -920,28 +923,29 @@ double Event::compute_internucleon_distance(Nucleus *N1,int ind1,Nucleus *N2,int
 }
 
 double Event::ComputeIndividualOverlap_Gaussian(Nucleus *N1,int ind1,Nucleus *N2,int ind2){
-	if (N1->get_number_of_hotspots()==1 && N2->get_number_of_hotspots()==1){
+	if (!config.is_hotspots_fluct()){
         double d_12=Event::compute_internucleon_distance(N1,ind1,N2,ind2);
         return exp(-d_12*d_12/(4.0*config.get_BG())) / (4.0*M_PI*config.get_BG());
       }
     else{
         double NNOverlap = 0.0;
-	    double x1,y1,x2,y2,bsq_hotspot; double hotspots_width_sqr=config.get_hotspots_width_sqr();
-        for (int i=0; i<N1->get_number_of_hotspots(); i++){
-            for (int j=0; j<N2->get_number_of_hotspots(); j++){
+	    double x1,y1,x2,y2,bsq_hotspot; double Bq=config.get_Bq();
+        for (int i=0; i<N1->get_Nq(); i++){
+            for (int j=0; j<N2->get_Nq(); j++){
 	            N1->get_trans_position_hotspot(ind1,x1,y1,i);
 	            N2->get_trans_position_hotspot(ind2,x2,y2,j);
                 bsq_hotspot=pow(x1-x2,2)+pow(y1-y2,2);
 
-                NNOverlap+=exp(-bsq_hotspot/(4.0*hotspots_width_sqr));//suppose A and B have the same hotspots width.
+                NNOverlap+=exp(-bsq_hotspot/(4.0*Bq));//suppose A and B have the same hotspots width.
               }  
           }
-        NNOverlap /=  4.0*M_PI*hotspots_width_sqr*N1->get_number_of_hotspots()*N2->get_number_of_hotspots();
+        NNOverlap /=  4.0*M_PI*Bq*N1->get_Nq()*N2->get_Nq();
         return NNOverlap;
     }
 }
 
 double Event::ComputeIndividualOverlap_Exponential (Nucleus *N1,int ind1,Nucleus *N2,int ind2){
+    //left for furture
 		double d_12=Event::compute_internucleon_distance(N1,ind1,N2,ind2);
     return d_12; //exp(-dsqr/(4.0*config.get_BG()))/(4.0*M_PI*config.get_BG());
 }
@@ -951,15 +955,15 @@ double Event::ComputeInteractionProbability(double CollisionOverlap){
 		double sigma0=4*M_PI*config.get_BG();
 		double sigma_inelastic= sigma_inelastic_fm2(config.get_collEnergy());
         double sigmaNN=0.0;
-        std::clog << "About cross-section, we should be careful when the nucleon size or its structure is changed" << std::endl;
 
-        if (config.get_hotspots_num()==1)
+        if (!config.is_hotspots_fluct())
 		{ sigmaNN =sigma0 * FitInverseInelXSec(sigma_inelastic/sigma0);}
-        else if (config.get_hotspots_num()==3)
+        else if (config.get_Nq()==3)
         { sigmaNN =FitInverse_parton_sigma(sigma_inelastic); }
         else 
         {std::cerr << "Fitted cross-section for hotspots only apply for nq=3 case." << std::endl;
          std::cerr << "The parton cross section should be fit inside the programe." <<std::endl;}
+
 		if(!is_sigma_in_range(sigma_inelastic/sigma0)){
 			// WARNING MESSAGE //
 			if(config.get_Verbose() && is_sigma_output ){

@@ -145,9 +145,9 @@ GBW::GBW(Config ConfInput){
 	quark_dist = new PDFs(&ConfInput);
   if(config.get_Verbose()){std::cout<<"   --> Initializing GBW model  "<< std::endl;}
 
-	config.set_TMax(gen_pars::TMax);
-	config.set_TMin(gen_pars::TMin);
-	config.set_NT(gen_pars::NT);
+	//config.set_TMax(gen_pars::TMax);
+	//config.set_TMin(gen_pars::TMin);
+	//config.set_NT(gen_pars::NT);
 	config.set_dT();
 }
 GBW::~GBW(){}
