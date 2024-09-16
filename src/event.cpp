@@ -652,7 +652,7 @@ void Event::MakeChargeOutput(){
 				}
 
 				if(config.is_format("Charges")){
-					charges_f<< eta_t <<"\t"<< x_t <<"\t"<< y_t <<"\t"<< eg_t  <<"\t"<< eq_t<<"\t"<< nu_t <<"\t"<< nd_t<<"\t"<< ns_t <<std::endl;
+					charges_f<< eta_t <<"\t"<< get_x(ix) <<"\t"<< get_y(iy) <<"\t"<< eg_t  <<"\t"<< eq_t<<"\t"<< nu_t <<"\t"<< nd_t<<"\t"<< ns_t <<std::endl;
 				}
 			}
 		}
