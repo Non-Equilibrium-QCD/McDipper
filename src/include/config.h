@@ -90,6 +90,7 @@ class Config{
     double get_Bq() {return Bq;}
     double get_Br() {
       //The sampling width of hotspots. Br=(BG-Bq)/(1-1/Nq)
+      if (Nq==1){return 0.0;}
       double Br = (BG-Bq) / (1.0-1.0/Nq);
       return Br;
     }
@@ -174,7 +175,7 @@ class Config{
     // General
     Model cModel;
     bool hotspots_fluct=false;
-    int Nq = 1;
+    int Nq = 0;
     double Bq = 0.0;
 
     bool thick_fluct=false;

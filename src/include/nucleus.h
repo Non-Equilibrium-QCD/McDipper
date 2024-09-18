@@ -91,7 +91,7 @@ class Nucleus{
 		double * Configurations_ptr;
 		int NConf;
 
-        int Nq=1;
+        int Nq=0;
         double Bq=0.0;
         double Br=0.0;
         

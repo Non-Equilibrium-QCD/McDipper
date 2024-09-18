@@ -3,7 +3,7 @@ CXXFLAGS      = -std=c++17 -Wall -fPIC -O3
 LD            = g++
 LDFLAGS       = -O3
 
-LIBS          = -I//opt/rh/devtoolset-9/root/usr/local/include/ -L/opt/rh/devtoolset-9/root/usr/local/lib -lgsl -lgslcblas -I/home/gsl/2.7.1/include -L/home/gsl/2.7.1/lib -I/home/zhujie/Cuba-4.2.2 -L/home/zhujie/Cuba-4.2.2 -lcuba -lm `lhapdf-config --cflags --ldflags`#-lcuba -lm
+LIBS          = -I/usr/local/include -L/usr/local/lib -lgsl -lgslcblas -lcuba -lm `lhapdf-config --cflags --ldflags`#-lcuba -lm
 
 BUILD = $(PWD)/build
 MCDIP = $(PWD)

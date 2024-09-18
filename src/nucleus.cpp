@@ -31,12 +31,13 @@ Nucleus::Nucleus(NucStruct NucIn){
           Nq=NucIn.Nq;
           Bq=NucIn.Bq;
           Br=NucIn.Br;
+          if (Nq<=1 || Bq<=0.0) {std::cerr<<"Error: Please set appropriate hotspots number and hotspot width. Exiting.";exit(EXIT_FAILURE);}
           hotspots_posi_dist=std::normal_distribution<double>(0.0, pow(Br,0.5));
         }
         if (is_thick_fluct){
           fluct_mode=NucIn.fluct_mode;
           sigma=NucIn.sigma;
-
+          if (sigma<=0.0) {std::cerr<<"Error: Please set positive thickness fluctuation width. Exiting.";exit(EXIT_FAILURE);}
           if (fluct_mode=="Gamma"){gamma_dist=std::gamma_distribution<double>(sigma, 1.0/sigma);}
           if (fluct_mode=="Log_Normal"){lognorm_dist=std::lognormal_distribution<double>(0.0,sigma);}
         }
