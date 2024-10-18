@@ -39,9 +39,9 @@ namespace gen_pars{
 
   //Computation Parameters
 
-  const double TMax=10;
+  const double TMax=25;
   const double TMin=0.0;
-  const int NT=101;
+  const int NT=251;
   const double dT = (TMax-TMin)/(NT-1);
   const double T_tolerance = dT/2.;
   const double Q_tolerance = 0.;

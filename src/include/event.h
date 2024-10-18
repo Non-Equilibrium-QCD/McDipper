@@ -100,9 +100,12 @@ class Event{
 		double sigma_inelastic_fm2(double sqrts){return mb_to_fm2*(25.2 + 33.8/pow(sqrts,1.1) + 45.2/pow(sqrts,0.9) + 0.05*log(sqrts) + 0.56*pow(log(sqrts),2));}
 		// This function is the inverse to the dimensionless solution to the matching (sigmaInel/4piBG = F[sig_g/(4pi BG)])
 		double FitInverseInelXSec(double x){return  0.561459*exp(x) + 0.00615644*x - 0.0533597 ; } // Gives F^{-1}(sigmaInel/4piBG)
-
-
-
+    
+		// This function is the inverse to the solution to the matching (sigmaInel = F[sig_g] in hotspot case)
+		double FitInverse_parton_sigma(double x)
+        	{return exp(0.000307231898*pow(x,5)-0.00941060923*pow(x,4)+0.110155447*pow(x,3)-0.556793005*pow(x,2)+1.95110038*x-1.30207108);}//v=0.2fm
+		//{return exp(0.000668144874*pow(x,5)-0.0179029924*pow(x,4) +0.178578559*pow(x,3)-0.621370047*pow(x,2)+2.05178913*x-1.2402280);}//v=0.116fm
+		
 	private:
 		//int Nthreads=1;
 		int id=0;

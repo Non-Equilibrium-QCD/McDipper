@@ -2,13 +2,13 @@
  * All rights reserved. */
 
 #include <iostream>
-
+#include <random>
 #include <vector>
 #include <math.h>
 #include <algorithm>  
 #include <iostream>
 #include <fstream>
-
+#include "include/random.h"
 #include "include/nuclear/H2.cpp"
 #include "include/nuclear/He3.cpp"
 
@@ -25,7 +25,22 @@ Nucleus::Nucleus(NucStruct NucIn){
 		InputName=NucIn.inputFile;
 		IsIsospinSpecified=NucIn.IsospinSpecified;
 		NConf=NucIn.NConf;
-
+        is_hotspots_fluct=NucIn.is_hotspots_fluct;
+        is_thick_fluct=NucIn.is_thick_fluct;
+        if (is_hotspots_fluct){
+          Nq=NucIn.Nq;
+          Bq=NucIn.Bq;
+          Br=NucIn.Br;
+          if (Nq<=1 || Bq<=0.0) {std::cerr<<"Error: Please set appropriate hotspots number and hotspot width. Exiting.";exit(EXIT_FAILURE);}
+          hotspots_posi_dist=std::normal_distribution<double>(0.0, pow(Br,0.5));
+        }
+        if (is_thick_fluct){
+          fluct_mode=NucIn.fluct_mode;
+          sigma=NucIn.sigma;
+          if (sigma<=0.0) {std::cerr<<"Error: Please set positive thickness fluctuation width. Exiting.";exit(EXIT_FAILURE);}
+          if (fluct_mode=="Gamma"){gamma_dist=std::gamma_distribution<double>(sigma, 1.0/sigma);}
+          if (fluct_mode=="Log_Normal"){lognorm_dist=std::lognormal_distribution<double>(0.0,sigma);}
+        }
 		// Chose parameter structure according to
 		if(mode<3){
 			if(A==1){modeStr="Proton";}
@@ -60,15 +75,17 @@ Nucleus::Nucleus(NucStruct NucIn){
 		}
 		else{std::cerr<<"Error: Nucleus type not implemented. Exiting.";exit(EXIT_FAILURE);}
 
-
-
 		r=new double*[A];
 		rBar=new double[3];
 		ParticipantStatus=new int[A];
 		CollisionNumber=new int[A];
 		NucleonType = new Nucleon[A];
-
-		for(int n=0;n<A;n++){r[n]=new double[3];}
+        
+        if (is_hotspots_fluct){
+   		  for(int n=0;n<A;n++){r[n]=new double[3+Nq*2];}
+        }else{
+   		  for(int n=0;n<A;n++){r[n]=new double[3];}
+        }
 
     // SET NUCLEON POSITIONS //
     set_nucleon_positions();
@@ -79,8 +96,11 @@ Nucleus::Nucleus(NucStruct NucIn){
 Nucleus::~Nucleus(){
 	for(int n=0;n<A;n++){
 		delete[] r[n];
+        if (is_thick_fluct)
+        {delete[] w[n];}
 	}
 	delete[] r;
+    if (is_thick_fluct){delete[] w;}
 	delete[] rBar;
 	delete[] NucleonType;
 	delete[] ParticipantStatus;
@@ -92,7 +112,6 @@ Nucleus::~Nucleus(){
 }
 
 // Retrievers.
-
 const double&Nucleus::Configuration (int64_t ie, int64_t n, int64_t ix) const {return (Configurations_ptr)[3*A*ie + 3*n + ix];}
 double& Nucleus::Configuration (int64_t ie, int64_t n, int64_t ix){return (Configurations_ptr)[ 3*A*ie + 3*n + ix];}
 
@@ -100,7 +119,7 @@ double& Nucleus::Configuration (int64_t ie, int64_t n, int64_t ix){return (Confi
 
 double Nucleus::nuclear_density(double x,double y, double z){
 	double r_t = sqrt(x*x + y*y +z*z );
-	double R_t;
+	double R_t=0.0;
 	if(mode==0){R_t=NucPars[0];}
 	if(mode==1){
 		double Cos_th = z/r_t;
@@ -109,11 +128,9 @@ double Nucleus::nuclear_density(double x,double y, double z){
 		R_t=NucPars[0]*(1 + NucPars[2]*Y02 + NucPars[3]*Y04 ) ;
 	}
 	return (1+exp(-R_t/NucPars[1]))/(1+exp( (r_t - R_t)/NucPars[1]));
-
 }
 
 double Nucleus::nuclear_thickness_optical(double x,double y){
-
 	if(mode!=0){std::cerr<<" [ Error ]: Nucleus type not implemented for optical thickness! Exiting.";exit(EXIT_FAILURE);}
 	else{
 		double rho0,CC;
@@ -135,14 +152,36 @@ double Nucleus::nuclear_thickness_optical(double x,double y){
 		return rho0 * thickness_unnorm;
 	}
 	return 0;
-
 }
-
 
 double Nucleus::random_position(){
 	return RSampFactor*NucPars[0]*(uni_nu_rn()-0.5);
 }
 
+void Nucleus::sample_hotspots(double * x_t){
+  // sample hotspots_num hotspots in a nucleon, the transverse positions of them are stored into (x_t[3], x_t[4]), (x_t[5], x_t[6]) ...
+  // These transverse positions are relative to the center of nucleon, not absolute position. And these positions won't be changed by rotation of nuclei. Jie
+  if (Nq>1){
+        double nucleon_xcm=0.0;
+        double nucleon_ycm=0.0;
+        for (int i=0;i<Nq;i++){
+            x_t[3+i*2]=hotspots_posi_dist(engine);
+            x_t[4+i*2]=hotspots_posi_dist(engine);
+            nucleon_xcm+=x_t[3+i*2];
+            nucleon_ycm+=x_t[4+i*2];
+          }
+        nucleon_xcm /= Nq;
+        nucleon_ycm /= Nq;
+
+        // recenter the hotspots
+        for (int i=0;i<Nq;i++){
+            x_t[3+i*2] -= nucleon_xcm;
+            x_t[4+i*2] -= nucleon_ycm;
+          }
+    }
+  else{std::cerr << "hotspots number shouldn't be smaller than 1" << std::endl;
+      exit(EXIT_FAILURE);}
+}
 
 void Nucleus::sample_single_position(double * x_t){
 	int Accept=0;
@@ -160,14 +199,24 @@ void Nucleus::sample_single_position(double * x_t){
 void Nucleus::set_nucleon_positions(){
 	if(mode<3){
 		///Sample Glauber Positions
-		if(A==1){r[0][0]=0.0; r[0][1]=0.0; r[0][2]=0.0;NucleonType[0]=Nucleon::proton;}
+		if(A==1){
+            r[0][0]=0.0; r[0][1]=0.0; r[0][2]=0.0;
+            if (is_hotspots_fluct) {sample_hotspots(r[0]);}
+            NucleonType[0]=Nucleon::proton;
+          }
 		else if(A==2){
 			H2::Init();H2::GetNucleonPositions(r[0],r[1]);
+            if (is_hotspots_fluct) {sample_hotspots(r[0]);sample_hotspots(r[1]);}
 			NucleonType[0]=Nucleon::proton;
 			NucleonType[1]=Nucleon::neutron;
-		}
+		  }
 		else if(A==3){
-			He3::Init();He3::GetNucleonPositions(r[0],r[1],r[2]);
+			He3::Init();
+            He3::GetNucleonPositions(r[0],r[1],r[2]);
+            if (is_hotspots_fluct){
+                sample_hotspots(r[0]);
+                sample_hotspots(r[1]);
+                sample_hotspots(r[2]);}
 			NucleonType[0]=Nucleon::proton;
 			NucleonType[1]=Nucleon::proton;
 			NucleonType[2]=Nucleon::neutron;
@@ -175,6 +224,7 @@ void Nucleus::set_nucleon_positions(){
 		else{
 			for(int n=0;n<A;n++){
 				sample_single_position(r[n]);
+                if (is_hotspots_fluct) {sample_hotspots(r[n]);}
 				if(n<=Z){NucleonType[n]=Nucleon::proton;}
 				else{NucleonType[n]=Nucleon::neutron;}
 			}
@@ -185,6 +235,7 @@ void Nucleus::set_nucleon_positions(){
 		int conf_index = uni_nu_int()%NConf; 
 		for(int n=0;n<A;n++){
 			for(int ix=0;ix<3;ix++){ r[n][ix]=Configuration(conf_index,n,ix);}
+            if (is_hotspots_fluct) {sample_hotspots(r[n]);}
 		}
 		//This introduced a tiny bit of bias, and will be fixed in the next patch, when parallelisation is introduced.
 
@@ -211,13 +262,9 @@ void Nucleus::set_nucleon_positions(){
 				if(n<=Z){NucleonType[n_shuffled]=Nucleon::proton;}
 				else{NucleonType[n_shuffled]=Nucleon::neutron;}
 			}
-
-			
 		}
-		
 	}
 	else{std::cerr<<" [ Error ]: Nucleus mode not yet implemented.";exit(EXIT_FAILURE);}
-	 
 
 	// Locate Center of Mass
 	rBar[0]=0.0; rBar[1]=0.0; rBar[2]=0.0;
@@ -247,6 +294,37 @@ void Nucleus::rotate_nucleus(){
 	}
 }
 
+void Nucleus::Thickness_fluct(){
+    w=new double*[A];
+    for  (int i=0; i<A; i++){
+        w[i]=new double[Nq];
+      }
+
+    if ( fluct_mode=="Gamma" )
+    {
+        for (int i=0; i<A; i++)
+        {
+            if (ParticipantStatus[i]==1)
+            { for (int j=0; j<Nq; j++) {w[i][j]=gamma_dist(engine);} }
+            else
+            { for (int j=0; j<Nq; j++) {w[i][j]=0.0;}}
+        }
+    }
+    else if ( fluct_mode=="Log_Normal" )
+    {
+        for (int i=0; i<A; i++)
+        {
+            if (ParticipantStatus[i]==1)
+            { for (int j=0; j<Nq; j++) {w[i][j]=lognorm_dist(engine)/exp( sigma*sigma/2.0);} }
+            else
+            { for (int j=0; j<Nq; j++) {w[i][j]=0.0;} }
+        }
+    }
+    else
+    { std::cerr << "Please choose fluct_mode from Gamma, Log_Normal!!!" << std::endl;
+      exit(EXIT_FAILURE);}
+}
+
 void Nucleus::refresh_positions(){
 	// Renew Configuration //
 	set_nucleon_positions();
@@ -254,16 +332,48 @@ void Nucleus::refresh_positions(){
 	rotate_nucleus();
 }
 
-double Nucleus::NucleonThickness(double x,double y,double x0,double y0,double BG){
-    double r2 = pow(x-x0,2) + pow(y-y0,2);
-    return exp(-0.5*r2/BG)/(2.0*M_PI*BG);
+double Nucleus::NucleonThickness(double x,double y,double x0,double y0,int n,double BG){
+    if (is_thick_fluct){
+      if (!is_hotspots_fluct){
+          double r2 = pow(x-x0,2) + pow(y-y0,2);
+          return w[n][0]*exp(-0.5*r2/BG)/(2.0*M_PI*BG);
+        }
+      else{
+          double x1,y1,r2,T;T=0.0;
+          for (int i=0; i<Nq;i++){
+              x1=r[n][3+i*2]+x0;
+              y1=r[n][4+i*2]+y0;
+              r2= pow(x-x1,2) + pow(y-y1,2);
+              T+=w[n][i]*exp(-0.5*r2/Bq);
+            }  
+          T/=2.0*M_PI*Bq*Nq;
+          return T;
+        }
+    }
+    else{
+      if (is_hotspots_fluct){
+          double x1,y1,r2,T;T=0.0;
+          for (int i=0; i<Nq;i++){
+              x1=r[n][3+i*2]+x0;
+              y1=r[n][4+i*2]+y0;
+              r2= pow(x-x1,2) + pow(y-y1,2);
+              T+=exp(-0.5*r2/Bq);
+            }  
+          T/=2.0*M_PI*Bq*Nq;
+          return T;
+        }
+      else{
+        double r2 = pow(x-x0,2) + pow(y-y0,2);
+        return exp(-0.5*r2/BG)/(2.0*M_PI*BG);
+      }
+    }
 }
 
 double Nucleus::GetThickness(double xt,double yt,double BG){
     double TValue=0.0;
 		// SUM ALL NUCLEONS //
     for(int n=0;n<A;n++){
-			if (ParticipantStatus[n]==1){TValue+=NucleonThickness(xt,yt,r[n][0],r[n][1],BG);}
+			if (ParticipantStatus[n]==1){TValue+=NucleonThickness(xt,yt,r[n][0],r[n][1],n,BG);}
 		}
     return TValue;
 }
@@ -272,7 +382,7 @@ double Nucleus::GetThickness_p(double xt,double yt, double BG){
     double TValue=0.0;
 		// SUM ALL NUCLEONS //
     for(int n=0;n<A;n++){
-			if (ParticipantStatus[n]==1 && NucleonType[n]==Nucleon::proton){TValue+=NucleonThickness(xt,yt,r[n][0],r[n][1],BG);}
+			if (ParticipantStatus[n]==1 && NucleonType[n]==Nucleon::proton){TValue+=NucleonThickness(xt,yt,r[n][0],r[n][1],n,BG);}
 		}
     return TValue;
 }
@@ -281,16 +391,14 @@ double Nucleus::GetThickness_n(double xt,double yt,double BG){
     double TValue=0.0;
 		// SUM ALL NUCLEONS //
     for(int n=0;n<A;n++){
-			if (ParticipantStatus[n]==1 && NucleonType[n]==Nucleon::neutron){TValue+=NucleonThickness(xt,yt,r[n][0],r[n][1],BG);}
+			if (ParticipantStatus[n]==1 && NucleonType[n]==Nucleon::neutron){TValue+=NucleonThickness(xt,yt,r[n][0],r[n][1],n,BG);}
 		}
     return TValue;
 }
 
-
-
 void Nucleus::get_position_nucleon(int n, double &x, double &y,  double &z){x=r[n][0];y=r[n][1];z=r[n][2];}
 void Nucleus::get_trans_position_nucleon(int n, double &x, double &y){x=r[n][0];y=r[n][1];}
-
+void Nucleus::get_trans_position_hotspot(int n, double &x, double &y, int hotspoti){x=r[n][3+hotspoti*2]+r[n][0];y=r[n][4+hotspoti*2]+r[n][1];}
 
 void Nucleus::rotate_X_axis(double *r, double theta){
 	double rp[3]={r[0],r[1],r[2]};
@@ -323,7 +431,6 @@ void Nucleus::shift_nucleus_by_impact(double bx,double by){
 int Nucleus::ConfIndex(int ie,int n,int ix){
 	return 3*A*ie + 3*n + ix;
 } 
-
 
 void Nucleus::import_nuclear_configurations(){
 	/* This function imports the configurations for a list file*/

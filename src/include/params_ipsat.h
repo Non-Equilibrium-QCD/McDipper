@@ -47,8 +47,8 @@ namespace IPsat_pars{
   const double y_dip_dy=(y_dip_max-y_dip_min)/(y_dip_points-1.);
 
   const double T_dip_min = 0.;
-  const double T_dip_max = 10.1;
-  const int T_dip_points= 101;
+  const double T_dip_max = 25.1;
+  const int T_dip_points= 251;
   const double T_dip_dT = (T_dip_max-T_dip_min)/(T_dip_points-1.);
 
   const double x0_scaling=0.01;  // Sets in the geometrical scaling

@@ -2,7 +2,7 @@
 
 /* Copyright (c) 2022 Oscar Garcia-Montero
  * All rights reserved. */
-
+#include <algorithm>
 #include <iostream>
 #include <math.h>
 #include <sstream>

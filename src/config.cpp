@@ -8,6 +8,7 @@
 #include <random>
 #include <string>
 #include <sstream>
+#include <algorithm>
 
 
 #include "include/config.h"
@@ -26,7 +27,6 @@ Config::~Config(){}
 void Config::process_parameters(){
   std::string line;
   std::string header;
-
 
   std::ifstream configfile(path_to_configfile);
   if (configfile.is_open())
@@ -96,7 +96,14 @@ void Config::process_general_parameters(std::string testline){
         case 3: cModel=Model::GBWSimp;cModelStr="GBW-Simplified";break;
       }
     }
-    if(name_t=="Fluctuations"){fluctuations=make_bool(value_t);}
+    if(subheader=="Fluctuations"){
+      if (name_t=="Thickness_fluct"){thick_fluct=make_bool(value_t);}
+      if (name_t=="Fluct_mode"){fluct_mode=value_t;}
+      if (name_t=="Sigma"){sigma=std::stod(value_t);}
+      if (name_t=="Hotspots_fluct"){hotspots_fluct=make_bool(value_t);}
+      if (name_t=="Bq"){Bq=std::stod(value_t);}
+      if (name_t=="Nq"){Nq=std::stoi(value_t);}
+    }
     if(name_t=="A"){
       if(subheader=="Nucleus1"){A1=std::stoi(value_t);}
       if(subheader=="Nucleus2"){A2=std::stoi(value_t);}
@@ -154,7 +161,6 @@ void Config::process_general_parameters(std::string testline){
   }
   else{subheader=name_t;}
 }
-
 
 ////////////////////////  Grid  ///////////////////////
 ////////////////////////  Grid  ///////////////////////
@@ -279,11 +285,21 @@ void Config::terminal_setup_output(){
   if(ImpactMode==ImpSample::dbSampled){std::cout<< "       Impact Parameter Mode: 'Range'  for  b = [ "<<bMin<<" , "<< bMax <<" ] fm, Sampling: Uniform \n";}
   std::cout<< "       Number of Events: "<< NEvents <<" , using a K-factor = "<< KFactor <<" for the gluon energy\n";
   std::cout<< "       Running seed: "<< seed <<"\n";
+  if (thick_fluct){
+    std::cout<< "               Thickness fluctuation: True\n";
+    std::cout<< "               Thickness fluctuation distribution: " << fluct_mode << "\n";
+    std::cout<< "               Thickness fluctuation width parameter: " << sigma << "\n"; 
+  }
   std::cout<< "|--------------------------------- Grid Parameters --------------------------------------|\n";
   std::cout<< "                       X=["<<XMIN<<","<< XMAX<< "] ,   NX = "<<NX<<" ,   dX = "<< dX << " fm \n";
   std::cout<< "                       Y=["<<YMIN<<","<< YMAX<< "] ,   NY = "<<NY<<" ,   dY = "<< dY << " fm \n";
   std::cout<< "                     ETA=["<<ETAMIN<<","<< ETAMAX<< "] , NETA = "<<NETA<<" , dETA = "<< dETA << "\n";
   std::cout<< "                     Nucleonic smearing parameter B_G = "<< BG <<"fm^2 \n";
+  if (hotspots_fluct){
+  std::cout<< "                 Hotspots  fluctuation: True\n";
+  std::cout<< "                 Hotspots  smearing parameter Bq = "<< Bq << "fm^2 \n";
+  std::cout<< "                 Hotspots  number = " << Nq << "\n";
+  }
   std::cout<< "|--------------------------------- Model Parameters -------------------------------------|\n";
   if(cModel==Model::GBW){
   std::cout<< "               Q02="<<ModelPars[0]<<" GeV^2,    x0="<<ModelPars[1]<<",   lambda="<<ModelPars[2]<<",   XCut="<<ModelPars[3]<<" \n";
@@ -341,6 +357,8 @@ void Config::dump(std::string OUTPATH){
       config_f << "        Configurations: "<< NConf2<<"\n";
     }
   }
+
+  config_f << " GlauberAcceptance: " << GModeStr << "\n";
   config_f << "    Events: "<< NEvents << "\n";
   if(cModel==Model::GBW){config_f << "    Model: 0\n";}
   if(cModel==Model::IPSat){config_f << "    Model: 1\n";}
@@ -358,7 +376,13 @@ void Config::dump(std::string OUTPATH){
   config_f << "        PDFSet: "<< cPDFSetStr<<"\n";
   config_f << "        ForcePositive: "<< cForcedMode<<"\n";
   config_f << "    K-Factor: "<< KFactor << "\n";
-  config_f << "\n";
+  config_f << "    Fluctuations:\n";
+  config_f << "        Thickness_fluct: "<< thick_fluct << "\n";
+  config_f << "        Fluct_mode: "     << fluct_mode << "\n";
+  config_f << "        Sigma: "          << sigma << "\n";
+  config_f << "        Hotspots_fluct: " << hotspots_fluct << "\n";
+  config_f << "        Bq: "             << Bq << "\n";
+  config_f << "        Nq: "             << Nq << "\n";
   config_f << "Grid:\n";
   config_f << "    NX: "<< NX<<"\n";
   config_f << "    NY: "<< NY<<"\n";
@@ -367,7 +391,6 @@ void Config::dump(std::string OUTPATH){
   config_f << "    Y_RANGE: ["<< YMIN<<","<< YMAX <<"]\n";
   config_f << "    ETA_RANGE: ["<< ETAMIN<<","<< ETAMAX <<"]\n";
   config_f << "    BG: "<< BG<<"\n";
-  config_f << "\n";
   config_f << "Model_Parameters:\n";
   if(cModel==Model::GBW){
     config_f << "    Q02: "<<ModelPars[0]<<  "\n";
@@ -452,7 +475,7 @@ config_f.close();
 
 int Config::count_indent(std::string testline){
   char cset[] = " ";
-  return std::strspn (testline.c_str(),cset);
+  return strspn (testline.c_str(),cset);
 }
 
 std::string Config::get_header(std::string testline){
@@ -502,8 +525,6 @@ void Config::set_seed(){
     }
   }
 
-
-
 Config::Config(const Config& OldConf){
    Verbose=OldConf.Verbose;
    path_to_configfile=OldConf.path_to_configfile;
@@ -522,7 +543,9 @@ Config::Config(const Config& OldConf){
    N2IsospinSpec=OldConf.N2IsospinSpec;
    NConf1=OldConf.NConf1;
    NConf2=OldConf.NConf2;
-   
+   GMode=OldConf.GMode;
+   GModeStr=OldConf.GModeStr;
+  
    sqrtsNN=OldConf.sqrtsNN;
    ImpactMode=OldConf.ImpactMode;
    ImpactValue=OldConf.ImpactValue;
@@ -531,6 +554,12 @@ Config::Config(const Config& OldConf){
    cPDFSetStr = OldConf.cPDFSetStr;
    cForcedMode = OldConf.cForcedMode;
    KFactor = OldConf.KFactor;
+   thick_fluct=OldConf.thick_fluct;
+   fluct_mode =OldConf.fluct_mode;
+   sigma      =OldConf.sigma;
+   hotspots_fluct=OldConf.hotspots_fluct;
+   Bq=OldConf.Bq;
+   Nq=OldConf.Nq;
    NEvents = OldConf.NEvents;
    //Grid
    NX=OldConf.NX;NY=OldConf.NY;NETA=OldConf.NETA;
@@ -555,21 +584,23 @@ Config::Config(const Config& OldConf){
    TMax= OldConf.TMax;
    TMin= OldConf.TMin;
    NT= OldConf.NT;
-   // if(Verbose){terminal_setup_output();}
 }
 
-
 bool Config::compare_grid_parameters (Config *OldConf, double tolerance){
-
-
   bool is_equal= ( NETA==OldConf->get_NETA()) ;
   is_equal= is_equal && ( NDiff(ETAMIN,OldConf->get_ETAMIN())<tolerance ) ;
   is_equal= is_equal && ( NDiff(ETAMAX,OldConf->get_ETAMAX())<tolerance ) ;
   return is_equal;
 }
 
-bool Config::compare_PDF_parameters (Config *OldConf, double tolerance){
+bool Config::compare_Thickness_parameters (Config *OldConf, double tolerance){
+    bool is_equal= ( NT==OldConf->get_NT());
+    is_equal= is_equal && ( NDiff(TMin,OldConf->get_TMin())<tolerance ) ;
+    is_equal= is_equal && ( NDiff(TMax,OldConf->get_TMax())<tolerance ) ;
+    return is_equal;
+}
 
+bool Config::compare_PDF_parameters (Config *OldConf, double tolerance){
   bool is_equal= ( cPDFSetStr==OldConf->get_PDFSet()) ;
   is_equal= is_equal && ( cForcedMode==OldConf->get_ForcedPositive() ) ;
   return is_equal;

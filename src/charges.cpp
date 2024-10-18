@@ -68,7 +68,6 @@ Charges::~Charges(){
 void Charges::MakeGrid(){
 
   NX=config_set.get_NT();NY=config_set.get_NT();
-
   e_g_spl = new gsl_spline2d*[NETA] ;
 
   xaccEG = new gsl_interp_accel*[NETA] ;
@@ -179,6 +178,7 @@ bool Charges::check_config(){
   is_config = is_config && config.compare_model_parameters(set_conf,double_tolerance);
   is_config = is_config && config.compare_collEnergy(set_conf->get_collEnergy(), double_tolerance);
   is_config = is_config && config.compare_PDF_parameters(set_conf, double_tolerance);
+  is_config = is_config && config.compare_Thickness_parameters(set_conf, double_tolerance);
 
   if(is_config){config_set = Config(path_to_config.str());}
   return is_config;
@@ -253,7 +253,6 @@ bool Charges::read_in_energy_gluons(){
   double T1array[NX];
   double T2array[NY];
   double etau0_g[NX*NY];
-
   for (int iY=0; iY < NETA; iY++)
   {
     for (int i1=0; i1 < NX; i1++)
@@ -271,7 +270,6 @@ bool Charges::read_in_energy_gluons(){
 
     int nx = sizeof(T1array) / sizeof(T1array[0]);
     int ny = sizeof(T2array) / sizeof(T2array[0]);
-
     const gsl_interp2d_type *T= gsl_interp2d_bilinear;
     e_g_spl[iY] = gsl_spline2d_alloc(T, nx, ny);
     xaccEG[iY] = gsl_interp_accel_alloc();

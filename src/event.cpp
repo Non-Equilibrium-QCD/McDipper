@@ -6,10 +6,9 @@
 #include <random>
 #include <filesystem>
 #include <sstream>
-
+#include "include/random.h"
 #include "include/event.h"
 #include "include/params_gen.h"
-// #include "include/params_gen.h"
 
 #define OPTICAL 0
 #define AVG_EVENT 0
@@ -24,12 +23,32 @@ Event::Event(Config ConfInput){
 	config=Config(ConfInput);
 	
 	N1.A=config.get_A(1);N1.Z=config.get_Z(1);N1.mode=config.get_NuclearMode(1);
+    N1.is_hotspots_fluct=config.is_hotspots_fluct();
+    N1.Nq=config.get_Nq();
+    N1.Bq=config.get_Bq();
+    N1.Br=config.get_Br();
+    
+    N1.is_thick_fluct=config.is_thick_fluct();
+    N1.sigma=config.get_sigma();
+    N1.fluct_mode =config.get_fluct_mode();
+        
 	if(N1.mode==3){
 		N1.inputFile=config.get_NucleusInput(1);
 		N1.IsospinSpecified=config.get_IsospinDefinition(1);
 		N1.NConf=config.get_NConf(1);
 	}
+
+
 	N2.A=config.get_A(2);N2.Z=config.get_Z(2);N2.mode=config.get_NuclearMode(2);
+    N2.is_hotspots_fluct=config.is_hotspots_fluct();
+    N2.Nq=config.get_Nq();
+    N2.Bq=config.get_Bq();
+    N2.Br=config.get_Br();
+    
+    N2.is_thick_fluct=config.is_thick_fluct();
+    N2.sigma=config.get_sigma();
+    N2.fluct_mode =config.get_fluct_mode();
+
 	if(N2.mode==3){
 		N2.inputFile=config.get_NucleusInput(2);
 		N2.IsospinSpecified=config.get_IsospinDefinition(2);
@@ -38,6 +57,7 @@ Event::Event(Config ConfInput){
 
 	PrimalSeed=config.get_seed();
 	srand48(PrimalSeed);
+    engine.seed(static_cast<Engine::result_type>(PrimalSeed));
 
 	b1=new double[2];
 	b2=new double[2];
@@ -177,7 +197,6 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 		if (is_charge_output){MakeChargeOutput();}
 
 		#elif OPTICAL==0
-
 		CheckParticipants(A1,A2);
 
 		is_event_valid = (A1->get_number_of_participants()>0) && (A2->get_number_of_participants()>0);
@@ -191,7 +210,10 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 			dump_nucleon_pos(A1,A2);
 
 			if(config.get_Verbose()){std::cout<<"    Nucleon Positions written out\n";}
-
+            if (config.is_thick_fluct()){
+              A1->Thickness_fluct();
+              A2->Thickness_fluct();
+            }
 			for (int ix = 0; ix < config.get_NX(); ix++) {
 				for (int iy = 0; iy < config.get_NY(); iy++) {
 					double x_t= get_x(ix);
@@ -630,7 +652,7 @@ void Event::MakeChargeOutput(){
 				}
 
 				if(config.is_format("Charges")){
-					charges_f<< eta_t <<"\t"<< x_t <<"\t"<< y_t <<"\t"<< eg_t  <<"\t"<< eq_t<<"\t"<< nu_t <<"\t"<< nd_t<<"\t"<< ns_t <<std::endl;
+					charges_f<< eta_t <<"\t"<< get_x(ix) <<"\t"<< get_y(iy) <<"\t"<< eg_t  <<"\t"<< eq_t<<"\t"<< nu_t <<"\t"<< nd_t<<"\t"<< ns_t <<std::endl;
 				}
 			}
 		}
@@ -838,7 +860,6 @@ void Event::MakeChargeOutputMidrapidity(){
 
 
 void Event::MakeChargeOutput_Transverse(double eta){
-
 	std::ofstream charges_f;
 	std::ostringstream chargesname;
 	chargesname << OUTPATH <<"/Event_"<<EventID<< "_Charges_eta_"<< eta << ".dat" ;
@@ -902,11 +923,29 @@ double Event::compute_internucleon_distance(Nucleus *N1,int ind1,Nucleus *N2,int
 }
 
 double Event::ComputeIndividualOverlap_Gaussian(Nucleus *N1,int ind1,Nucleus *N2,int ind2){
-		double d_12=Event::compute_internucleon_distance(N1,ind1,N2,ind2);
-    return exp(-d_12*d_12/(4.0*config.get_BG()))/(4.0*M_PI*config.get_BG());
+	if (!config.is_hotspots_fluct()){
+        double d_12=Event::compute_internucleon_distance(N1,ind1,N2,ind2);
+        return exp(-d_12*d_12/(4.0*config.get_BG())) / (4.0*M_PI*config.get_BG());
+      }
+    else{
+        double NNOverlap = 0.0;
+	    double x1,y1,x2,y2,bsq_hotspot; double Bq=config.get_Bq();
+        for (int i=0; i<N1->get_Nq(); i++){
+            for (int j=0; j<N2->get_Nq(); j++){
+	            N1->get_trans_position_hotspot(ind1,x1,y1,i);
+	            N2->get_trans_position_hotspot(ind2,x2,y2,j);
+                bsq_hotspot=pow(x1-x2,2)+pow(y1-y2,2);
+
+                NNOverlap+=exp(-bsq_hotspot/(4.0*Bq));//suppose A and B have the same hotspots width.
+              }  
+          }
+        NNOverlap /=  4.0*M_PI*Bq*N1->get_Nq()*N2->get_Nq();
+        return NNOverlap;
+    }
 }
 
 double Event::ComputeIndividualOverlap_Exponential (Nucleus *N1,int ind1,Nucleus *N2,int ind2){
+    //left for furture
 		double d_12=Event::compute_internucleon_distance(N1,ind1,N2,ind2);
     return d_12; //exp(-dsqr/(4.0*config.get_BG()))/(4.0*M_PI*config.get_BG());
 }
@@ -915,7 +954,15 @@ double Event::ComputeInteractionProbability(double CollisionOverlap){
     // DETERMINE NUCLEON-NUCLEON INELASTIC CROSS-SECTION //
 		double sigma0=4*M_PI*config.get_BG();
 		double sigma_inelastic= sigma_inelastic_fm2(config.get_collEnergy());
-		double sigmaNN =sigma0 * FitInverseInelXSec(sigma_inelastic/sigma0);
+        double sigmaNN=0.0;
+
+        if (!config.is_hotspots_fluct())
+		{ sigmaNN =sigma0 * FitInverseInelXSec(sigma_inelastic/sigma0);}
+        else if (config.get_Nq()==3)
+        { sigmaNN =FitInverse_parton_sigma(sigma_inelastic); }
+        else 
+        {std::cerr << "Fitted cross-section for hotspots only apply for nq=3 case." << std::endl;
+         std::cerr << "The parton cross section should be fit inside the programe." <<std::endl;}
 
 		if(!is_sigma_in_range(sigma_inelastic/sigma0)){
 			// WARNING MESSAGE //
@@ -937,21 +984,22 @@ double Event::ComputeInteractionProbability(double CollisionOverlap){
 
 
 bool Event::check_interaction_status(Nucleus *N1,int ind1,Nucleus *N2,int ind2){
-	// CHECK THAT intERACTION PROBABILITY IS SUFFICIENTLY LARGE TO BE RELEVANT //
+	// CHECK THAT INTERACTION PROBABILITY IS SUFFICIENTLY LARGE TO BE RELEVANT //
 	bool is_interacting=false;
 	if(config.get_GlauberAcceptance() == GlauberMode::Standard){
 		double d_12=Event::compute_internucleon_distance(N1,ind1,N2,ind2);
 		is_interacting= d_12 <=  (sqrt( sigma_inelastic_fm2(config.get_collEnergy())/M_PI) ) ;
 	}
 	else{
-			double NNOverlap=0.;
-			//Now we compute the overlap
-			if(config.get_GlauberAcceptance() == GlauberMode::Gaussian){NNOverlap=ComputeIndividualOverlap_Gaussian(N1,ind1,N2,ind2);}
-			else if(config.get_GlauberAcceptance() == GlauberMode::Exponential){NNOverlap=ComputeIndividualOverlap_Exponential(N1,ind1,N2,ind2);}
-			//and the interaction probability coming from the overlap
-			double NNInteractionProbability=ComputeInteractionProbability(NNOverlap);
-			// Sampling to see if interaction happens
-			is_interacting=uni_nu_rn()<NNInteractionProbability;
+		double NNOverlap=0.;
+		//Now we compute the overlap
+		if(config.get_GlauberAcceptance() == GlauberMode::Gaussian){NNOverlap=ComputeIndividualOverlap_Gaussian(N1,ind1,N2,ind2);}
+		else if(config.get_GlauberAcceptance() == GlauberMode::Exponential){NNOverlap=ComputeIndividualOverlap_Exponential(N1,ind1,N2,ind2);}
+
+		//and the interaction probability coming from the overlap
+		double NNInteractionProbability=ComputeInteractionProbability(NNOverlap);
+		// Sampling to see if interaction happens
+		is_interacting=uni_nu_rn()<NNInteractionProbability;
 	}
 	return is_interacting;
 }
@@ -987,7 +1035,6 @@ void Event::CheckParticipants(Nucleus* N1,Nucleus *N2){
 
     // CHECK FOR EACH NUCLEON IN NUCLEUS TWO THE NUMBER OF COLLISIONS AND PARTICIPANT STATUS //
     N2->set_NPart(0); N2->set_NColl(0);
-
     for(int s2=0;s2<N2->get_A();s2++){
         // NUMBER OF INDIVIDUAL COLLISIONS //
         int NIndColl=0;
@@ -1000,12 +1047,10 @@ void Event::CheckParticipants(Nucleus* N1,Nucleus *N2){
         // UPDATE PARTICIPANT STATUS //
         if(NIndColl>0){N2->set_ParticipantStatus(s2,1); N2->add_Participant();}
         else{N2->set_ParticipantStatus(s2,0);}
-
     }
 
     // CLEAN-UP //
     for(int s1=0;s1<N1->get_A();s1++){delete InteractionStatus[s1];}
-
     delete[] InteractionStatus;
 }
 
