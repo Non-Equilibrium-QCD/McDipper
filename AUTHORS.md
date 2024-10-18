@@ -13,6 +13,4 @@ Author  |  &ensp;E-Mail&ensp; | Year
  :----:  |  :----: | :--------- 
  Hendrik Roch | [✉](mailto:roch@fias.uni-frankfurt.de) | `2023-`
 
-Author  |  &ensp;E-Mail&ensp; | Year
- :----:  |  :----: | :--------- 
 
