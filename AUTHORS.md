@@ -5,6 +5,7 @@
 Author  |  &ensp;E-Mail&ensp; | Copyright © 
  :----:  |  :----: | :--------- 
  Oscar Garcia-Montero  |  [✉](mailto:garcia@physik.uni-bielefeld.de) | `2022-`
+  Jie Zhu | [✉](mailto:jzhu@physik.uni-bielefeld.de) | `2024-`
 
 ## External contributors
 
@@ -14,4 +15,4 @@ Author  |  &ensp;E-Mail&ensp; | Year
 
 Author  |  &ensp;E-Mail&ensp; | Year
  :----:  |  :----: | :--------- 
- Jie Zhu | [✉](mailto:jzhu@physik.uni-bielefeld.de) | `2024-`
+
