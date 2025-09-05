@@ -8,6 +8,7 @@
 #include <random>
 #include <string>
 #include <sstream>
+#include <cstring>
 #include <algorithm>
 
 
@@ -140,6 +141,12 @@ void Config::process_general_parameters(std::string testline){
       if(subheader=="Nucleus1"){NConf1=std::stoi(value_t);}
       if(subheader=="Nucleus2"){NConf2=std::stoi(value_t);}
     }
+    if(name_t== "Weights"){
+      if(subheader=="Nucleus1"){N1_weights=make_bool(value_t);}
+      if(subheader=="Nucleus2"){N2_weights=make_bool(value_t);}
+      
+    }
+
     if(name_t=="GlauberAcceptance"){
       if(value_t=="Standard"){GMode=GlauberMode::Standard;GModeStr="Standard";}
       else if(value_t=="Gaussian"){GMode=GlauberMode::Gaussian;GModeStr="Gaussian";}
@@ -261,6 +268,7 @@ void Config::process_output_parameters(std::string testline){
     else{std::cerr<<"Error: Average-Event output mode not implemented! Exiting.";exit(EXIT_FAILURE);}
   }
   if(name_t == "BoostInvariant"){ boost_invariant= make_bool(value_t);}
+  if(name_t == "suppress_output"){ suppress_output= make_bool(value_t);}
   // 
  
 }
@@ -543,6 +551,9 @@ Config::Config(const Config& OldConf){
    N2IsospinSpec=OldConf.N2IsospinSpec;
    NConf1=OldConf.NConf1;
    NConf2=OldConf.NConf2;
+   N1_weights=OldConf.N1_weights;
+   N2_weights=OldConf.N2_weights;
+
    GMode=OldConf.GMode;
    GModeStr=OldConf.GModeStr;
   
@@ -579,6 +590,7 @@ Config::Config(const Config& OldConf){
    format=new std::string[n_formats];
    print_avg=OldConf.print_avg;
    boost_invariant=OldConf.boost_invariant;
+   suppress_output=OldConf.suppress_output;
    for (int i = 0; i < n_formats; i++) {format[i]=OldConf.format[i];}
    //Thickness_Parameters
    TMax= OldConf.TMax;

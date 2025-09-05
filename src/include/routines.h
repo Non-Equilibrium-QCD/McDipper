@@ -103,7 +103,8 @@ namespace Routines{
 
       result= integral_arr[0];
       error= error_arr[0];
-      if(result!=result){result=0.;error=0.0;}
+      if(result!=result){
+        result=0.;error=0.0;}
     }
   }
 

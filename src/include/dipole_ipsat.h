@@ -69,6 +69,8 @@ class Dipole{
 
 	double get_XMIN(){return  X_MIN;}
 	double get_XMAX(){return  X_MAX;}
+	double get_KMIN(){return  K_MIN;}
+	double get_KMAX(){return  K_MAX;}
 
 	//output
 	void write_config();

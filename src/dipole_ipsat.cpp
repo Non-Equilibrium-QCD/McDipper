@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 #include <gsl/gsl_dht.h>
 #include <gsl/gsl_multifit.h>
 
@@ -138,10 +139,10 @@ Dipole::Dipole(int set, bool Verbose){
 	double d2Gfdu2[IPsat_pars::NY*IPsat_pars::NR];
 
 	double Y[IPsat_pars::NY];
-	double rY[IPsat_pars::NY][IPsat_pars::NR];
-	double r[IPsat_pars::NR];
+	[[maybe_unused]] double rY[IPsat_pars::NY][IPsat_pars::NR];
+	[[maybe_unused]] double r[IPsat_pars::NR];
 
-	double uY[IPsat_pars::NY][IPsat_pars::NR];
+	[[maybe_unused]] double uY[IPsat_pars::NY][IPsat_pars::NR];
 	double u[IPsat_pars::NR];
 
 	double y_t,r_t,G_t,Gp_t,Gpp_t,u_t;
@@ -677,7 +678,7 @@ void Dipole::Make_Momentum_Dipoles(){
 		Transform_Dipole(Rep::Adjoint);
 	}
 	else if(IPsat_pars::HankelTransMode==1){
-		if(DipVerbose){std::cerr<<"Transforming IP-Sat Dipoles using the Bessel-Zero method integration method" <<std::endl;}
+		if(DipVerbose){std::cerr<<"Transforming IP-Sat Dipoles using the Bessel-Zero integration method" <<std::endl;}
 		Transform_Dipole_Naive(Rep::Fundamental);
 		Transform_Dipole_Naive(Rep::Adjoint);
 	}
@@ -915,7 +916,7 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 	double tmp=0;
 	if( x>=0.999 ){return 0.0;}
 	else if ( k<0 || k >= K_MAX ){return 0.0;}
-	else if ( T <= T_MIN || T >= T_MAX ){return 0.0;}
+	else if ( T < T_MIN || T > T_MAX ){return 0.0;}
 	else if(x <= X_MIN ){return 0;}
 	else{
 		double Y_t = get_Y(x);
@@ -933,9 +934,21 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 				Q2X = a*pow(1-x,b);
 			}
 			else{
-				Q2X = gsl_spline2d_eval(Q2A_spl,T,Y_t,xaccQ2A, yaccQ2A);
+				Q2X = gsl_spline2d_eval(Q2F_spl,T,Y_t,xaccQ2F, yaccQ2F);
 			}
 			tmp= (Q20/Q2X)*FundamentalDipole_k(xscaling, k * sqrt(Q20/Q2X), T);
+		}
+		else if (T< IPsat_pars::Tscaling){
+			double T1= IPsat_pars::Tscaling;
+			double T2=IPsat_pars::T_dip_dT/2.;
+			double Q12 = gsl_spline2d_eval(Q2F_spl,T1,Y_t,xaccQ2F, yaccQ2F);
+			double Q22 = gsl_spline2d_eval(Q2F_spl,T2,Y_t,xaccQ2F, yaccQ2F);
+			double a=(-(Q22*T1) + Q12*T2)/(T1*(T1 - T2)*T2);
+			double b= (Q22*pow(T1,2) - Q12*pow(T2,2))/(pow(T1,2)*T2 - T1*pow(T2,2));
+			// double a = Q12*pow(T1,-2.);
+			
+			double Q2T = a * pow(T,2.) + b * T;
+			tmp= (Q12/Q2T)*FundamentalDipole_k(x, k * sqrt(Q12/Q2T), IPsat_pars::Tscaling);
 		}
 		else{
 			int jT;
@@ -981,11 +994,11 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 	double tmp=0;
 	if( x>=0.999 ){tmp=0.0;}
 	else if (  k<0 || k >= K_MAX ){tmp=0.0;}
-	else if ( T <= T_MIN || T >= T_MAX ){tmp=0.0;}
+	else if ( T < T_MIN || T > T_MAX ){tmp=0.0;}
 	else if(x <= X_MIN ){tmp=0.0;}
 	else{
 		double Y_t = get_Y(x);
-		if(x > xscaling){
+		if(x > xscaling && T>= IPsat_pars::Tscaling ){
 			double Y0 = get_Y(xscaling);
 			double Q20= gsl_spline2d_eval(Q2A_spl,T,Y0,xaccQ2A, yaccQ2A);
 			double Q2X; 
@@ -1002,8 +1015,20 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 				Q2X = gsl_spline2d_eval(Q2A_spl,T,Y_t,xaccQ2A, yaccQ2A);
 			}
 			tmp= (Q20/Q2X)*AdjointDipole_k(xscaling, k * sqrt(Q20/Q2X), T);
-			// if(tmp!=tmp){std::cerr<<"TEST"<<x<<"\t"<<k<<"\t"<<T<< std::endl;}
-
+		}
+		else if (T< IPsat_pars::Tscaling && x < xscaling ){
+			double T1= IPsat_pars::Tscaling;
+			double T2=IPsat_pars::T_dip_dT/2.;
+			double Q12 = gsl_spline2d_eval(Q2A_spl,T1,Y_t,xaccQ2A, yaccQ2A);
+			double Q22 = gsl_spline2d_eval(Q2A_spl,T2,Y_t,xaccQ2A, yaccQ2A);
+			double a=(-(Q22*T1) + Q12*T2)/(T1*(T1 - T2)*T2);
+			double b= (Q22*pow(T1,2) - Q12*pow(T2,2))/(pow(T1,2)*T2 - T1*pow(T2,2));
+			// double a = Q12*pow(T1,-2.);
+			double Q2T = a * pow(T,2.) + b * T;
+			tmp= (Q12/Q2T)*AdjointDipole_k(x, k * sqrt(Q12/Q2T), IPsat_pars::Tscaling);
+		}
+		else if (T< IPsat_pars::Tscaling && x > xscaling ){
+			tmp=0;
 		}
 		else{
 			int jT;
@@ -1041,6 +1066,11 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 			}
 			tmp = tmp1 + (tmp2-tmp1) * (T-T1)/(T2-T1) ;  // lin interpolation in Q
 		}
+	}
+
+	if(tmp!=tmp){
+		tmp= 0.0;
+		// if (k==k){std::cerr<< "FUCK YOUUUUU, x = "<< x << ", T = "<<  T << ", k = " << k<< std::endl;exit(0); } 
 	}
 	return tmp;
 }
@@ -1136,8 +1166,8 @@ void Dipole::get_name_and_value(std::string testline,std::string &name, std::str
   int pos = line_temp.find(":");
   name = line_temp.substr(0,pos);
   value = line_temp.substr(pos+1, line_temp.length()-pos );
-  name.erase(std::remove(name.begin(),name.end(), ' '),name.end());
-  value.erase(std::remove(value.begin(),value.end(), ' '),value.end());
+  name.erase(std::remove_if(name.begin(),name.end(), ::isspace),name.end());
+  value.erase(std::remove_if(value.begin(),value.end(), ::isspace),value.end());
 }
 
 //////////////////////////////

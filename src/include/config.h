@@ -17,6 +17,7 @@ struct NucStruct{
     int A; int Z;int mode;
     std::string inputFile;
     bool IsospinSpecified; int NConf; 
+    bool is_weights;
     bool is_thick_fluct; 
     bool is_hotspots_fluct;
     int Nq; double Bq; double Br;
@@ -79,11 +80,20 @@ class Config{
       return input;
     };
     bool get_IsospinDefinition(int i){
-      int IsoDef_t=false;
+      bool IsoDef_t=false;
       if(i==1 && mode1==3){IsoDef_t= N1IsospinSpec;}
       else if(i==2 && mode2 ==3){IsoDef_t= N2IsospinSpec;}
-      return IsoDef_t;};
+      return IsoDef_t;
+    }
+
     int get_NConf(int i){int NConf_t=0;if(i==1){NConf_t=NConf1;}else if(i==2){NConf_t=NConf2;}return NConf_t;};
+
+
+    bool get_weight(int i){
+      bool DefWeight_t=false;
+      if(i==1 && mode1==3){DefWeight_t= N1_weights;}
+      else if(i==2 && mode2 ==3){DefWeight_t= N2_weights;}
+      return DefWeight_t;}
 
     bool is_hotspots_fluct(){return hotspots_fluct;}
     int get_Nq() {return Nq;}
@@ -108,6 +118,14 @@ class Config{
     double get_KFactor(){return KFactor;}
     int get_NEvents(){return NEvents;}
     GlauberMode get_GlauberAcceptance(){return GMode;}
+    
+    // setter functions if the code is used as a library
+    void set_ImpactMode(ImpSample val){ImpactMode = val;}
+    void set_ImpactValue(double val){ImpactValue = val;}
+    void set_MaxImpact(double val){bMax = val;}
+    void set_MinImpact(double val){bMin = val;}
+    void set_KFactor(double val){KFactor = val;}
+    void set_Seed(int val){seed = val;}
 
     //Grid!
 
@@ -120,6 +138,16 @@ class Config{
     double get_YMAX(){return YMAX;}
     double get_ETAMIN(){return ETAMIN;}
     double get_ETAMAX(){return ETAMAX;}
+
+    void set_NX(int val){NX=val;}
+    void set_NY(int val){NY=val;}
+    void set_NETA(int val){NETA=val;}
+    void set_XMIN(double val){XMIN=val;}
+    void set_XMAX(double val){XMAX=val;}
+    void set_YMIN(double val){YMIN=val;}
+    void set_YMAX(double val){YMAX=val;}
+    void set_ETAMIN(double val){ETAMIN=val;}
+    void set_ETAMAX(double val){ETAMAX=val;}
 
     double get_dX(){return dX;}
     double get_dY(){return dY;}
@@ -164,6 +192,8 @@ class Config{
     }
     int print_avg_event(){return print_avg;}
     bool is_boost_invariant(){return boost_invariant;}
+    void set_suppress_output(bool flag){ suppress_output = flag; }
+    bool is_output_suppressed() const { return suppress_output; }
 
   private:
 
@@ -192,6 +222,8 @@ class Config{
     bool N2IsospinSpec=false;
     int NConf1 = 0;
     int NConf2 = 0;
+    bool N1_weights=false;
+    bool N2_weights=false;
     
     std::string mode1name,mode2name;
     double sqrtsNN;
@@ -228,6 +260,7 @@ class Config{
     std::string * format;
     int print_avg=0;
     bool boost_invariant=false;
+    bool suppress_output=false;
 
     // Thickness_Parameters
     double TMax=-1;

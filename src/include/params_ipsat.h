@@ -31,9 +31,12 @@ namespace IPsat_pars{
 
   const double RMaxTol = 0.2;
 
-  const double KTMAX=30;
-  const double KTMIN=0.1;
-  const double KTDIST=3;
+  const double KTMAX=50;
+  const double KTMIN=0.0;
+
+  const double KT0 = 1e-10; 
+  const double QMIN= 0;
+  const double QMAX= log(KTMAX/KT0); 
 
 
   const double k_dip_min = 0.005; //In GeV!
@@ -50,6 +53,8 @@ namespace IPsat_pars{
   const double T_dip_max = 25.1;
   const int T_dip_points= 251;
   const double T_dip_dT = (T_dip_max-T_dip_min)/(T_dip_points-1.);
+
+  const double Tscaling = 0.15;
 
   const double x0_scaling=0.01;  // Sets in the geometrical scaling
 

@@ -4,7 +4,7 @@ Logging:
     Verbose: True
 
 General:
-    SqrtsNN: 2760.0
+    SqrtsNN: 5020.0
     Nucleus1:
         A:    208
         Z:    82
@@ -54,3 +54,5 @@ Output:
     path_to_output: ./test/
     run_name: PbPb_2760GeV_IPSat_Set1
     Format: ["EMoments","NMoments","Charges"]
+    PrintAvg: False
+    BoostInvariant: False

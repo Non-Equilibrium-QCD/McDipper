@@ -19,9 +19,21 @@ General:
     Impact:
         Value: 2.5
     PDFs:
-      PDFSet: CT18NNLO
-      ForcePositive: 1
+        PDFSet: CT18NNLO
+        ForcePositive: 1
     K-Factor: 1.
+    Fluctuations:
+        Thickness_fluct: False
+        Fluct_mode: Log_Normal
+        Sigma: 0.637
+        Hotspots_fluct: False
+        Bq: 0.04
+        Nq: 3
+
+Thickness:
+    TMax: 25
+    TMin: 0
+    NT: 251
 
 Grid:
     NX:        241
@@ -42,3 +54,5 @@ Output:
     path_to_output: Runs/
     run_name: PbPb_2760GeV_GBW
     Format: ["EMoments","NMoments","Charges"]
+    PrintAvg: False
+    BoostInvariant: False

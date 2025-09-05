@@ -177,15 +177,17 @@ namespace IPSatYields{
           struct GluonParsIPSat * pars = (struct GluonParsIPSat *) params;
 
           double phi_t=(phi_max-phi_min)*xx[2]+phi_min;
-      
-          double q_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[0]+ IPsat_pars::KTMIN;
-          double k_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[1]+ IPsat_pars::KTMIN;
+          double JacCuba=pow(IPsat_pars::KTMAX-IPsat_pars::KTMIN,2.);
+            
+          double  q_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[0]+ IPsat_pars::KTMIN;
+          double  k_t=(IPsat_pars::KTMAX-IPsat_pars::KTMIN)*xx[1]+ IPsat_pars::KTMIN;
+        
           
           double p_t=  P(q_t,k_t,phi_t); 
           double cutP2 = pow(pars->p_reg,2.) + p_t*p_t  ;
           // double p_t = sqrt(pow(P(q_t,k_t,phi_t),2.) + pow(pcut,2.));
 
-          if(p_t==0){ff[0]=0;}
+          if(p_t==0){ff[0]=0.0;}
           else{
             double x1=p_t*exp( pars->y)/pars->sqrts;
             double x2=p_t*exp(-pars->y)/pars->sqrts;
@@ -195,11 +197,11 @@ namespace IPSatYields{
               
               if(D1<0){D1=0.0;}
               if(D2<0){D2=0.0;}
-              ff[0]= 2*M_PI * pow(IPsat_pars::KTMAX-IPsat_pars::KTMIN,2.) * ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,3.)* pow(k_t,3.)/ cutP2) * D1*D2 *gen_pars::GeV2_to_fmm2 ;
+              ff[0]= 2*M_PI * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,3.)* pow(k_t,3.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
 
               
           }
-          return 0 ;
+          return 0.0 ;
         }
 
         
@@ -207,22 +209,25 @@ namespace IPSatYields{
       double sqrts_t= Variables->sqrts;
       double y_t= Variables->y;
       //
-      double xmin_dip = (Variables->dip)->get_XMIN();
-      double xmax_dip = (Variables->dip)->get_XMAX();
+      // double xmin_dip = (Variables->dip)->get_XMIN();
+      // double xmax_dip = 1;
 
-      double kmin= IPsat_pars::KTMIN;
-      double kmax= IPsat_pars::KTMAX;
+      double kmin= 0;
+      double kmax= sqrts_t*exp(-fabs(y_t));
 
       double error, result ;
       //
       bool is_valid = (kmin<kmax);
       is_valid = is_valid && ( Variables->T1>0 && Variables->T2>0 );
-      is_valid = is_valid && check_if_zero(y_t,sqrts_t,kmin,kmax,xmin_dip, xmax_dip);
+      // is_valid = is_valid && check_if_zero(y_t,sqrts_t,kmin,kmax,xmin_dip, xmax_dip);
       //
       if(is_valid){
         Routines::make_cuhre_1C(3, GluonEnergyDensIntegrand,Variables,result,error);
       }
-      else{return 0;}
+      else{
+        // std::cerr<< "eta = "<< Variables->y<< ", T1 = "<< Variables->T1 << ", T2 = "<< Variables->T2 << std::endl; 
+        return 0;
+      }
       return result;
     }
 
@@ -265,13 +270,13 @@ IPSat::IPSat(Config ConfInput){
   if(config.get_Verbose()){std::cout<< std::endl;}
   Dip= new Dipole(p_set,config.get_Verbose());
   Dip->set_new_xscaling(xscaling);
+  config.set_dT();
+  std:: cout<< "The x0_scaling = "<<Dip->get_xscaling()<< std::endl;
   
 	//config.set_TMax(gen_pars::TMax);
 	//config.set_TMin(gen_pars::TMin);
 	//config.set_NT(gen_pars::NT);
-	config.set_dT();
-
-  std:: cout<< "The x0_scaling = "<<Dip->get_xscaling()<< std::endl;
+	
 } 
 
 IPSat::~IPSat(){}
@@ -310,6 +315,7 @@ void IPSat::make_gluon_energy(){
 	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 		parameters.y =y_t ;
+
 		for (int i1 = 0; i1 < config.get_NT(); i1++) {
 			double T1_t = i1*config.get_dT() + config.get_TMin();
 			parameters.T1 = T1_t;
@@ -329,6 +335,7 @@ void IPSat::make_gluon_energy(){
 				}
 			}
 		}
+
 	}
 
 	if(config.get_Verbose()){printProgress2(1,1);}
