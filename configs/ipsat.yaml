@@ -48,11 +48,11 @@ Grid:
 Model_Parameters:
     Set:   1
     XScaling: 0.01
-    P_reg: 0.00001
+    P_reg: 0.1
 
 Output:
     path_to_output: ./test/
     run_name: PbPb_2760GeV_IPSat_Set1
-    Format: ["EMoments","NMoments","Charges"]
+    Format: ["EMoments","NMoments"]
     PrintAvg: False
     BoostInvariant: False

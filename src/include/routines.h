@@ -91,7 +91,7 @@ namespace Routines{
       Cuhre(DIM,1, integrand, parameters, nVec,EpsRelCuba, EpsAbsCuba, flags, minEval, maxEval, key,"", spin, &nregions, &neval, &fail, integral_arr, error_arr, prob_arr);
       result= integral_arr[0];
       error= error_arr[0];
-      if(result!=result){result=0.;error=0.0;}
+      if(result!=result){ result=0.;error=0.0;}
     }
 
     void make_suave_1C(int DIM, integrand_t integrand,void * parameters,double &result, double &error){

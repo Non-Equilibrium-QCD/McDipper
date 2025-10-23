@@ -124,9 +124,9 @@ Dipole::Dipole(int set, bool Verbose){
 	char Gname[256];
 	switch (set) {
 			case 1:
-				sprintf(Gname,"ipsat/alpha_S_xg_set1.dat");break;
+				sprintf(Gname,"ipsat/ipsat_set1.txt");break;
 			case 2:
-				sprintf(Gname,"ipsat/alpha_S_xg_set2.dat");break;
+				sprintf(Gname,"ipsat/ipsat_set2.txt");break;
 			default:
         std::cerr<<"Error: Parameter set not implemented. Exiting.";exit(EXIT_FAILURE);
 		}
@@ -148,10 +148,13 @@ Dipole::Dipole(int set, bool Verbose){
 
 	for (int iY=0; iY < IPsat_pars::NY; iY++)
 	{
+		
 		for (int ir=0; ir < IPsat_pars::NR; ir++)
 		{
+			
 			if (fscanf(table1,"%lf %lf %lf %lf %lf", &y_t, &r_t, &G_t, &Gp_t, &Gpp_t) != 5){printf("Error reading table 1!\n");exit(1);}
 			Y[iY]=y_t;
+			 
 			if(ir==0){
 				if ((r_t-IPsat_pars::rmin)/r_t > IPsat_pars::rmin_tol){std::cerr<<"Minimum relative radius, r_0 ="<< r_t<< ", not matching parameters, rmin=" <<IPsat_pars::rmin << ". Check IP-Sat input!" << set <<std::endl;exit(1);}
 			}
@@ -163,13 +166,16 @@ Dipole::Dipole(int set, bool Verbose){
 
 			Gf[IPsat_pars::NY*ir+iY] = G_t;
 			dGfdu[IPsat_pars::NY*ir+iY] = Gp_t;
-			d2Gfdu2[IPsat_pars::NY*ir+iY] = Gpp_t;
+			d2Gfdu2[IPsat_pars::NY*ir+iY] = Gpp_t; 
+
 			if(iY==0){
 				r[ir]=r_t;
 				u[ir]=u_t;
 			};
 		}
 	}
+	
+
 
 	int ny = sizeof(Y) / sizeof(Y[0]);
 	int nu = sizeof(u) / sizeof(u[0]);
@@ -1389,6 +1395,13 @@ void Dipole::make_test_output(){
 	dump_transformed_norm(1);
 	dump_transformed_norm(2);
 	dump_transformed_norm(4);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// exit(0);
 }
 
 void Dipole::dump_transformed_norm(double T){
@@ -1411,6 +1424,138 @@ void Dipole::dump_transformed_norm(double T){
 	}
 	dip_A_f.close();
 	dip_F_f.close();
+}
+
+
+void Dipole::dump_test_norm(){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_test.dat" ;
+	dip_f.open(path_to_file.str());
+	int Nx_t = 151;
+	int NT_t = 151;
+	int Nk_t = 151;
+	double Y_MIN_OUT =  0.01*1.01;
+	double Y_MAX_OUT = Y_MAX *0.99;
+	double Tmin=0;
+	double Tmax=25;
+	double dT = (Tmax-Tmin)/(NT_t-1.);
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double T_t,kt_t;
+	double Dip_A_k,Dip_F_k;
+	for (int iT = 0; iT < NT_t; iT++) {
+		T_t=Tmin + iT * dT;
+		for (int iy = 0; iy < Nx_t; iy++) {
+			double y_t = Y_MIN_OUT + iy*(Y_MAX_OUT-Y_MIN_OUT)/(Nx_t-1.);
+			double x_t = get_X(y_t);
+			for (int ik = 0; ik < Nk_t; ik++) {
+				kt_t = kmin*exp(ik*dk);
+				Dip_F_k = FundamentalDipole_k(x_t,kt_t, T_t);
+				Dip_A_k = AdjointDipole_k(x_t,kt_t, T_t);
+				dip_f<< T_t<<"\t"<< x_t<<"\t"<< kt_t <<"\t" << Dip_F_k<<"\t" << Dip_A_k << std::endl;
+			}
+		}
+	}
+	dip_f.close();
+}
+void Dipole::dump_test_fixed(){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_fixed.dat" ;
+	dip_f.open(path_to_file.str());
+	int NT_t = 151;
+	int Nk_t = 151;
+	double etamin=-7;
+	double etamax=7;
+	double NETA = 15;
+	double dETA= (etamax-etamin)/(NETA-1.);
+	double Tmin=0;
+	double Tmax=25;
+	double dT = (Tmax-Tmin)/(NT_t-1.);
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double T_t, x1_t,x2_t,kt_t;
+	double Dip1_A_k,Dip1_F_k;
+	double Dip2_A_k,Dip2_F_k;
+	for (int iT = 0; iT < NT_t; iT++) {
+		T_t=Tmin + iT * dT;
+
+		for (size_t ieta = 0; ieta < NETA; ieta++)
+		{
+			double eta_t = etamin + dETA*ieta;
+			for (int ik = 0; ik < Nk_t; ik++) {
+				kt_t = kmin*exp(ik*dk);
+				x1_t = kt_t*exp(eta_t)/200;
+				x2_t = kt_t*exp(-eta_t)/200;
+				Dip1_F_k = FundamentalDipole_k(x1_t,kt_t, T_t);
+				Dip2_F_k = FundamentalDipole_k(x2_t,kt_t, T_t);
+				Dip1_A_k = AdjointDipole_k(x1_t,kt_t, T_t);
+				Dip2_A_k = AdjointDipole_k(x2_t,kt_t, T_t);
+				dip_f<< T_t<<"\t"<< eta_t<<"\t"<< kt_t <<"\t" << Dip1_F_k<<"\t" << Dip2_F_k<<"\t" << Dip1_A_k <<"\t" << Dip2_A_k << std::endl;
+			}
+		}
+	}
+	dip_f.close();
+	exit(0);
+}
+
+void Dipole::dump_test_integrand(double T1, double T2, double eta, double sqrts, double m){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_test_problem_T1_"<< T1<< "_T2_"<< T2 << "_eta_"<<eta<< "_sqrts_"<<sqrts<< "_reg_"<<m << "_trans_norm.dat" ;
+	dip_f.open(path_to_file.str());
+	int Nk_t = 151;
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double x1_t,x2_t,kt_t,qt_t;
+	// double Dip1_A_k,Dip1_F_k;
+	// double Dip2_A_k,Dip2_F_k;
+
+	int Nphi = 4;
+	double dPhi = M_PI/Nphi;
+
+	double integrand=0;
+
+	for (int iq = 0; iq < Nk_t; iq++) {
+		qt_t = kmin*exp(iq*dk);
+		for (int ik = 0; ik < Nk_t; ik++) {
+			kt_t = kmin*exp(ik*dk);
+
+			dip_f<< qt_t<<"\t"<< kt_t ;
+			
+			for (size_t iphi = 0; iphi < Nphi; iphi++)
+			{
+				double phi_t=dPhi*iphi;
+				double p_t=   sqrt(qt_t*qt_t + kt_t*kt_t + 2*qt_t*kt_t*cos(phi_t));
+				double cutP2 = m*m + p_t*p_t  ;
+				x1_t=p_t*exp( eta)/sqrts;
+				x2_t=p_t*exp(-eta)/sqrts;
+				double D1 =AdjointDipole_k(x1_t,qt_t,T1);
+				double D2 =AdjointDipole_k(x2_t,kt_t,T2);
+
+				if(D1<0){D1=0.0;}
+				if(D2<0){D2=0.0;}
+				if(p_t==0){integrand=0.0;}
+				else{
+					integrand= 2*M_PI * ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( qt_t,3.)* pow(kt_t,3.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
+				}
+				dip_f<< "\t"<<integrand;
+			}
+			dip_f<< std::endl;
+			
+		}
+		dip_f<< std::endl;
+		
+	}
+	dip_f.close();
+	
 }
 
 void Dipole::dump_momentum_Dipole(double T){

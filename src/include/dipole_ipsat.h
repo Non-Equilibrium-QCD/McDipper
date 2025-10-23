@@ -78,10 +78,16 @@ class Dipole{
 	void print_Dk_config();
 	void dump_momentum_Dipole(double T);
 	void dump_transformed_norm(double T);
+
 	void Transform_Dipole_Naive_Test(Rep rep,double T_t);
 	void make_test_output();
+	
 
 
+	//debugging tools 
+	void dump_test_norm();
+	void dump_test_fixed();
+	void dump_test_integrand(double T1, double T2, double eta, double sqrts, double m2);
 
 	private:
 

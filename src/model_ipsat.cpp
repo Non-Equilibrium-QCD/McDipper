@@ -172,7 +172,7 @@ namespace IPSatYields{
       // We return the conditional validity is_valid=not(is_null) to comply with the structure above.
     }
 
-    static int GluonEnergyDensIntegrand(const int *ndim, const double xx[],const int *ncomp, double ff[], void *params) {
+    static int GluonEnergyDensIntegrand_non_log(const int *ndim, const double xx[],const int *ncomp, double ff[], void *params) {
 
           struct GluonParsIPSat * pars = (struct GluonParsIPSat *) params;
 
@@ -197,9 +197,37 @@ namespace IPSatYields{
               
               if(D1<0){D1=0.0;}
               if(D2<0){D2=0.0;}
-              ff[0]= 2*M_PI * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,3.)* pow(k_t,3.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
+              ff[0]= 2*M_PI * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,3.)* pow(k_t,3.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;    
+          }
+          return 0.0 ;
+        }
 
-              
+      static int GluonEnergyDensIntegrand(const int *ndim, const double xx[],const int *ncomp, double ff[], void *params) {
+
+          struct GluonParsIPSat * pars = (struct GluonParsIPSat *) params;
+
+          double phi_t=(phi_max-phi_min)*xx[2]+phi_min;
+          double UMIN = 0; double UMAX=log(IPsat_pars::KTMAX/IPsat_pars::KTMIN);
+          double JacCuba=pow(UMAX-UMIN,2.);
+          double u=(UMAX-UMIN)*xx[0]+ UMIN;
+          double w=(UMAX-UMIN)*xx[1]+ UMIN;
+          double q_t= IPsat_pars::KTMIN*exp(u);
+          double k_t= IPsat_pars::KTMIN*exp(w);
+      
+          double p_t=  P(q_t,k_t,phi_t); 
+          double cutP2 = pow(pars->p_reg,2.) + p_t*p_t  ;
+
+          double x1=p_t*exp( pars->y)/pars->sqrts;
+          double x2=p_t*exp(-pars->y)/pars->sqrts;
+
+          double D1 =(pars->dip)->AdjointDipole_k(x1,q_t,pars->T1);
+          double D2 =(pars->dip)->AdjointDipole_k(x2,k_t,pars->T2);
+
+          if(p_t==0){ff[0]=0.0;}
+          else{
+            if(D1<0){D1=0.0;}
+            if(D2<0){D2=0.0;}
+            ff[0] = 2*M_PI * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,4.)* pow(k_t,4.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
           }
           return 0.0 ;
         }
@@ -225,7 +253,7 @@ namespace IPSatYields{
         Routines::make_cuhre_1C(3, GluonEnergyDensIntegrand,Variables,result,error);
       }
       else{
-        // std::cerr<< "eta = "<< Variables->y<< ", T1 = "<< Variables->T1 << ", T2 = "<< Variables->T2 << std::endl; 
+        
         return 0;
       }
       return result;
