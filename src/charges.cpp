@@ -8,7 +8,6 @@
 
 
 #include "include/charges.h"
-#include "include/model_gbw.h"
 
 namespace fs = std::filesystem;
 
@@ -140,7 +139,10 @@ bool Charges::call_models(){
     IPSat ipsat(config);
     ipsat.MakeTable(path_to_set);
   }
-  if(config.get_model()== Model::MV ){}
+  if(config.get_model()== Model::MV ){
+    MV mv(config);
+    mv.MakeTable(path_to_set);
+  }
   return call_is_success;
 }
 

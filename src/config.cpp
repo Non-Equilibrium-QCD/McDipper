@@ -215,7 +215,20 @@ void Config::process_ipsat_parameters(std::string testline){
     NModelParams++;}
   if(name_t=="P_reg"){ModelPars[2]=std::stod(value_t);NModelParams++;}
 }
-void Config::process_mv_parameters(std::string testline){}
+void Config::process_mv_parameters(std::string testline){
+  std::string name_t,value_t;
+  get_name_and_value(testline,name_t,value_t);
+  if(name_t=="Path"){modelPath = value_t;}
+  if(name_t=="P_reg"){ModelPars[0]=std::stod(value_t);NModelParams++;}
+  if(name_t=="LargeX"){ModelPars[1]=std::stod(value_t); NModelParams++;}
+  if(name_t=="Npoints"){ModelPars[2]=std::stod(value_t); NModelParams++;}
+  if(name_t=="xmax"){ModelPars[3]=std::stod(value_t); NModelParams++;}
+  /// And here comes ANY other! I need to organize them by cases
+  //LargeX ==1
+  if(name_t=="beta"){ModelPars[4]=std::stod(value_t); NModelParams++;}
+  
+  
+}
 
 
 ///////////////////// Thickness //////////////////////

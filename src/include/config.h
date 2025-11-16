@@ -138,6 +138,7 @@ class Config{
     double get_BG(){return BG;}
 
     double get_ModelParams(int i){return ModelPars[i];}
+    std::string get_modelPath(){return modelPath;}
 
     int get_seed(){return seed;}
     void set_seed();
@@ -232,6 +233,7 @@ class Config{
     // // Model Parameters
     double ModelPars[10];
     int NModelParams;
+    std::string modelPath;
     // Output
     int n_formats;
     std::string path_to_output;

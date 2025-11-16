@@ -12,6 +12,7 @@
 #include "config.h"
 #include "model_gbw.h"
 #include "model_ipsat.h"
+#include "model_mv.h"
 
 
 class Charges{

@@ -27,7 +27,7 @@ namespace fs = std::filesystem;
 
 
 
-namespace HankelDipole{
+namespace HankelDipoleIPSat{
 
 	double BesselTol=1e-5;
 	double EpsRel=1e-5;
@@ -121,17 +121,17 @@ Dipole::Dipole(int set, bool Verbose){
 
 	xscaling = IPsat_pars::x0_scaling;
 
-	char Gname[256];
+	std::string Gname;
 	switch (set) {
-			case 1:
-				sprintf(Gname,"ipsat/ipsat_set1.txt");break;
-			case 2:
-				sprintf(Gname,"ipsat/ipsat_set2.txt");break;
-			default:
-        std::cerr<<"Error: Parameter set not implemented. Exiting.";exit(EXIT_FAILURE);
-		}
+		case 1:
+			Gname="ipsat/ipsat_set1.txt";break;
+		case 2:
+			Gname="ipsat/ipsat_set2.txt";break;
+		default:
+			std::cerr<<"Error: Parameter set not implemented. Exiting.";exit(EXIT_FAILURE);
+	}
 
-	FILE *table1 = fopen(Gname,"r");
+	FILE *table1 = fopen(Gname.c_str(),"r");
 	// double Gf[IPsat_pars::NY][IPsat_pars::NR];
   	double Gf[IPsat_pars::NY*IPsat_pars::NR];
 	double dGfdu[IPsat_pars::NY*IPsat_pars::NR];
@@ -209,26 +209,26 @@ Dipole::Dipole(int set, bool Verbose){
 }
 
 Dipole::~Dipole(){
-  	gsl_spline2d_free (G_spl);
-  	gsl_interp_accel_free (xacc);
-		gsl_interp_accel_free (yacc);
+	gsl_spline2d_free (G_spl);
+	gsl_interp_accel_free (xacc);
+	gsl_interp_accel_free (yacc);
 
-		gsl_spline2d_free (Gp_spl);
-  	gsl_interp_accel_free (xaccP);
-		gsl_interp_accel_free (yaccP);
+	gsl_spline2d_free (Gp_spl);
+	gsl_interp_accel_free (xaccP);
+	gsl_interp_accel_free (yaccP);
 
-		gsl_spline2d_free (Gpp_spl);
-  	gsl_interp_accel_free (xaccPP);
-		gsl_interp_accel_free (yaccPP);
+	gsl_spline2d_free (Gpp_spl);
+	gsl_interp_accel_free (xaccPP);
+	gsl_interp_accel_free (yaccPP);
 
-		for (int i = 0; i < IPsat_pars::NY; i++) {
-	    gsl_spline2d_free(DA_spl[i]);
-	    gsl_spline2d_free(DF_spl[i]);
-	    gsl_interp_accel_free (xaccA[i]);
-	    gsl_interp_accel_free (yaccA[i]);
-	    gsl_interp_accel_free (xaccF[i]);
-	    gsl_interp_accel_free (yaccF[i]);
-		}
+	for (int i = 0; i < IPsat_pars::NY; i++) {
+		gsl_spline2d_free(DA_spl[i]);
+		gsl_spline2d_free(DF_spl[i]);
+		gsl_interp_accel_free (xaccA[i]);
+		gsl_interp_accel_free (yaccA[i]);
+		gsl_interp_accel_free (xaccF[i]);
+		gsl_interp_accel_free (yaccF[i]);
+	}
   }
 
 //////////////////////////////////////////////////////////
@@ -819,8 +819,8 @@ void Dipole::Transform_Dipole_Naive(Rep rep){
 				}
 				else{
 					DipFT HTPars={k_grid_homo[ik]*gen_pars::GeV_to_fmm1,x_t,T_t,this};
-					if(rep==Rep::Fundamental){Dip_k = HankelDipole::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
-					else if(rep==Rep::Adjoint){Dip_k = HankelDipole::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
+					if(rep==Rep::Fundamental){Dip_k = HankelDipoleIPSat::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
+					else if(rep==Rep::Adjoint){Dip_k = HankelDipoleIPSat::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
 
 					dip_f<< T_t<<"\t"<< Y_grid[iy]<<"\t"<< q_grid_homo[ik]<<"\t" << Dip_k << std::endl;
 				}
@@ -879,8 +879,8 @@ void Dipole::Transform_Dipole_Naive_Test(Rep rep,double Tt){
 		for (int iy = 0; iy < Nx_t; iy++) {
 			x_t=get_X(y[iy]);
 			DipFT HTPars={k_grid_homo[ik]*gen_pars::GeV_to_fmm1,x_t,Tt,this};
-			if(rep==Rep::Fundamental){Dip_k = HankelDipole::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
-			else if(rep==Rep::Adjoint){Dip_k = HankelDipole::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
+			if(rep==Rep::Fundamental){Dip_k = HankelDipoleIPSat::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
+			else if(rep==Rep::Adjoint){Dip_k = HankelDipoleIPSat::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
 			dip_f<<"\t" << Dip_k ;
 		}
 		dip_f << std::endl;
@@ -1075,7 +1075,6 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 
 	if(tmp!=tmp){
 		tmp= 0.0;
-		// if (k==k){std::cerr<< "FUCK YOUUUUU, x = "<< x << ", T = "<<  T << ", k = " << k<< std::endl;exit(0); } 
 	}
 	return tmp;
 }
