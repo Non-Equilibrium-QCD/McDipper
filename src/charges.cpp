@@ -20,13 +20,19 @@ Charges::Charges(Config ConfInput){
   check_for_tabs_folders();
   bool is_imported=import_charges(); // Import charges from computed table.
 
+  // std::cerr<< "ETAS config" << config.get_ETAMIN() << "\t" << config.get_ETAMAX() << std::endl;
+  // std::cerr<< "ETAS config_set" << config_set.get_ETAMIN() << "\t" << config_set.get_ETAMAX() << std::endl;
+
   if(!is_imported){
     call_models(); // Calls the models if there are no matching set of tables
     is_imported=import_charges();// Imports the newly constructed tables
     if(is_imported){initialized = true;}
   }
   if(!is_imported){std::cerr<<"Error after importing newly constructed charges!"<<std::endl;exit(EXIT_FAILURE);}
-  set_output_tests();
+  // set_output_tests();
+  // Set the safety Tmin
+  safe_Tmin = 1.1*config_set.get_TMin();
+  std::cout<< "safe_Tmin = " << safe_Tmin << std::endl;
 }
 
 Charges::~Charges(){
@@ -99,7 +105,7 @@ void Charges::MakeGrid(){
   xaccN1s = new gsl_interp_accel*[NQComp] ;
   yaccN1s = new gsl_interp_accel*[NQComp] ;
 
-  if(config.get_Verbose()){std::cout<<"[ Charges ] Grid created for Charges."<<std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[ Charges ] Grid created for Charges."<<std::endl;}
 
 }
  
@@ -111,17 +117,19 @@ bool Charges::import_charges(){
   if(is_table_set){
     MakeGrid();
     import_is_success = import_is_success && read_in_energy_gluons();
-    if(config.get_Verbose()){std::cout<< "[ Charges ] Gluon energy density    -->  Imported " << std::endl;}
+    if(config.get_Verbose()>VerboseLevel::Minimal){std::cout<< "[ Charges ] Gluon energy density    -->  Imported " << std::endl;}
     import_is_success = import_is_success && read_in_nK_quark(0, QuarkID::u );
     import_is_success = import_is_success && read_in_nK_quark(1, QuarkID::u );
-    if(config.get_Verbose()){std::cout<< "[ Charges ] U-Quark constructions   -->  Imported "<< std::endl;}
+    if(config.get_Verbose()>VerboseLevel::Minimal){std::cout<< "[ Charges ] U-Quark constructions   -->  Imported "<< std::endl;}
     import_is_success = import_is_success && read_in_nK_quark(0, QuarkID::d );
     import_is_success = import_is_success && read_in_nK_quark(1, QuarkID::d );
-    if(config.get_Verbose()){std::cout<< "[ Charges ] D-Quark constructions   -->  Imported "<< std::endl;}
+    if(config.get_Verbose()>VerboseLevel::Minimal){std::cout<< "[ Charges ] D-Quark constructions   -->  Imported "<< std::endl;}
     import_is_success = import_is_success && read_in_nK_quark(0, QuarkID::s );
     import_is_success = import_is_success && read_in_nK_quark(1, QuarkID::s );
-    if(config.get_Verbose()){std::cout<< "[ Charges ] S-Quark constructions   -->  Imported "<< std::endl;}
+    if(config.get_Verbose()>VerboseLevel::Minimal){std::cout<< "[ Charges ] S-Quark constructions   -->  Imported "<< std::endl;}
     import_is_success=true;
+    if(config.get_Verbose()==VerboseLevel::Minimal){std::cout<< "[ Charges ] All charges  -->  Imported " << std::endl;}
+
   }
   else{import_is_success=false;}
 
@@ -176,12 +184,13 @@ bool Charges::check_config(){
   Config * set_conf= new Config(path_to_config.str());
 
   /// Grid Comparison
+
   is_config = is_config && config.compare_grid_parameters(set_conf,double_tolerance);
   is_config = is_config && config.compare_model_parameters(set_conf,double_tolerance);
   is_config = is_config && config.compare_collEnergy(set_conf->get_collEnergy(), double_tolerance);
   is_config = is_config && config.compare_PDF_parameters(set_conf, double_tolerance);
   is_config = is_config && config.compare_Thickness_parameters(set_conf, double_tolerance);
-
+  std::cerr << "PATHS = " << config.get_modelPath() << "\t" << set_conf->get_modelPath()<<std::endl;
   if(is_config){config_set = Config(path_to_config.str());}
   return is_config;
 }
@@ -362,19 +371,21 @@ bool Charges::read_in_nK_quark(int k, QuarkID qid){
 
 
 double Charges::gluon_energy(double eta, double T1, double T2){
-  if ( T1 < config_set.get_TMin() ){return 0.0;}
+  if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
+  if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
+  if ( T1 == 0.0 ){return 0.0;}
+  if ( T2 == 0.0 ){return 0.0;}
   if ( T1 > config_set.get_TMax() ){
     if(T_warning){
       std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing nuclear matter.";
-      set_eta_warning_off();
+      set_T_warning_off();
     }
     return 0.0;
   }
-  if ( T2 < config_set.get_TMin() ){return 0.0;}
   if ( T2 > config_set.get_TMax() ){
     if(T_warning){
       std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing nuclear matter.";
-      set_eta_warning_off();
+      set_T_warning_off();
     }
     return 0.0;
   }
@@ -387,6 +398,26 @@ double Charges::gluon_energy(double eta, double T1, double T2){
   }
   else if ( eta == config.get_ETAMIN() ){return gsl_spline2d_eval(e_g_spl[0],T1,T2,xaccEG[0], yaccEG[0]);}
   else if ( eta == config.get_ETAMAX() ){return gsl_spline2d_eval(e_g_spl[config.get_NETA()-1],T1,T2,xaccEG[config.get_NETA()-1], yaccEG[config.get_NETA()-1]);}
+  
+
+  // Low-T extrapolations
+  if ( T1 <= safe_Tmin ){
+    if(T2 > safe_Tmin){
+      return (T1/safe_Tmin)*gluon_energy(eta, safe_Tmin, T2);
+    }
+    else if( T2 <= safe_Tmin ){
+      return (T1/safe_Tmin)*(T2/safe_Tmin)*gluon_energy(eta, safe_Tmin,  safe_Tmin);
+    }
+  }
+  else if ( T2 <= safe_Tmin ){
+    if(T1>safe_Tmin){
+      return (T2/safe_Tmin)*gluon_energy(eta, T1, safe_Tmin);
+    }
+    else if( T1 <= safe_Tmin ){
+      return (T1/safe_Tmin)*(T2/safe_Tmin)*gluon_energy(eta, safe_Tmin,  safe_Tmin);
+    }
+  }
+  // high rapidity catch 
   else{
     int iETA;
     double ETA1,ETA2;
@@ -404,49 +435,72 @@ double Charges::gluon_energy(double eta, double T1, double T2){
 }
 
 double Charges::quark_energy(double eta, double T1, double T2){
-  if ( T1 < config_set.get_TMin() ){return 0.0;}
-  if ( T1 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
-      set_eta_warning_off();
+   // High rapidity Catch
+   bool condition = eta > config.get_ETAMIN() || eta < config.get_ETAMAX();
+   // High rapidity Catch
+  if ( condition ){
+    if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
+    if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
+    if ( T1 == 0.0 ){return 0.0;}
+    if ( T2 == 0.0 ){return 0.0;}
+    if ( T1 > config_set.get_TMax() ){
+      if(T_warning){
+        std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
+        set_eta_warning_off();
+      }
+      return 0.0;
     }
-    return 0.0;
-  }
-  if ( T2 < config_set.get_TMin() ){return 0.0;}
-  if ( T2 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
-      set_eta_warning_off();
+    if ( T2 > config_set.get_TMax() ){
+      if(T_warning){
+        std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
+        set_eta_warning_off();
+      }
+      return 0.0;
     }
-    return 0.0;
+    if ( T1 <= safe_Tmin ){
+      if ( T2> safe_Tmin ){
+        return (T1/safe_Tmin)*quark_energy(eta,safe_Tmin,T2);
+      }
+      else if ( T2 <= safe_Tmin ){
+        return (T1/safe_Tmin)*(T2/safe_Tmin)*quark_energy(eta,safe_Tmin,safe_Tmin);
+      }
+    }
+    else if ( T2 <= safe_Tmin ){
+      if ( T1> safe_Tmin ){
+        return (T2/safe_Tmin)*quark_energy(eta,T1,safe_Tmin);
+      }
+      else if ( T1 <= safe_Tmin ){
+        return (T1/safe_Tmin)*(T2/safe_Tmin)*quark_energy(eta,safe_Tmin,safe_Tmin);
+      }
+    }
+    else{
+
+      double TEMP=0;
+      // U QUARK
+      TEMP += T1*gsl_spline2d_eval(N1u_spl[0],eta,T2,xaccN1u[0], yaccN1u[0]); // 12 u
+      TEMP += T1*gsl_spline2d_eval(N1u_spl[1],eta,T2,xaccN1u[1], yaccN1u[1]); // 12 ubar
+      TEMP += T2*gsl_spline2d_eval(N1u_spl[2],eta,T1,xaccN1u[2], yaccN1u[2]); // 21 u
+      TEMP += T2*gsl_spline2d_eval(N1u_spl[3],eta,T1,xaccN1u[3], yaccN1u[3]); // 21 ubar
+      // D QUARK
+      TEMP += T1*gsl_spline2d_eval(N1d_spl[0],eta,T2,xaccN1d[0], yaccN1d[0]); // 12 d
+      TEMP += T1*gsl_spline2d_eval(N1d_spl[1],eta,T2,xaccN1d[1], yaccN1d[1]); // 12 dbar
+      TEMP += T2*gsl_spline2d_eval(N1d_spl[2],eta,T1,xaccN1d[2], yaccN1d[2]); // 21 d
+      TEMP += T2*gsl_spline2d_eval(N1d_spl[3],eta,T1,xaccN1d[3], yaccN1d[3]); // 21 dbar
+      // S QUARK
+      TEMP += T1*gsl_spline2d_eval(N1s_spl[0],eta,T2,xaccN1s[0], yaccN1s[0]); // 12 s
+      TEMP += T1*gsl_spline2d_eval(N1s_spl[1],eta,T2,xaccN1s[1], yaccN1s[1]); // 12 sbar
+      TEMP += T2*gsl_spline2d_eval(N1s_spl[2],eta,T1,xaccN1s[2], yaccN1s[2]); // 21 s
+      TEMP += T2*gsl_spline2d_eval(N1s_spl[3],eta,T1,xaccN1s[3], yaccN1s[3]); // 21 sbar
+
+      return TEMP ;
+    }
   }
-  if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-    if(eta_warning){
+  else{
+     if(eta_warning){
       std::cerr<<"[ Charges::Warning ] Accessed eta not in range. Increase eta range to include forward/backward rapidities.";
       set_eta_warning_off();
     }
     return 0.0;
-  }
-  else{
-
-    double TEMP=0;
-    // U QUARK
-    TEMP += T1*gsl_spline2d_eval(N1u_spl[0],eta,T2,xaccN1u[0], yaccN1u[0]); // 12 u
-    TEMP += T1*gsl_spline2d_eval(N1u_spl[1],eta,T2,xaccN1u[1], yaccN1u[1]); // 12 ubar
-    TEMP += T2*gsl_spline2d_eval(N1u_spl[2],eta,T1,xaccN1u[2], yaccN1u[2]); // 21 u
-    TEMP += T2*gsl_spline2d_eval(N1u_spl[3],eta,T1,xaccN1u[3], yaccN1u[3]); // 21 ubar
-    // D QUARK
-    TEMP += T1*gsl_spline2d_eval(N1d_spl[0],eta,T2,xaccN1d[0], yaccN1d[0]); // 12 d
-    TEMP += T1*gsl_spline2d_eval(N1d_spl[1],eta,T2,xaccN1d[1], yaccN1d[1]); // 12 dbar
-    TEMP += T2*gsl_spline2d_eval(N1d_spl[2],eta,T1,xaccN1d[2], yaccN1d[2]); // 21 d
-    TEMP += T2*gsl_spline2d_eval(N1d_spl[3],eta,T1,xaccN1d[3], yaccN1d[3]); // 21 dbar
-    // S QUARK
-    TEMP += T1*gsl_spline2d_eval(N1s_spl[0],eta,T2,xaccN1s[0], yaccN1s[0]); // 12 s
-    TEMP += T1*gsl_spline2d_eval(N1s_spl[1],eta,T2,xaccN1s[1], yaccN1s[1]); // 12 sbar
-    TEMP += T2*gsl_spline2d_eval(N1s_spl[2],eta,T1,xaccN1s[2], yaccN1s[2]); // 21 s
-    TEMP += T2*gsl_spline2d_eval(N1s_spl[3],eta,T1,xaccN1s[3], yaccN1s[3]); // 21 sbar
-
-    return TEMP ;
   }
 }
 
@@ -456,8 +510,11 @@ double Charges::u_density(double eta, double T1p,double T1n, double T2p, double 
   // n_u = n_u(Tp)+n_d(Tn)
   double T1 = T1p + T1n;
   double T2 = T2p + T2n;
+  if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
+  if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
+  if ( T1 == 0.0 ){return 0.0;}
+  if ( T2 == 0.0 ){return 0.0;}
 
-  if ( T1 < config_set.get_TMin() ){return 0.0;}
   if ( T1 > config_set.get_TMax() ){
     if(T_warning){
       std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
@@ -465,7 +522,6 @@ double Charges::u_density(double eta, double T1p,double T1n, double T2p, double 
     }
     return 0.0;
   }
-  if ( T2 < config_set.get_TMin() ){return 0.0;}
   if ( T2 > config_set.get_TMax() ){
     if(T_warning){
       std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
@@ -473,12 +529,86 @@ double Charges::u_density(double eta, double T1p,double T1n, double T2p, double 
     }
     return 0.0;
   }
+  // High rapidity Catch
   if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
     if(eta_warning){
       std::cerr<<"[ Charges::Warning ] Accessed eta not in range. Increase eta range to include forward/backward rapidities.";
       set_eta_warning_off();
     }
     return 0.0;
+  }
+
+  if ( T1 <= safe_Tmin ){
+    if ( T2 > safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - p
+      TEMP += T1p*gsl_spline2d_eval(N0u_spl[0],eta,T2,xaccN0u[0], yaccN0u[0]); // 12 u
+      TEMP -= T1p*gsl_spline2d_eval(N0u_spl[1],eta,T2,xaccN0u[1], yaccN0u[1]); // 12 ubar
+      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
+      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
+
+      // D QUARK - n
+      TEMP += T1n*gsl_spline2d_eval(N0d_spl[0],eta,T2,xaccN0d[0], yaccN0d[0]); // 12 u
+      TEMP -= T1n*gsl_spline2d_eval(N0d_spl[1],eta,T2,xaccN0d[1], yaccN0d[1]); // 12 ubar
+      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
+      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
+
+      return TEMP ;
+    }
+    else if ( T2 <= safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - p
+      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
+      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
+      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
+      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
+
+      // D QUARK - n
+      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
+      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
+      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
+      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
+
+      return TEMP ;    
+    }
+  }
+  else if ( T2 <= safe_Tmin ){
+    if ( T1 > safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - p
+      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
+      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
+      TEMP += T2p*gsl_spline2d_eval(N0u_spl[2],eta,T1,xaccN0u[2], yaccN0u[2]); // 21 u
+      TEMP -= T2p*gsl_spline2d_eval(N0u_spl[3],eta,T1,xaccN0u[3], yaccN0u[3]); // 21 ubar
+
+      // D QUARK - n
+      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
+      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
+      TEMP += T2n*gsl_spline2d_eval(N0d_spl[2],eta,T1,xaccN0d[2], yaccN0d[2]); // 21 u
+      TEMP -= T2n*gsl_spline2d_eval(N0d_spl[3],eta,T1,xaccN0d[3], yaccN0d[3]); // 21 ubar
+
+      return TEMP ;
+    }
+    else if ( T1 <= safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - p
+      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
+      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
+      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
+      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
+
+      // D QUARK - n
+      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
+      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
+      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
+      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
+
+      return TEMP ;   
+    }
   }
   else{
 
@@ -505,8 +635,11 @@ double Charges::d_density(double eta, double T1p,double T1n, double T2p, double 
   // n_d = n_d(Tp)+n_u(Tn)
   double T1 = T1p + T1n;
   double T2 = T2p + T2n;
+  if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
+  if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
+  if ( T1 == 0.0 ){return 0.0;}
+  if ( T2 == 0.0 ){return 0.0;}
 
-  if ( T1 < config_set.get_TMin() ){return 0.0;}
   if ( T1 > config_set.get_TMax() ){
     if(T_warning){
       std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
@@ -514,7 +647,6 @@ double Charges::d_density(double eta, double T1p,double T1n, double T2p, double 
     }
     return 0.0;
   }
-  if ( T2 < config_set.get_TMin() ){return 0.0;}
   if ( T2 > config_set.get_TMax() ){
     if(T_warning){
       std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
@@ -528,6 +660,79 @@ double Charges::d_density(double eta, double T1p,double T1n, double T2p, double 
       set_eta_warning_off();
     }
     return 0.0;
+  }
+  
+  if ( T1 <= safe_Tmin ){
+    if ( T2 > safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - n
+      TEMP += T1n*gsl_spline2d_eval(N0u_spl[0],eta,T2,xaccN0u[0], yaccN0u[0]); // 12 u
+      TEMP -= T1n*gsl_spline2d_eval(N0u_spl[1],eta,T2,xaccN0u[1], yaccN0u[1]); // 12 ubar
+      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
+      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
+
+      // D QUARK - p
+      TEMP += T1p*gsl_spline2d_eval(N0d_spl[0],eta,T2,xaccN0d[0], yaccN0d[0]); // 12 u
+      TEMP -= T1p*gsl_spline2d_eval(N0d_spl[1],eta,T2,xaccN0d[1], yaccN0d[1]); // 12 ubar
+      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
+      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
+
+      return TEMP ;
+    }
+    else if ( T2 <= safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - n
+      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
+      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
+      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
+      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
+
+      // D QUARK - p
+      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
+      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
+      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
+      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
+
+      return TEMP ;    
+    }
+  }
+  else if ( T2 <= safe_Tmin ){
+    if ( T1 > safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - n
+      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
+      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
+      TEMP += T2n*gsl_spline2d_eval(N0u_spl[2],eta,T1,xaccN0u[2], yaccN0u[2]); // 21 u
+      TEMP -= T2n*gsl_spline2d_eval(N0u_spl[3],eta,T1,xaccN0u[3], yaccN0u[3]); // 21 ubar
+
+      // D QUARK - p
+      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
+      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
+      TEMP += T2p*gsl_spline2d_eval(N0d_spl[2],eta,T1,xaccN0d[2], yaccN0d[2]); // 21 u
+      TEMP -= T2p*gsl_spline2d_eval(N0d_spl[3],eta,T1,xaccN0d[3], yaccN0d[3]); // 21 ubar
+
+      return TEMP ;
+    }
+    else if ( T1 <= safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - n
+      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
+      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
+      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
+      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
+
+      // D QUARK - p
+      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
+      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
+      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
+      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
+
+      return TEMP ;   
+    }
   }
   else{
 
@@ -549,7 +754,11 @@ double Charges::d_density(double eta, double T1p,double T1n, double T2p, double 
 }
 
 double Charges::s_density(double eta, double T1, double T2){
-  if ( T1 < config_set.get_TMin() ){return 0.0;}
+  if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
+  if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
+  if ( T1 == 0.0 ){return 0.0;}
+  if ( T2 == 0.0 ){return 0.0;}
+
   if ( T1 > config_set.get_TMax() ){
     if(T_warning){
       std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
@@ -557,7 +766,6 @@ double Charges::s_density(double eta, double T1, double T2){
     }
     return 0.0;
   }
-  if ( T2 < config_set.get_TMin() ){return 0.0;}
   if ( T2 > config_set.get_TMax() ){
     if(T_warning){
       std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
@@ -571,6 +779,55 @@ double Charges::s_density(double eta, double T1, double T2){
       set_eta_warning_off();
     }
     return 0.0;
+  }
+  
+  if ( T1 <= safe_Tmin ){
+    if ( T2 > safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - n
+      TEMP += T1*gsl_spline2d_eval(N0s_spl[0],eta,T2,xaccN0s[0], yaccN0s[0]); // 12 s
+      TEMP -= T1*gsl_spline2d_eval(N0s_spl[1],eta,T2,xaccN0s[1], yaccN0s[1]); // 12 sbar
+      TEMP += T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[2],eta,tmin,xaccN0s[2], yaccN0s[2]); // 21 s
+      TEMP -= T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[3],eta,tmin,xaccN0s[3], yaccN0s[3]); // 21 sbar
+
+      return TEMP ;
+    }
+    else if ( T2 <= safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - n
+      TEMP += T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[0],eta,tmin,xaccN0s[0], yaccN0s[0]); // 12 s
+      TEMP -= T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[1],eta,tmin,xaccN0s[1], yaccN0s[1]); // 12 sbar
+      TEMP += T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[2],eta,tmin,xaccN0s[2], yaccN0s[2]); // 21 s
+      TEMP -= T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[3],eta,tmin,xaccN0s[3], yaccN0s[3]); // 21 sbar
+
+      return TEMP ;    
+    }
+  }
+  else if ( T2 <= safe_Tmin ){
+    if ( T1 > safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - n
+      TEMP += T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[0],eta,tmin,xaccN0s[0], yaccN0s[0]); // 12 s
+      TEMP -= T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[1],eta,tmin,xaccN0s[1], yaccN0s[1]); // 12 sbar
+      TEMP += T2*gsl_spline2d_eval(N0s_spl[2],eta,T1,xaccN0s[2], yaccN0s[2]); // 21 s
+      TEMP -= T2*gsl_spline2d_eval(N0s_spl[3],eta,T1,xaccN0s[3], yaccN0s[3]); // 21 sbar
+
+      return TEMP ;
+    }
+    else if ( T1 <= safe_Tmin ){
+      double TEMP=0;
+      double tmin = safe_Tmin;
+      // U QUARK - n
+      TEMP += T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[0],eta,tmin,xaccN0s[0], yaccN0s[0]); // 12 s
+      TEMP -= T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[1],eta,tmin,xaccN0s[1], yaccN0s[1]); // 12 sbar
+      TEMP += T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[2],eta,tmin,xaccN0s[2], yaccN0s[2]); // 21 s
+      TEMP -= T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[3],eta,tmin,xaccN0s[3], yaccN0s[3]); // 21 sbar
+
+      return TEMP ;   
+    }
   }
   else{
     double TEMP=0;
@@ -654,6 +911,6 @@ void Charges::set_output_tests(){
   dump_charges_eta(7);
   dump_charges_eta(1);
   
-  if(config.get_Verbose()){std::cout<< "[ Charges ] Charge test files written out" << std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<< "[ Charges ] Charge test files written out" << std::endl;}
 
 }

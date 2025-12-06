@@ -11,6 +11,7 @@
 #include "pdfs_lhapdf.h"
 #include "dipole_mv.h"
 
+#include "routines.h"
 
 struct GluonParsMV{
 //Dynamical
@@ -91,6 +92,7 @@ class MV{
     int skip=3;
 
     void TestDump(double T1,double T2);
+    void dump_test_norm();
 
 
 

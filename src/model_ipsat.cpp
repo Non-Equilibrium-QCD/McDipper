@@ -34,7 +34,6 @@
 #include "include/model_ipsat.h"
 #include "include/params_gen.h"
 
-#include "include/routines.h"
 
 // BESSEL FUNCTIONS //
 #ifndef BesselJ0
@@ -167,18 +166,22 @@ namespace IPSatYields{
       double kmin= 0;
       double kmax= sqrts_t*exp(-fabs(y_t));
 
-      double error, result ;
+      double error=0;
+      double result = 0 ;
       //
       bool is_valid = (kmin<kmax);
       is_valid = is_valid && ( Variables->T1>0 && Variables->T2>0 );
-      // is_valid = is_valid && check_if_zero(y_t,sqrts_t,kmin,kmax,xmin_dip, xmax_dip);
-      //
-      if(is_valid){
-        Routines::make_cuhre_1C(3, GluonEnergyDensIntegrand,Variables,result,error);
-      }
-      else{
-        
-        return 0;
+      if ( is_valid && std::fabs(y_t) < std::fabs(Variables->dip->getMaxEta()) ){
+          double x1l = Variables->dip->get_KMIN()*exp(y_t)/sqrts_t;
+          double x1h = Variables->dip->get_KMAX()*exp(y_t)/sqrts_t;
+          double x2l = Variables->dip->get_KMIN()*exp(-y_t)/sqrts_t;
+          double x2h = Variables->dip->get_KMAX()*exp(-y_t)/sqrts_t;
+          bool is_x1_within_range = (Variables->dip->get_XMIN() <x1h) && (Variables->dip->get_XMAX() > x1l);
+          bool is_x2_within_range = (Variables->dip->get_XMIN() <x2h) && (Variables->dip->get_XMAX() > x2l);
+          // std::cout<< x1l << "\t"<< x1h << "\t"<< x2l << "\t"<< x2h << "\n";
+          if (is_x1_within_range && is_x2_within_range) {Routines::make_cuhre_1C(3, GluonEnergyDensIntegrand,Variables,result,error);} 
+          else{return result= 0.0;}
+          
       }
       return result;
     }
@@ -207,19 +210,20 @@ IPSat::IPSat(){}
 IPSat::IPSat(Config ConfInput){
   gsl_set_error_handler_off();
   config=Config(ConfInput);
+  
   p_set= int( config.get_ModelParams(0) );
   xscaling = config.get_ModelParams(1);
   p_reg = config.get_ModelParams(2);
   std::cout<< "[IP-Sat]: Regulator : " << p_reg << std::endl;
 
-  if(config.get_Verbose()){
+  if(config.get_Verbose()> VerboseLevel::None){
     std::cout<< std::endl;
-    std::cout<<"                     ----->  Initializing IP-Sat model  <----- "<< std::endl;
+    std::cout<<"[IP-Sat]: Initializing IP-Sat model "<< std::endl;
     std::cout<< std::endl;
   }
   quark_dist = new PDFs(&ConfInput);
 
-  if(config.get_Verbose()){std::cout<< std::endl;}
+  if(config.get_Verbose()> VerboseLevel::None){std::cout<< std::endl;}
   Dip= new Dipole(p_set,config.get_Verbose());
   Dip->set_new_xscaling(xscaling);
   config.set_dT();
@@ -240,13 +244,13 @@ void IPSat::MakeTable(std::string path_to_set){
 	// Write new config to setpath
 	config.set_dump(SETPATH);
   
-	if(config.get_Verbose()){std::cout<<"[IP-Sat]: New config written to "<<SETPATH  << std::endl;}
-  if(config.get_Verbose()){std::cout<<"[IP-Sat]: Tabulating conserved charges in the IP-Sat model framework"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"[IP-Sat]: New config written to "<<SETPATH  << std::endl;}
+  if(config.get_Verbose()> VerboseLevel::None){std::cout<<"[IP-Sat]: Tabulating conserved charges in the IP-Sat model framework"<<SETPATH  << std::endl;}
   make_gluon_energy();
-	if(config.get_Verbose()){std::cout<<"\n[IP-Sat]:Gluon Energy written to"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"\n[IP-Sat]:Gluon Energy written to"<<SETPATH  << std::endl;}
 
   make_baryon_stopping_all();
-	if(config.get_Verbose()){std::cout<<"\n[IP-Sat]:(All) Quark elements written to"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"\n[IP-Sat]:(All) Quark elements written to"<<SETPATH  << std::endl;}
 }
 
 
@@ -255,7 +259,7 @@ void IPSat::make_gluon_energy(){
 	std::ofstream density_f;
   std::ostringstream densityname;
   densityname << SETPATH <<"/"<< gluon_energy_table_name ;
-  if(config.get_Verbose()){ std::cout<< "Total (y,T1,T2)                                                          Local (T1,T2)"<< std::endl;  ;}
+  if(config.get_Verbose()==VerboseLevel::Dynamic){ std::cout<< "Total (y,T1,T2)                                                          Local (T1,T2)"<< std::endl;  ;}
 
 	GluonParsIPSat parameters;
 	parameters.sqrts= config.get_collEnergy();
@@ -264,6 +268,7 @@ void IPSat::make_gluon_energy(){
   
 	double res=0;
   density_f.open(densityname.str());
+  // std::cerr<< config.get_TMin() <<"\t" <<  config.get_TMax() << std::endl;
 	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 		parameters.y =y_t ;
@@ -278,7 +283,7 @@ void IPSat::make_gluon_energy(){
         res = IPSatYields::GluonEnergyDens(&parameters);
 
 				density_f<<parameters.y << "\t"<<parameters.T1 << "\t"<<parameters.T2 << "\t"<<res<< "\n";
-        if(config.get_Verbose()){
+        if(config.get_Verbose()==VerboseLevel::Dynamic){
 					if(remainder(i1,gen_pars::skip)==0){
 						double percentage_done1 = double(iy)/double(config.get_NETA());
 						double percentage_done2 = double(i1)/double(config.get_NT());
@@ -290,7 +295,7 @@ void IPSat::make_gluon_energy(){
 
 	}
 
-	if(config.get_Verbose()){printProgress2(1,1);}
+	if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress2(1,1);}
 }
 
 void IPSat::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
@@ -359,28 +364,28 @@ void IPSat::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
       density_f<<y_t<< "\t"<<T_t<< "\t"<<res12q<< "\t"<<res12aq<< "\t"<<res21q<< "\t"<<res21aq<< "\n";
 		}
 		density_f<< std::endl;
-		if(config.get_Verbose()){
+		if(config.get_Verbose()==VerboseLevel::Dynamic){
 			if(remainder(iy,gen_pars::skip)==0){double percentage_done = double(iy)/double(config.get_NETA());printProgress(percentage_done);}
 		}
 
 	}
 	gsl_integration_workspace_free (w);
  	density_f.close();
-	if(config.get_Verbose()){printProgress(1);std::cout<<std::endl;}
+	if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress(1);std::cout<<std::endl;}
 }
 
 void IPSat::make_baryon_stopping_all(){
 	make_baryon_stopping(0, QuarkID::u, QuarkID::ubar);
 	make_baryon_stopping(1, QuarkID::u, QuarkID::ubar);
-	if(config.get_Verbose()){std::cout<<"[IP-Sat]: U-Quark elements written \n " << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[IP-Sat]: U-Quark elements written \n " << std::endl;}
 
 	make_baryon_stopping(0, QuarkID::d, QuarkID::dbar);
 	make_baryon_stopping(1, QuarkID::d, QuarkID::dbar);
-	if(config.get_Verbose()){std::cout<<"[IP-Sat]: D-Quark elements written \n " << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[IP-Sat]: D-Quark elements written \n " << std::endl;}
 
 	make_baryon_stopping(0, QuarkID::s, QuarkID::sbar);
 	make_baryon_stopping(1, QuarkID::s, QuarkID::sbar);
-	if(config.get_Verbose()){std::cout<<"[IP-Sat]: S-Quark elements written \n " << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[IP-Sat]: S-Quark elements written \n " << std::endl;}
 
 
 }
@@ -434,7 +439,7 @@ void IPSat::TestDump(double T1,double T2){
   std::ofstream density_f;
   std::ostringstream densityname;
   densityname << SETPATH <<"/TestDump_T1_"<< T1<<"_T2_"<<T2<< ".dat" ;
-  if(config.get_Verbose()){std::cout<< "Writing dump for " << densityname.str() <<std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<< "Writing dump for " << densityname.str() <<std::endl;}
 
 	GluonParsIPSat parametersG;
 	parametersG.sqrts= config.get_collEnergy();
@@ -608,6 +613,6 @@ void IPSat::TestDump(double T1,double T2){
     // if(config.get_Verbose()){std::cout<<parametersG.y << "\t"<<resEG<< "\t"<<resEQ<< "\t"<<UDens<< "\t"<<DDens<< "\n";}
 	}
   density_f.close();
-  if(config.get_Verbose()){std::cout<<"-> Done"<<std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<<"-> Done"<<std::endl;}
 
 }

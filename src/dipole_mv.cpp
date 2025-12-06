@@ -129,35 +129,47 @@ namespace HankelDipoleMV{
 
 MVDipole::MVDipole(){}
 
-MVDipole::MVDipole(std::string PATH, int LargeXExt,int NLX,double XMax, bool Verbose){
-	DipVerbose=Verbose;
-	path= PATH;
-	mvconf=MVConfig(path);
-	if(DipVerbose){mvconf.terminal_setup_output();}
-	initialize();
-	get_LargeX_Type(LargeXExt);
-	NLargeX=NLX;
-	xmax=XMax;
-	set_largeX_values();
-	NTot= mvconf.getNY() + NLargeX;
+// MVDipole::MVDipole(std::string PATH, int LargeXExt,int NLX,double XMax, bool Verbose){
+// 	DipVerbose=Verbose;
+// 	path= PATH;
+// 	mvconf=MVConfig(path);
+// 	if(DipVerbose){mvconf.terminal_setup_output();}
+// 	initialize();
+// 	get_LargeX_Type(LargeXExt);
+// 	NLargeX=NLX;
+// 	xmax=XMax;
+// 	set_largeX_values();
+// 	NTot= mvconf.getNY() + NLargeX;
 
-	Get_Momentum_Dipoles();
-}
+// 	// HERE I HAVE TO INCLUDE ALL THE OTHER PARAMETERS
+
+// 	Get_Momentum_Dipoles();
+// }
 
 MVDipole::MVDipole(Config * conf){
 	DipVerbose=conf->get_Verbose();
 	path= conf->get_modelPath();
+	std::cout<< conf->get_modelPath(); 
+	std::cerr<< "Here is the Path! = " << path << std::endl;
+
 	mvconf=MVConfig(path);
-	if(DipVerbose){mvconf.terminal_setup_output();}
+	if(DipVerbose>VerboseLevel::None){mvconf.terminal_setup_output();}
 	initialize();
 	get_LargeX_Type(conf->get_ModelParams(1));
 	NLargeX=int(conf->get_ModelParams(2));
 	xmax=conf->get_ModelParams(3);
 	set_largeX_values();
+	std::cout<< NLargeX << "\t" << xmax << "\t" << int(LargeXType) << std::endl;
+ 
+	NYTot= mvconf.getNY() + NLargeX;
 
-	NTot= mvconf.getNY() + NLargeX;
-	
+	// We will get the mode dependent parameters.  (NFixedParameters=4)
+	NLargeXParameters=conf->get_mpars_number()-NFixedParameters;
+	LargeXParameters=new double[NLargeXParameters];
+	for (size_t i = 0; i < NLargeXParameters; i++) {LargeXParameters[i]=conf->get_ModelParams(NFixedParameters+i);}
+	// std::cerr << LargeXParameters[0] <<std::endl;
 	Get_Momentum_Dipoles();
+	
 }
 
 
@@ -181,7 +193,7 @@ MVDipole::~MVDipole(){
 
 	xaccSF = new gsl_interp_accel*[mvconf.getNY()] ;
 	yaccSF = new gsl_interp_accel*[mvconf.getNY()] ;
-	if(DipVerbose){std::cout<<"[MVDipole]: Interpolator Grid created for Dipoles" <<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"[MVDipole]: Interpolator Grid created for Dipoles" <<std::endl;}
 
 }
 
@@ -221,9 +233,9 @@ MVDipole::~MVDipole(){
 			{
 				
 				if (fscanf(table1,"%lf %lf %lf %lf %lf", &y_t, &T_t, &r_t, &SF_t, &SA_t) != 5){printf("[MVDipole]: Error reading MV-Dipole table!\n");exit(1);}
-				GAarr[mvconf.getNr()*iT + ir]=-log(SA_t);
-				GFarr[mvconf.getNr()*iT + ir]=-log(SA_t);
-				
+				GAarr[mvconf.getNT()*ir + iT]=SA_t;
+				GFarr[mvconf.getNT()*ir + iT]=SF_t;
+
 				if(ir==0 && iY ==0 ){T[iT]=T_t;}
 				if(ir==0 && iT ==0 ){Y[iY]=y_t;}
 				if(iY==0 && iT ==0 ){
@@ -232,21 +244,21 @@ MVDipole::~MVDipole(){
 				}
 			}
 		}
-		const gsl_interp2d_type * TA= gsl_interp2d_bilinear;
-		SA_spl[iY] = gsl_spline2d_alloc(TA,mvconf.getNr(), mvconf.getNT());
+		const gsl_interp2d_type * TA= gsl_interp2d_bicubic;
+		SA_spl[iY] = gsl_spline2d_alloc(TA,mvconf.getNT(), mvconf.getNr());
 		xaccSA[iY] = gsl_interp_accel_alloc();
 		yaccSA[iY] = gsl_interp_accel_alloc();
-		gsl_spline2d_init(SA_spl[iY], q, T, GAarr, mvconf.getNr(), mvconf.getNT());
+		gsl_spline2d_init(SA_spl[iY],  T, q, GAarr, mvconf.getNT(), mvconf.getNr());
 
-		const gsl_interp2d_type * TF = gsl_interp2d_bilinear;
-		SF_spl[iY] = gsl_spline2d_alloc(TF,mvconf.getNr(), mvconf.getNT());
+		const gsl_interp2d_type * TF = gsl_interp2d_bicubic;
+		SF_spl[iY] = gsl_spline2d_alloc(TF,mvconf.getNT(), mvconf.getNr());
 		xaccSF[iY] = gsl_interp_accel_alloc();
 		yaccSF[iY] = gsl_interp_accel_alloc();
-		gsl_spline2d_init(SF_spl[iY], q,T, GFarr, mvconf.getNr(), mvconf.getNT());
+		gsl_spline2d_init(SF_spl[iY], T,q, GFarr, mvconf.getNT(), mvconf.getNr());
 	}
 
 	fclose(table1);
-	if(DipVerbose){std::cerr<<"[MVDipole]: Dipole interpolator succesfully created! "<<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cerr<<"[MVDipole]: Dipole interpolator succesfully created! "<<std::endl;}
 
   }
 
@@ -270,9 +282,11 @@ MVDipole::~MVDipole(){
 	{
 		for (int iT=0; iT < mvconf.getNT(); iT++)
 		{
+			// 	if (fscanf(table1,"%lf %lf %lf %lf %lf", &y_t, &r_t, &G_t, &Gp_t, &Gpp_t) != 5){printf("Error reading table 1!\n");exit(1);}
+				// Gf[IPsat_pars::NY*ir+iY] = G_t;
 			if (fscanf(table1,"%lf %lf %lf %lf", &y_t, &T_t, &QF2_t, &QA2_t) != 4){printf("[MVDipole]: Error reading MV-Q2 table!\n");exit(1);}
-			QA2arr[mvconf.getNT()*iY + iT]=QA2_t;
-			QF2arr[mvconf.getNT()*iY + iT]=QF2_t;
+			QA2arr[mvconf.getNY()*iT + iY]=QA2_t;
+			QF2arr[mvconf.getNY()*iT + iY]=QF2_t;
 			
 			if(iY ==0 ){T[iT]=T_t;}
 			if(iT ==0 ){Y[iY]=y_t;}
@@ -282,21 +296,21 @@ MVDipole::~MVDipole(){
 
 	// Now we get interpolate the array
 	const gsl_interp2d_type *TQA= gsl_interp2d_bicubic;
-	Q2A_spl = gsl_spline2d_alloc(TQA, mvconf.getNT(), mvconf.getNY());
+	Q2A_spl = gsl_spline2d_alloc(TQA, mvconf.getNY(),mvconf.getNT());
 	xaccQ2A = gsl_interp_accel_alloc();
 	yaccQ2A = gsl_interp_accel_alloc();
-	gsl_spline2d_init(Q2A_spl, T, Y, QA2arr,mvconf.getNT(), mvconf.getNY());
+	gsl_spline2d_init(Q2A_spl, Y, T, QA2arr, mvconf.getNY(),mvconf.getNT());
 
 	// std::cout<< "Adjoint ready" << std::endl;
 
 	const gsl_interp2d_type *TQF= gsl_interp2d_bicubic;
-	Q2F_spl = gsl_spline2d_alloc(TQF, mvconf.getNT(), mvconf.getNY());
+	Q2F_spl = gsl_spline2d_alloc(TQF,  mvconf.getNY(),mvconf.getNT());
 	xaccQ2F = gsl_interp_accel_alloc();
 	yaccQ2F = gsl_interp_accel_alloc();
-	gsl_spline2d_init(Q2F_spl, T, Y, QF2arr, mvconf.getNT(), mvconf.getNY());
+	gsl_spline2d_init(Q2F_spl, Y, T, QF2arr,  mvconf.getNY(),mvconf.getNT());
 	// std::cout<< "Fundamental ready" << std: :endl;
 
-	if(DipVerbose){std::cerr<<"[MVDipole]: Qs2 interpolator succesfully created. "<<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cerr<<"[MVDipole]: Qs2 interpolator succesfully created. "<<std::endl;}
 }
 //////////////////////////////////////////////////////////
 //////       Position-Space Calling Methods       ////////
@@ -332,14 +346,24 @@ double MVDipole::FundamentalDipole(double x, double r, double T){
 			double tmp1,tmp2,tmp;
 
 
-			jY = (int) ( (T-mvconf.getYmin())/mvconf.getdY() );
-			Y1= mvconf.getYmin() + jY*mvconf.getdY();
-			Y2=mvconf.getYmin() +  (jY+1)*mvconf.getdY();
+			jY = static_cast<int>(std::floor( (Y-mvconf.getYmin())/mvconf.getdY() ));
+			// std::cerr<<jY<<"\t"<< Y<<std::endl;	
+			if(jY<mvconf.getNY()-1){
+				Y1= mvconf.getYmin() + jY*mvconf.getdY();
+				Y2=mvconf.getYmin() +  (jY+1)*mvconf.getdY();
 
-			tmp1 = gsl_spline2d_eval(SF_spl[jY],q,T,xaccSF[jY], yaccSF[jY]);
-			tmp2 = gsl_spline2d_eval(SF_spl[jY+1],q,T,xaccSF[jY+1], yaccSF[jY+1]);
-			tmp= tmp1 + (tmp2-tmp1) * (Y-Y1)/(Y2-Y1) ;  // lin interpolation in Y
-			dipole=exp(-tmp);
+				tmp1 = gsl_spline2d_eval(SF_spl[jY],T,q,xaccSF[jY], yaccSF[jY]);
+				tmp2 = gsl_spline2d_eval(SF_spl[jY+1],T,q,xaccSF[jY+1], yaccSF[jY+1]);
+				tmp= tmp1 + (tmp2-tmp1) * (Y-Y1)/(Y2-Y1) ;  // lin interpolation in Y
+				dipole=tmp;
+			}
+			else if(jY==mvconf.getNY()-1){
+				Y1= mvconf.getYmin() + jY*mvconf.getdY();
+				dipole= gsl_spline2d_eval(SF_spl[jY],T,q,xaccSF[jY], yaccSF[jY]);
+			}
+
+			// else()
+			
 			
 		}
 
@@ -352,7 +376,7 @@ double MVDipole::AdjointDipole(double x, double r, double T){
 	double dipole=0.0;
 	double Y = mvconf.getY(x);
 	double q = mvconf.getq(r);
-	if(Y<mvconf.getYmin()){
+	if(Y<=mvconf.getYmin()){
 		//large x extrapolation
 		dipole=get_LargeX_Dipole(x,r,T,MVRep::Adjoint);
 	}
@@ -377,14 +401,23 @@ double MVDipole::AdjointDipole(double x, double r, double T){
 			double Y1,Y2;
 			double tmp1,tmp2,tmp;
 
-			jY = (int) ( (T-mvconf.getYmin())/mvconf.getdY() );
-			Y1= mvconf.getYmin() + jY*mvconf.getdY();
-			Y2=mvconf.getYmin() +  (jY+1)*mvconf.getdY();
+			jY = static_cast<int>(std::floor( (Y-mvconf.getYmin())/mvconf.getdY() ));
 
-			tmp1 = gsl_spline2d_eval(SA_spl[jY],q,T,xaccSA[jY], yaccSA[jY]);
-			tmp2 = gsl_spline2d_eval(SA_spl[jY+1],q,T,xaccSA[jY+1], yaccSA[jY+1]);
-			tmp= tmp1 + (tmp2-tmp1) * (Y-Y1)/(Y2-Y1) ;  // lin interpolation in Y
-			dipole=exp(-tmp);
+			if(jY<mvconf.getNY()-1){
+				Y1 = mvconf.getYmin() + jY*mvconf.getdY();
+				Y2 = mvconf.getYmin() +  (jY+1)*mvconf.getdY();
+
+				tmp1 = gsl_spline2d_eval(SA_spl[jY],T,q,xaccSA[jY], yaccSA[jY]);
+				tmp2 = gsl_spline2d_eval(SA_spl[jY+1],T,q,xaccSA[jY+1], yaccSA[jY+1]);
+				tmp= tmp1 + (tmp2-tmp1) * (Y-Y1)/(Y2-Y1) ;  // lin interpolation in Y
+				dipole=tmp;
+			}
+			else if(jY==mvconf.getNY()-1){
+				Y1= mvconf.getYmin() + jY*mvconf.getdY();
+				dipole= gsl_spline2d_eval(SA_spl[jY],T,q,xaccSA[jY], yaccSA[jY]);
+			}
+
+			
 			
 		}
 
@@ -392,6 +425,9 @@ double MVDipole::AdjointDipole(double x, double r, double T){
 	
 	return dipole;
 }
+
+
+// Evaluating Q2
 
 double MVDipole::FundamentalQ2(double x, double T){
 	double dipole=0.0;
@@ -401,9 +437,10 @@ double MVDipole::FundamentalQ2(double x, double T){
 	else if(Y>mvconf.getYmax()){dipole = 0.0;}
 	else if(T<mvconf.getTmin()){dipole = 0.0;}
 	else if(T>mvconf.getTmax()){dipole = 0.0;}
-	else{dipole=gsl_spline2d_eval(Q2F_spl,T,Y,xaccQ2F, yaccQ2F);}
+	else{dipole=gsl_spline2d_eval(Q2F_spl,Y,T,xaccQ2F, yaccQ2F);}
 	return dipole;
 }
+
 
 double MVDipole::AdjointQ2(double x, double T){
 	double dipole=0.0;
@@ -413,35 +450,78 @@ double MVDipole::AdjointQ2(double x, double T){
 	else if(Y>mvconf.getYmax()){dipole = 0.0;}
 	else if(T<mvconf.getTmin()){dipole = 0.0;}
 	else if(T>mvconf.getTmax()){dipole = 0.0;}
-	else{dipole=gsl_spline2d_eval(Q2A_spl,T,Y,xaccQ2A, yaccQ2A);}
+	else{dipole=gsl_spline2d_eval(Q2A_spl,Y,T,xaccQ2A, yaccQ2A);}
+	return dipole;
+}
+// rapidity derivatives of Q2
+double MVDipole::FundamentaldQ2dY(double x, double T){
+	double dipole=0.0;
+	double Y = mvconf.getY(x);
+
+	if(Y<mvconf.getYmin()){dipole = 0.0;}
+	else if(Y>mvconf.getYmax()){dipole = 0.0;}
+	else if(T<mvconf.getTmin()){dipole = 0.0;}
+	else if(T>mvconf.getTmax()){dipole = 0.0;}
+	else{dipole=gsl_spline2d_eval_deriv_x(Q2F_spl,Y,T,xaccQ2F, yaccQ2F);}
+	return dipole;
+}
+
+double MVDipole::AdjointdQ2dY(double x, double T){
+	double dipole=0.0;
+	double Y = mvconf.getY(x);
+
+	if(Y<mvconf.getYmin()){dipole = 0.0;}
+	else if(Y>mvconf.getYmax()){dipole = 0.0;}
+	else if(T<mvconf.getTmin()){dipole = 0.0;}
+	else if(T>mvconf.getTmax()){dipole = 0.0;}
+	else{dipole=gsl_spline2d_eval_deriv_x(Q2A_spl,Y,T,xaccQ2A, yaccQ2A);}
 	return dipole;
 }
 
 
+double MVDipole::MVExponent(double r, double T, double Q2x,MVRep rep ){
+
+	//NOTICE THAT Q2 has to be given in fm!!
+	double Ci =0.0;
+	if(rep==MVRep::Adjoint){Ci=gen_pars::CA/gen_pars::CF;}
+	else if(rep==MVRep::Fundamental){Ci=1.;}
+	double Lr=log(mvconf.getEc()*M_E+ 1.0/(r*mvconf.getLambdaMV_in_fm()) );
+	double expo = 0.25*(mvconf.getSigma0()*T) * Q2x*pow(r,2.) * Lr;
+	return Ci*expo;
+}
+
 
 double MVDipole::get_LargeX_Dipole(double x, double r, double T, MVRep rep){
 	double largexdip=0.0;
-	double Ci ;
-	if(rep==MVRep::Adjoint){Ci=2.;}
-	else if(rep==MVRep::Fundamental){Ci=1.;}
-	switch (XMatch)
+	switch (LargeXType)
 	{
 		case MVLargeX::Frozen:
-			{	
-				double expo,lambda,delta;
-				expo = 0.25*(mvconf.getSigma0()*T);
-				expo *= mvconf.getQs02_in_fm()*pow(r,2.);  // Here large-x extrapolation is missing 
-				expo *= log(mvconf.getEc()*M_E+ 1.0/(r*mvconf.getLambdaMV_in_fm()) );
-				largexdip=exp(-Ci*expo);
-			}
+			largexdip=exp(-MVExponent(r,T, mvconf.getQs02_in_fm(),rep ));
 			break;
 		case MVLargeX::Simple:
-			{
-				double expo,lambda,delta;
-				expo = 0.25*(mvconf.getSigma0()*T)*pow(r,2.);
-				expo *= mvconf.getQs02_in_fm();  // Here large-x extrapolation is missing 
-				expo *= log(mvconf.getEc()*M_E+ 1.0/(r*mvconf.getLambdaMV_in_fm()) );
-				largexdip=exp(-Ci*expo);
+			{				// lets start with the large-x part 
+				// LargeXParameters[0] = beta
+				// We can use everything from here onwards in GeV as only dimensionless radios contribute
+				double Q2x0=0.0;
+				double dQ2x0dY=0.0;
+				if(rep==MVRep::Adjoint){
+					Q2x0= MVDipole::AdjointQ2(mvconf.getX0(), T)*gen_pars::GeV2_to_fmm2;
+					dQ2x0dY= MVDipole::AdjointdQ2dY(mvconf.getX0(), T)*gen_pars::GeV2_to_fmm2;
+
+				}
+				else if(rep==MVRep::Fundamental){
+					Q2x0= MVDipole::FundamentalQ2(mvconf.getX0(), T)*gen_pars::GeV2_to_fmm2;
+					dQ2x0dY= MVDipole::FundamentaldQ2dY(mvconf.getX0(), T)*gen_pars::GeV2_to_fmm2;
+				}
+				double qbarx0 =sqrt(Q2x0) /(sqrt(2.)*mvconf.getLambdaMV_in_fm());
+				double Ls = log(qbarx0 + M_E*mvconf.getEc());
+				// now let's get the matching at x0
+				double lambda = (dQ2x0dY/Q2x0) *( 1- (1./(2*Ls*mvconf.getGamma()))*(qbarx0/(qbarx0 + M_E*mvconf.getEc())) );
+				lambda -= LargeXParameters[0] * mvconf.getX0()/(1-mvconf.getX0());
+
+				double Q2X=mvconf.getQs02_in_fm() *pow( (1-x)/(1-mvconf.getX0()),LargeXParameters[0] ) * pow(mvconf.getX0()/x, lambda);
+				// all these formulas are defined in the extended documentation.
+				largexdip=exp(- MVExponent(r, T, Q2X, rep ));
 			}
 			break;
 		case MVLargeX::TMD:
@@ -487,15 +567,15 @@ void MVDipole::get_LargeX_Type(int large_x_extrapolator){
 
 
 void MVDipole::Make_Dipole_Interpolators(){
-	DF_spl = new gsl_spline2d*[mvconf.getNY() ] ;
-	DA_spl = new gsl_spline2d*[mvconf.getNY() ] ;
+	DF_spl = new gsl_spline2d*[ NYTot ] ;
+	DA_spl = new gsl_spline2d*[ NYTot ] ;
 
-	xaccDA = new gsl_interp_accel*[mvconf.getNY() ] ;
-	yaccDA = new gsl_interp_accel*[mvconf.getNY() ] ;
+	xaccDA = new gsl_interp_accel*[ NYTot ] ;
+	yaccDA = new gsl_interp_accel*[ NYTot ] ;
 
-	xaccDF = new gsl_interp_accel*[mvconf.getNY() ] ;
-	yaccDF = new gsl_interp_accel*[mvconf.getNY() ] ;
-	if(DipVerbose){std::cout<<"\nInterpolator Grid created for Dipoles" <<std::endl;}
+	xaccDF = new gsl_interp_accel*[ NYTot ] ;
+	yaccDF = new gsl_interp_accel*[ NYTot ] ;
+	if(DipVerbose>VerboseLevel::None){std::cout<<"\n[MVDipole]: Interpolator Grid created for Dipoles" <<std::endl;}
 
 }
 
@@ -504,7 +584,9 @@ void MVDipole::Get_Momentum_Dipoles(){
 	check_for_tabs_folders();
 	computed_in_run = !(check_dipole_sets());
 	// If not computed already -> compute new momentum space dipoles
-	if(computed_in_run){Make_Momentum_Dipoles();}
+	if(computed_in_run){
+		Make_Momentum_Dipoles();
+	}
 	// Output config
 	// print_Dk_config();  This NEEDS TO BE DONE TOO. , but can be directly performed in the mvconfig files
 	// Read in dipole tabulations and interpolate
@@ -525,12 +607,16 @@ void MVDipole::Make_Momentum_Dipoles(){
 	MaxFactor=HankelParameters::MinFactor;
 	mvconf.write_config(path_to_set);
 	// Transform
+	test_output_fixed_T(0.5);
+	test_output_fixed_T(1);
+	test_output_fixed_T(4);
+	test_output_fixed_T(8);
 	if(MV_pars::HankelTransMode==0){
-		if(DipVerbose){std::cout<<"[MVDipole]: Transforming IP-Sat Dipoles using the Fast Hankel Transform Method" <<std::endl;}
+		if(DipVerbose>VerboseLevel::None){std::cout<<"[MVDipole]: Transforming IP-Sat Dipoles using the Fast Hankel Transform Method" <<std::endl;}
 		Transform_Dipole();
 	}
 	else if(MV_pars::HankelTransMode==1){
-		if(DipVerbose){std::cerr<<"[MVDipole]: Transforming IP-Sat Dipoles using the Bessel-Zero method integration method" <<std::endl;}
+		if(DipVerbose>VerboseLevel::None){std::cerr<<"[MVDipole]: Transforming IP-Sat Dipoles using the Bessel-Zero method integration method" <<std::endl;}
 		Transform_Dipole_Naive();
 	}
 
@@ -550,14 +636,16 @@ void MVDipole::Transform_Dipole(){
 	std::ostringstream path_to_dip;
 	path_to_dip << path_to_set<< "/MomentumDipoles.dat" ;
 
-	if(DipVerbose){
+	if(DipVerbose>VerboseLevel::None){
 		std::cout<< "[MVDipole]: Transforming Dipoles to momentum space"<< std::endl;
-		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl; 
+	}
+	if(DipVerbose==VerboseLevel::Dynamic){
+		std::cout<< "Total (Y,T,k)                                                          Local (T,k)"<< std::endl; 
 	}
 	dip_f.open(path_to_dip.str());
 
-	for (int iy = 0; iy < mvconf.getNY(); iy++) {
-		Y_t = mvconf.Y_at(iy);
+	for (int iy = - NLargeX; iy < mvconf.getNY(); iy++){
+		Y_t = get_Y_at(iy);
 		x_t = mvconf.getx(Y_t);
 			
 		for (int iT = 0; iT < mvconf.getNT(); iT++) {
@@ -573,7 +661,7 @@ void MVDipole::Transform_Dipole(){
 			HankF.Initialize_Domain_w_CharScale(RDomF);
 
 			if(iy==0 && iT==0){
-				if(DipVerbose){ 
+				if(DipVerbose>VerboseLevel::None){ 
 					std::cout<< "[MVDipole]: Transforming for fundamental function using "<< HankF.get_Npoints() << " points "<<std::endl; 
 					std::cout<< "[MVDipole]: Transforming for adjoint function using "<< HankA.get_Npoints() << " points "<<std::endl; 
 				}
@@ -655,7 +743,7 @@ void MVDipole::Transform_Dipole(){
 
 				dip_f<< T_t<<"\t"<< Y_t<<"\t"<< u_t<<"\t" << DipF_k <<"\t" << DipA_k << std::endl;
 
-				if(DipVerbose){
+				if(DipVerbose==VerboseLevel::Dynamic){
 					if(remainder(iy,gen_pars::skip)==0){
 						double percentage_done2 = double(iy)/double(IPsat_pars::y_dip_points);
 						double percentage_done1 = double(iT)/double(IPsat_pars::T_dip_points);
@@ -669,7 +757,7 @@ void MVDipole::Transform_Dipole(){
 		}
 	}
 	dip_f.close();
-	if(DipVerbose){
+	if(DipVerbose==VerboseLevel::Dynamic){
 		printProgress(1,1);
 		std::cout<< std::endl;
 	}
@@ -686,14 +774,16 @@ void MVDipole::Transform_Dipole_Naive(){
 	std::ostringstream path_to_dip;
 	path_to_dip << path_to_set<< "/MomentumDipoles.dat" ;
 
-	if(DipVerbose){
+	if(DipVerbose>VerboseLevel::None){
 		std::cout<< "[MVDipole]: Transforming Dipoles to momentum space"<< std::endl;
-		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl; 
+	}
+	if(DipVerbose==VerboseLevel::Dynamic){
+		std::cout<< "Total (Y,T,k)                                                          Local (T,k)"<< std::endl; 
 	}
 	dip_f.open(path_to_dip.str());
 
-	for (int iy = 0; iy < mvconf.getNY(); iy++) {
-		Y_t = mvconf.Y_at(iy);
+	for (int iy = - NLargeX; iy < mvconf.getNY(); iy++){
+		Y_t = get_Y_at(iy);
 		x_t = mvconf.getx(Y_t);
 			
 		for (int iT = 0; iT < mvconf.getNT(); iT++) {
@@ -714,7 +804,7 @@ void MVDipole::Transform_Dipole_Naive(){
 					dip_f<< Y_t<<"\t"<<T_t<<"\t"<< u_t<<"\t" << DipF_k <<"\t" << DipA_k << std::endl;
 				}
 			}
-			if(DipVerbose){
+			if(DipVerbose==VerboseLevel::Dynamic){
 				if(remainder(iy,gen_pars::skip)==0){
 					double percentage_done2 = double(iy)/double(IPsat_pars::y_dip_points);
 					double percentage_done1 = double(iT)/double(IPsat_pars::T_dip_points);
@@ -723,7 +813,7 @@ void MVDipole::Transform_Dipole_Naive(){
 		}
 	}
 	dip_f.close();
-	if(DipVerbose){
+	if(DipVerbose==VerboseLevel::Dynamic){
 		printProgress(1,1);
 		std::cout<< std::endl;
 	}
@@ -746,26 +836,28 @@ bool MVDipole::import_dipole(){
 
 	tablename << path_to_set <<"/MomentumDipoles.dat";
 
-	if(DipVerbose){std::cout<<"[MVDipole]: Importing momentum-space dipoles. SRCFILE=" << tablename.str()<< std::endl ;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"[MVDipole]: Importing momentum-space dipoles. SRCFILE=" << tablename.str()<< std::endl ;}
 
 	double DipAArray[mvconf.getNK()*mvconf.getNT()];
 	double DipFArray[mvconf.getNK()*mvconf.getNT()];
 
 	double Tarray[mvconf.getNT()];
 	double Uarray[mvconf.getNK()];
-	for (int iT = 0; iT < mvconf.getNT(); iT++) {Tarray[iT]= mvconf.T_at(iT);}
-	for (int iU = 0; iU < mvconf.getNK(); iU++) {Uarray[iU]= mvconf.u_at(iU);}
+	// for (int iT = 0; iT < mvconf.getNT(); iT++) {Tarray[iT]= mvconf.T_at(iT);}
+	// for (int iU = 0; iU < mvconf.getNK(); iU++) {Uarray[iU]= mvconf.u_at(iU);}
 
-	//
+	// THIS NEEDS 
 	FILE *table = fopen(tablename.str().c_str(),"r");
-	double T_t,y_t,q_t,DipA_t,DipF_t;
-	for (int iY = 0; iY <NTot; iY++) {
+	double T_t,y_t,u_t,DipA_t,DipF_t;
+	for (int iY = 0; iY < NYTot; iY++) {
 		for (int iT = 0; iT < mvconf.getNT(); iT++) {		
 			for (int iU = 0; iU < mvconf.getNK(); iU++) {
 
-				if (fscanf(table,"%lf %lf %lf %lf %lf", &T_t, &y_t, &q_t, &DipF_t, &DipA_t) != 5){printf("Error reading distribution table!\n");exit(1);}
-				DipFArray[mvconf.getNK()*iT + iU]=-log(DipF_t);
-				DipAArray[mvconf.getNK()*iT + iU]=-log(DipA_t);
+				if (fscanf(table,"%lf %lf %lf %lf %lf",  &y_t, &T_t, &u_t, &DipF_t, &DipA_t) != 5){printf("Error reading distribution table!\n");exit(1);}
+				DipFArray[mvconf.getNK()*iT + iU]=DipF_t;
+				DipAArray[mvconf.getNK()*iT + iU]=DipA_t;
+				if(iU==0 && iY ==0 ){Tarray[iT]=T_t;}
+				if(iY==0 && iT ==0 ){Uarray[iU]=u_t;}
 			}
 		}
 		
@@ -783,7 +875,7 @@ bool MVDipole::import_dipole(){
 	                                                                                                                                                                                                                                      }
 	fclose(table);
  	is_read=true;
-	if(DipVerbose){std::cout<<"[MVDipole]: Momentum-space dipole ---> Imported!" << std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"[MVDipole]: Momentum-space dipole ---> Imported!" << std::endl;}
   	return is_read;
 }
 
@@ -793,7 +885,92 @@ bool MVDipole::import_dipole(){
 //////       Momentum-Space Calling Methods       ////////
 //////////////////////////////////////////////////////////
 
+	// int NLargeX;
+	// 	int NYTot;
+	// 	double xmax;
+	// 	double YminLX;
+	// 	double dYLX;
+int MVDipole::indexY(double Y){	
+    if (Y < 0.0) {
+        // Left side: YminLX <= Y < 0
+        return static_cast<int>( std::floor((Y - YminLX) / dYLX) );
+    } else {
+        // Right side: 0 <= Y <= Ymax
+        return NLargeX + static_cast<int>( std::floor(Y / mvconf.getdY() ) );
+    }
+}
+
 double MVDipole::FundamentalDipole_k(double x, double k, double T){
+	double tmp=0;
+	double Y_t = mvconf.getY(x);
+	if( x>=0.999 ){return 0.0;}
+	else if ( k<0 || k >= mvconf.getKmax() ){return 0.0;}
+	else if ( T > mvconf.getTmax() ){return 0.0;}
+	else if( Y_t < YminLX ){return 0;}
+	else if( Y_t >= mvconf.getYmax() ){return 0;}
+	else{
+		int jY;
+		double Y1,Y2;
+		double tmp1,tmp2;
+
+		double u_t;
+
+		jY = indexY(Y_t);
+		Y1= get_Y_at(jY-NLargeX);
+		Y2= get_Y_at(jY+1-NLargeX);
+
+		if(k <= mvconf.getKmin()){
+			double U1,U2,U3,k1,k2,k3;
+			double f1,f2,f3;
+			double a1,b1,c1,a2,b2,c2;
+			U1=mvconf.u_at(0);U2=mvconf.u_at(1),U3=mvconf.u_at(2);
+			k1 = mvconf.k_at(0);k2 = mvconf.k_at(1);k3 = mvconf.k_at(2);
+			if (T > mvconf.getTmin()){
+				f1 = gsl_spline2d_eval(DF_spl[jY],U1,T,xaccDF[jY], yaccDF[jY]);
+				f2 = gsl_spline2d_eval(DF_spl[jY],U2,T,xaccDF[jY], yaccDF[jY]);
+				f3 = gsl_spline2d_eval(DF_spl[jY],U3,T,xaccDF[jY], yaccDF[jY]);
+			}
+			else{
+				f1 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DF_spl[jY],U1,mvconf.getTmin(),xaccDF[jY], yaccDF[jY]);
+				f2 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DF_spl[jY],U2,mvconf.getTmin(),xaccDF[jY], yaccDF[jY]);
+				f3 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DF_spl[jY],U3,mvconf.getTmin(),xaccDF[jY], yaccDF[jY]);
+			}
+			quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a1,b1,c1);
+
+			if (T > mvconf.getTmin()){
+				f1 = gsl_spline2d_eval(DF_spl[jY+1],U1,T,xaccDF[jY+1], yaccDF[jY+1]);
+				f2 = gsl_spline2d_eval(DF_spl[jY+1],U2,T,xaccDF[jY+1], yaccDF[jY+1]);
+				f3 = gsl_spline2d_eval(DF_spl[jY+1],U3,T,xaccDF[jY+1], yaccDF[jY+1]);
+			}
+			else{
+				f1 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DF_spl[jY+1],U1,mvconf.getTmin(),xaccDF[jY+1], yaccDF[jY+1]);
+				f2 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DF_spl[jY+1],U2,mvconf.getTmin(),xaccDF[jY+1], yaccDF[jY+1]);
+				f3 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DF_spl[jY+1],U3,mvconf.getTmin(),xaccDF[jY+1], yaccDF[jY+1]);
+			}
+
+			quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a2,b2,c2);
+			tmp1= a1*k*k + b1*k+ c1;
+			tmp2= a2*k*k + b2*k+ c2;
+		}
+
+		else{
+			u_t = mvconf.getu(k);
+			
+			if (T > mvconf.getTmin()){
+				tmp1 = gsl_spline2d_eval(DF_spl[jY],u_t,T,xaccDF[jY], yaccDF[jY]);
+				tmp2 = gsl_spline2d_eval(DF_spl[jY+1],u_t,T,xaccDF[jY+1], yaccDF[jY+1]);
+			}
+			else{
+				tmp1 = (T/mvconf.getTmin()) *gsl_spline2d_eval(DF_spl[jY],u_t,mvconf.getTmin(),xaccDF[jY], yaccDF[jY]);
+				tmp2 = (T/mvconf.getTmin()) *gsl_spline2d_eval(DF_spl[jY+1],u_t,mvconf.getTmin(),xaccDF[jY+1], yaccDF[jY+1]);
+			}
+		}
+		tmp = tmp1 + (tmp2-tmp1) * (Y_t-Y1)/(Y2-Y1) ;  // lin interpolation in Q
+
+	}
+	return tmp;
+}
+double MVDipole::AdjointDipole_k_thread_local(double x, double k, double T){
 	double tmp=0;
 	double Y_t = mvconf.getY(x);
 	if( x>=0.999 ){return 0.0;}
@@ -802,54 +979,68 @@ double MVDipole::FundamentalDipole_k(double x, double k, double T){
 	else if( Y_t < YminLX ){return 0;}
 	else if( Y_t > mvconf.getYmax() ){return 0;}
 	else{
-		// CHECK T-SCALING!
-		if (T < mvconf.getTmin()){
-			double T1= mvconf.T_at(0);
-			double T2= mvconf.T_at(1);
-			double Q12 = gsl_spline2d_eval(Q2F_spl,T1,Y_t,xaccQ2F, yaccQ2F);
-			double Q22 = gsl_spline2d_eval(Q2F_spl,T2,Y_t,xaccQ2F, yaccQ2F);
-			double a=(-(Q22*T1) + Q12*T2)/(T1*(T1 - T2)*T2);
-			double b= (Q22*pow(T1,2) - Q12*pow(T2,2))/(pow(T1,2)*T2 - T1*pow(T2,2));
-			// double a = Q12*pow(T1,-2.);
-			double Q2T = a * pow(T,2.) + b * T;
-			tmp= (Q12/Q2T)*FundamentalDipole_k(x, k * sqrt(Q12/Q2T), T1);
-		}
-		else{
-			int jY;
-			double Y1,Y2;
-			double tmp1,tmp2;
+		int jY;
+		double Y1,Y2;
+		double tmp1,tmp2;
 
-			double Q_t;
+		double u_t;
 
-			jY = (int) ( (Y_t-mvconf.getYmin())/mvconf.getdY() );
-			Y1= mvconf.Y_at(jY);
-			Y2= mvconf.Y_at(jY+1);
+		jY = indexY(Y_t);
+		Y1= mvconf.Y_at(jY);
+		Y2= mvconf.Y_at(jY+1);
+		thread_local gsl_interp_accel* xacc_local = gsl_interp_accel_alloc();
+        thread_local gsl_interp_accel* yacc_local = gsl_interp_accel_alloc();
+		thread_local gsl_interp_accel* xacc2_local = gsl_interp_accel_alloc();
+        thread_local gsl_interp_accel* yacc2_local = gsl_interp_accel_alloc();
 
-			if(k <= mvconf.getKmin()){
-				double U1,U2,U3,k1,k2,k3;
-				double f1,f2,f3;
-				double a1,b1,c1,a2,b2,c2;
-				U1=mvconf.u_at(0);U2=mvconf.u_at(1),U3=mvconf.u_at(2);
-				k1 = mvconf.k_at(0);k2 = mvconf.k_at(1);k3 = mvconf.k_at(2);
-				f1 = gsl_spline2d_eval(DF_spl[jY],U1,T,xaccDF[jY], yaccDF[jY]);
-				f2 = gsl_spline2d_eval(DF_spl[jY],U2,T,xaccDF[jY], yaccDF[jY]);
-				f3 = gsl_spline2d_eval(DF_spl[jY],U3,T,xaccDF[jY], yaccDF[jY]);
-				quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a1,b1,c1);
-
-				f1 = gsl_spline2d_eval(DF_spl[jY+1],U1,T,xaccDF[jY], yaccDF[jY]);
-				f2 = gsl_spline2d_eval(DF_spl[jY+1],U2,T,xaccDF[jY], yaccDF[jY]);
-				f3 = gsl_spline2d_eval(DF_spl[jY+1],U3,T,xaccDF[jY], yaccDF[jY]);
-				quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a2,b2,c2);
-				tmp1= a1*k*k + b1*k+ c1;
-				tmp2= a2*k*k + b2*k+ c2;
+		if(k <= mvconf.getKmin()){
+			double U1,U2,U3,k1,k2,k3;
+			double f1,f2,f3;
+			double a1,b1,c1,a2,b2,c2;
+			U1=mvconf.u_at(0);U2=mvconf.u_at(1),U3=mvconf.u_at(2);
+			k1 = mvconf.k_at(0);k2 = mvconf.k_at(1);k3 = mvconf.k_at(2);
+			if (T > mvconf.getTmin()){
+				f1 = gsl_spline2d_eval(DA_spl[jY],U1,T,xacc_local, yacc_local);
+				f2 = gsl_spline2d_eval(DA_spl[jY],U2,T,xacc_local, yacc_local);
+				f3 = gsl_spline2d_eval(DA_spl[jY],U3,T,xacc_local, yacc_local);
 			}
 			else{
-				Q_t = mvconf.getu(k);
-				tmp1 = gsl_spline2d_eval(DF_spl[jY],Q_t,Y_t,xaccDF[jY], yaccDF[jY]);
-				tmp2 = gsl_spline2d_eval(DF_spl[jY+1],Q_t,Y_t,xaccDF[jY+1], yaccDF[jY+1]);
+				f1 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY],U1,mvconf.getTmin(),xacc_local, yacc_local);
+				f2 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY],U2,mvconf.getTmin(),xacc_local, yacc_local);
+				f3 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY],U3,mvconf.getTmin(),xacc_local, yacc_local);
 			}
-			tmp = tmp1 + (tmp2-tmp1) * (Y_t-Y1)/(Y2-Y1) ;  // lin interpolation in Q
+			quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a1,b1,c1);
+
+			if (T > mvconf.getTmin()){
+				f1 = gsl_spline2d_eval(DA_spl[jY+1],U1,T,xacc2_local, yacc2_local);
+				f2 = gsl_spline2d_eval(DA_spl[jY+1],U2,T,xacc2_local, yacc2_local);
+				f3 = gsl_spline2d_eval(DA_spl[jY+1],U3,T,xacc2_local, yacc2_local);
+			}
+			else{
+				f1 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY+1],U1,mvconf.getTmin(),xacc2_local, yacc2_local);
+				f2 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY+1],U2,mvconf.getTmin(),xacc2_local, yacc2_local);
+				f3 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY+1],U3,mvconf.getTmin(),xacc2_local, yacc2_local);
+			}
+
+			quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a2,b2,c2);
+			tmp1= a1*k*k + b1*k+ c1;
+			tmp2= a2*k*k + b2*k+ c2;
 		}
+
+		else{
+			u_t = mvconf.getu(k);
+			
+			if (T > mvconf.getTmin()){
+				tmp1 = gsl_spline2d_eval(DA_spl[jY],u_t,T,xaccDA[jY], yaccDA[jY]);
+				tmp2 = gsl_spline2d_eval(DA_spl[jY+1],u_t,T,xaccDA[jY+1], yaccDA[jY+1]);
+			}
+			else{
+				tmp1 = (T/mvconf.getTmin()) *gsl_spline2d_eval(DA_spl[jY],u_t,mvconf.getTmin(),xacc_local, yacc_local);
+				tmp2 = (T/mvconf.getTmin()) *gsl_spline2d_eval(DA_spl[jY+1],u_t,mvconf.getTmin(),xacc2_local, yacc2_local);
+			}
+		}
+		tmp = tmp1 + (tmp2-tmp1) * (Y_t-Y1)/(Y2-Y1) ;  // lin interpolation in Q
+
 	}
 	return tmp;
 }
@@ -861,56 +1052,68 @@ double MVDipole::AdjointDipole_k(double x, double k, double T){
 	else if ( k<0 || k >= mvconf.getKmax() ){return 0.0;}
 	else if ( T > mvconf.getTmax() ){return 0.0;}
 	else if( Y_t < YminLX ){return 0;}
-	else if( Y_t > mvconf.getYmax() ){return 0;}
+	else if( Y_t >= mvconf.getYmax() ){return 0;}
 	else{
-		// CHECK T-SCALING!
-		if (T < mvconf.getTmin()){
-			double T1= mvconf.T_at(0);
-			double T2= mvconf.T_at(1);
-			double Q12 = gsl_spline2d_eval(Q2A_spl,T1,Y_t,xaccQ2A, yaccQ2A);
-			double Q22 = gsl_spline2d_eval(Q2A_spl,T2,Y_t,xaccQ2A, yaccQ2A);
-			double a=(-(Q22*T1) + Q12*T2)/(T1*(T1 - T2)*T2);
-			double b= (Q22*pow(T1,2) - Q12*pow(T2,2))/(pow(T1,2)*T2 - T1*pow(T2,2));
-			// double a = Q12*pow(T1,-2.);
-			double Q2T = a * pow(T,2.) + b * T;
-			tmp= (Q12/Q2T)*AdjointDipole_k(x, k * sqrt(Q12/Q2T), T1);
-		}
-		else{
-			int jY;
-			double Y1,Y2;
-			double tmp1,tmp2;
+		int jY;
+		double Y1,Y2;
+		double tmp1,tmp2;
 
-			double Q_t;
+		double u_t;
 
-			jY = (int) ( (Y_t-mvconf.getYmin())/mvconf.getdY() );
-			Y1= mvconf.Y_at(jY);
-			Y2= mvconf.Y_at(jY+1);
-
-			if(k <= mvconf.getKmin()){
-				double U1,U2,U3,k1,k2,k3;
-				double f1,f2,f3;
-				double a1,b1,c1,a2,b2,c2;
-				U1=mvconf.u_at(0);U2=mvconf.u_at(1),U3=mvconf.u_at(2);
-				k1 = mvconf.k_at(0);k2 = mvconf.k_at(1);k3 = mvconf.k_at(2);
+		jY = indexY(Y_t);
+		// Y1= mvconf.Y_at(jY);
+		// Y2= mvconf.Y_at(jY+1);
+		Y1= get_Y_at(jY-NLargeX);
+		Y2= get_Y_at(jY+1-NLargeX);
+		
+		if(k <= mvconf.getKmin()){
+			double U1,U2,U3,k1,k2,k3;
+			double f1,f2,f3;
+			double a1,b1,c1,a2,b2,c2;
+			U1=mvconf.u_at(0);U2=mvconf.u_at(1),U3=mvconf.u_at(2);
+			k1 = mvconf.k_at(0);k2 = mvconf.k_at(1);k3 = mvconf.k_at(2);
+			if (T > mvconf.getTmin()){
 				f1 = gsl_spline2d_eval(DA_spl[jY],U1,T,xaccDA[jY], yaccDA[jY]);
 				f2 = gsl_spline2d_eval(DA_spl[jY],U2,T,xaccDA[jY], yaccDA[jY]);
 				f3 = gsl_spline2d_eval(DA_spl[jY],U3,T,xaccDA[jY], yaccDA[jY]);
-				quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a1,b1,c1);
-
-				f1 = gsl_spline2d_eval(DA_spl[jY+1],U1,T,xaccDA[jY], yaccDA[jY]);
-				f2 = gsl_spline2d_eval(DA_spl[jY+1],U2,T,xaccDA[jY], yaccDA[jY]);
-				f3 = gsl_spline2d_eval(DA_spl[jY+1],U3,T,xaccDA[jY], yaccDA[jY]);
-				quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a2,b2,c2);
-				tmp1= a1*k*k + b1*k+ c1;
-				tmp2= a2*k*k + b2*k+ c2;
 			}
 			else{
-				Q_t = mvconf.getu(k);
-				tmp1 = gsl_spline2d_eval(DA_spl[jY],Q_t,Y_t,xaccDA[jY], yaccDA[jY]);
-				tmp2 = gsl_spline2d_eval(DA_spl[jY+1],Q_t,Y_t,xaccDA[jY+1], yaccDA[jY+1]);
+				f1 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY],U1,mvconf.getTmin(),xaccDA[jY], yaccDA[jY]);
+				f2 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY],U2,mvconf.getTmin(),xaccDA[jY], yaccDA[jY]);
+				f3 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY],U3,mvconf.getTmin(),xaccDA[jY], yaccDA[jY]);
 			}
-			tmp = tmp1 + (tmp2-tmp1) * (Y_t-Y1)/(Y2-Y1) ;  // lin interpolation in Q
+			quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a1,b1,c1);
+
+			if (T > mvconf.getTmin()){
+				f1 = gsl_spline2d_eval(DA_spl[jY+1],U1,T,xaccDA[jY+1], yaccDA[jY+1]);
+				f2 = gsl_spline2d_eval(DA_spl[jY+1],U2,T,xaccDA[jY+1], yaccDA[jY+1]);
+				f3 = gsl_spline2d_eval(DA_spl[jY+1],U3,T,xaccDA[jY+1], yaccDA[jY+1]);
+			}
+			else{
+				f1 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY+1],U1,mvconf.getTmin(),xaccDA[jY+1], yaccDA[jY+1]);
+				f2 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY+1],U2,mvconf.getTmin(),xaccDA[jY+1], yaccDA[jY+1]);
+				f3 = (T/mvconf.getTmin()) * gsl_spline2d_eval(DA_spl[jY+1],U3,mvconf.getTmin(),xaccDA[jY+1], yaccDA[jY+1]);
+			}
+
+			quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a2,b2,c2);
+			tmp1= a1*k*k + b1*k+ c1;
+			tmp2= a2*k*k + b2*k+ c2;
 		}
+
+		else{
+			u_t = mvconf.getu(k);
+			
+			if (T > mvconf.getTmin()){
+				tmp1 = gsl_spline2d_eval(DA_spl[jY],u_t,T,xaccDA[jY], yaccDA[jY]);
+				tmp2 = gsl_spline2d_eval(DA_spl[jY+1],u_t,T,xaccDA[jY+1], yaccDA[jY+1]);
+			}
+			else{
+				tmp1 = (T/mvconf.getTmin()) *gsl_spline2d_eval(DA_spl[jY],u_t,mvconf.getTmin(),xaccDA[jY], yaccDA[jY]);
+				tmp2 = (T/mvconf.getTmin()) *gsl_spline2d_eval(DA_spl[jY+1],u_t,mvconf.getTmin(),xaccDA[jY+1], yaccDA[jY+1]);
+			}
+		}
+		tmp = tmp1 + (tmp2-tmp1) * (Y_t-Y1)/(Y2-Y1) ;  // lin interpolation in Q
+
 	}
 	return tmp;
 }
@@ -1004,6 +1207,79 @@ void MVDipole::quadratic_extrapolation(double x1,double f1,double x2,double f2,d
 void MVDipole::set_largeX_values(){
 	YminLX = log(mvconf.getX0()/xmax);
 	dYLX = (mvconf.getYmin()-YminLX)/double(NLargeX);
+}
+
+double MVDipole::get_Y_at(int i){
+	if(i<0){return mvconf.getYmin() + i*dYLX;}
+	else{return mvconf.Y_at(i);}
+}
+
+
+
+//////////////////////////////////////////////////////////
+//////               Output Tools                 ////////
+//////////////////////////////////////////////////////////
+
+void MVDipole::test_output_fixed_T(double T){
+	double x_t,Y_t;
+	double r_t;
+	std::ostringstream path_to_test;
+	path_to_test << path_to_set<< "/position_dipoles_test_fixed_T_"<< T << ".dat" ;
+	// std::cerr << path_to_dip.str() << std::endl;
+	std::ofstream test_f(path_to_test.str());
+	if (!test_f.is_open()) {
+   		 std::cerr << "ERROR: Cannot open file: " << path_to_test.str() << std::endl;
+	}
+
+	for (int iy = - NLargeX; iy < mvconf.getNY(); iy++){
+		Y_t = get_Y_at(iy);
+		x_t = mvconf.getx(Y_t);
+		for (int ir=0; ir < mvconf.getNr(); ir++)
+		{
+			r_t = mvconf.r_at(ir);
+			test_f<< Y_t << "\t"<< r_t << "\t" << FundamentalDipole(x_t, r_t, T) << "\t"<< AdjointDipole(x_t, r_t, T) << std::endl;
+		}
+	}
+	test_f.close();
+}	
+
+
+
+void MVDipole::dump_test_norm(){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_test.dat" ;
+	dip_f.open(path_to_file.str());
+	int Nx_t = 121;
+	int NT_t = 121;
+	int Nk_t = 121;
+	double Y_MIN_OUT = YminLX;
+	double Y_MAX_OUT = mvconf.getYmax() ;
+	double Tmin=0.1;
+	double Tmax=10;
+	double dT = (Tmax-Tmin)/(NT_t-1.);
+	double kmin=0.01;
+	double kmax=50;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+	std::cout << Y_MIN_OUT << "\t" << Y_MAX_OUT << std::endl;
+	double T_t,kt_t;
+	double Dip_A_k,Dip_F_k;
+	for (int iT = 0; iT < NT_t; iT++) {
+		T_t=Tmin + iT * dT;
+		
+		for (int iy = 0; iy < Nx_t; iy++) {
+			double y_t = Y_MIN_OUT + iy*(Y_MAX_OUT-Y_MIN_OUT)/(Nx_t-1.);
+			double x_t = mvconf.getx(y_t);
+			for (int ik = 0; ik < Nk_t; ik++) {
+				kt_t = kmin*exp(ik*dk);
+				Dip_F_k = FundamentalDipole_k(x_t,kt_t, T_t);
+				Dip_A_k = AdjointDipole_k(x_t,kt_t, T_t);
+
+				dip_f<< T_t<<"\t"<< x_t<<"\t"<< kt_t <<"\t" << Dip_F_k<<"\t" << Dip_A_k << std::endl;
+			}
+		}
+	}
+	dip_f.close();
 }
 
 

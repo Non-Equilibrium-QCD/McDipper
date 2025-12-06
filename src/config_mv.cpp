@@ -16,6 +16,7 @@ MVConfig::MVConfig(){}
 MVConfig::MVConfig(std::string PATH){
   path = PATH;
   process_parameters();
+  
 }
 MVConfig::~MVConfig(){}
 
@@ -76,6 +77,8 @@ void MVConfig::process_parameters(){
   }
   else{std::cerr<<"Config Error! Failed to open config-file!    Config path:   "<< configpath.str() <<std::endl; exit(EXIT_FAILURE); }
   // Extra processing
+  xmin=x0*exp(-Ymax);
+  std::cout<< xmin << std::endl;
   make_momentum_parameters();
   configfile.close();
 }
@@ -139,20 +142,22 @@ void MVConfig::process_grid_parameters(std::string testline){
   else{subheader=name_t;}
 }
 
-void MVConfig::make_momentum_parameters(){
+void MVConfig::make_momentum_parameters(){ 
 	qmin = 0;
 	qmax =log(rmax/rmin);
 	dq = log(rmax/rmin)/(Nr-1.);
 
 	NK=Nr;
 	kmin= 1./(rmax*gen_pars::fm_to_GeVm1);
-	kmax= 0.5/(rmin*gen_pars::fm_to_GeVm1);
+	kmax= 0.25/(rmin*gen_pars::fm_to_GeVm1);
 	umin =0;
 	umax= log(kmax/kmin);
-	du = log(kmax/kmin)/(NK-1.);
+	du = (umax-umin)/(NK-1.);
+  std::cout<< du << "\n";
 } 
 
 void MVConfig::terminal_setup_output(){
+    std::cout<< "|--------------------------------- MV-like Dipole Parameters -------------------------------------|\n";
     std::cerr << "[General]:\n";
     std::cerr <<"    Nc = " << NC<< ", Nf = " << NF<< "\n";
     std::cerr <<"    LambdaQCD: " << LambdaQCD << " GeV\n"; // GeV
@@ -174,8 +179,8 @@ void MVConfig::terminal_setup_output(){
     std::cerr << "[k-Parameters]:\n"; 
     std::cerr << "    NK = " << NK<<", kmin = " << kmin<<" GeV, kmax = " << kmax<<" GeV\n";
     std::cerr << "       \t umin = " << umin<<", umax = " << umax<<", du = " << du<<" \n";
-
-}
+    std::cout<< "|-------------------------------------------------------------------------------------------------|\n";
+} 
 
 void MVConfig::write_config(std::string path_to_write){
   std::ofstream config_f;
@@ -278,14 +283,14 @@ bool MVConfig::compare(const MVConfig& other) const {
     if (!reldiff(kmin, other.kmin,relEPS)) { diffs.emplace_back("kmin"); equal = false; }
     if (!reldiff(umax, other.umax,relEPS)) { diffs.emplace_back("umax"); equal = false; }
     if (!reldiff(umin, other.umin,relEPS)) { diffs.emplace_back("umin"); equal = false; }
-    if (!reldiff(du, other.du,relEPS)) { diffs.emplace_back("du"); equal = false; }
+    // if (!reldiff(du, other.du,relEPS)) { diffs.emplace_back("du"); equal = false; }
 
-    std::cerr<< "Different variables:\n";
+   if (!equal) {std::cerr<< "Different variables:\n";
     for (const auto& name : diffs) {
         std::cerr << " - " << name ;
     }
     std::cerr<< std::endl;
-
+    }
     return equal;
 }
 

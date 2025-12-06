@@ -77,6 +77,7 @@ class Event{
 		void MakeBlock(int EventID);
 		void RemoveBlock();
 
+		void MakeGlobalQuantities_Midrapidity();
 		void MakeChargeOutputMidrapidity();
 
 		void MakeOutputFiles();

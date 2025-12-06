@@ -84,6 +84,7 @@ class MVConfig{
 		double getYmin() const { return Ymin; }
 		double getYmax() const { return Ymax; }
 		double getdY()   const { return dY; }
+		
 
 
 		// T-grid
@@ -112,7 +113,9 @@ class MVConfig{
 		double r_at(int i){return rmin*exp(qmin+i*dq);}
 		double k_at(int i){return kmin*exp(umin+i*du);}
 		double x_at(int i){return x0*exp(-(Ymin+i*dY));}
+	
 		
+		double getXmin() const { return xmin;}
 
 	private:
 		std::string subheader;
@@ -129,7 +132,7 @@ class MVConfig{
 		// Grid
 		int Nr, NT, NY, NK;
 		double rmin,rmax,qmin,qmax,dq;
-		double x0, Ymin, Ymax, dY;
+		double x0, Ymin, Ymax, dY, xmin;
 		double Tmin, Tmax, dT;
 		double kmax,kmin, umax,umin,du;
 

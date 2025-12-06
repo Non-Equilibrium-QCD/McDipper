@@ -33,7 +33,7 @@ class MVDipole{
 	/* This is the (IP-Sat) Dipole class. It reads in input from the */
 	public:
 	MVDipole();
-	MVDipole(std::string path,  int LargeXExt, int NLX,double XMax, bool Verbose);
+	// MVDipole(std::string path,  int LargeXExt, int NLX,double XMax, bool Verbose);
 	MVDipole(Config * conf);
 	void read_config_in();
 	virtual ~MVDipole();
@@ -50,10 +50,13 @@ class MVDipole{
 	double FundamentalDipole(double x, double r, double T);
 	double FundamentalQ2(double x, double T);
 	double AdjointQ2(double x, double T);
+	double FundamentaldQ2dY(double x, double T);
+	double AdjointdQ2dY(double x, double T);
 
 	///////////////////// MOM-SPACE FUNCTIONS //////////////////////
 	double FundamentalDipole_k(double x, double k, double T);
 	double AdjointDipole_k(double x, double k, double T);
+	double AdjointDipole_k_thread_local(double x, double k, double T);
 	double MomentDipole(int n, double x, double T, MVRep rep);
 	double EffectiveRadius(int n, double x, double T, MVRep rep);
 
@@ -77,21 +80,46 @@ class MVDipole{
 
 	double getKmax(){return mvconf.getKmax();}
 	double getKmin(){return mvconf.getKmin();}
+	
+
+	/////////////////////// RETRIEVING TOOLS ////////////////////////
+	double getTmax(){return mvconf.getTmax();}
+	double getTmin(){return mvconf.getTmin();}
+	int getNT(){return mvconf.getNT();}
+	double getdT(){return mvconf.getdT();}
+	double T_at(int i){return mvconf.T_at(i);}
+
+	double getYminLX(){return YminLX;}
+	double getYmax(){return mvconf.getYmax();}
+	double getYmin(){return mvconf.getYmin();}
+	double getXmin(){return mvconf.getXmin();}
+	double getXmax(){return xmax;}
+	double getMaxEta(){return 0.5*log(xmax/mvconf.getXmin());}
+
+	int indexY(double Y);
+
+
+	/////////////////////// OUTPUT TOOLS ////////////////////////
+
+	void test_output_fixed_T(double T);
+	void dump_test_norm();
 
 	private:
 		std::string path;
-		bool DipVerbose;
+		VerboseLevel DipVerbose;
 		int HankelMode;
 		MVLargeX LargeXType;
 
 		MVConfig mvconf;
-		MVLargeX XMatch;
-
+		
 		int DipSet_conf;
 		int HankelMode_conf;
+		double * LargeXParameters;
+		int NLargeXParameters;
+		int NFixedParameters=4;
 
 		int NLargeX;
-		int NTot;
+		int NYTot;
 		double xmax;
 		double YminLX;
 		double dYLX;
@@ -153,6 +181,7 @@ class MVDipole{
 		// exptrapolation tools 
 		double get_LargeX_Dipole(double x, double r, double T, MVRep rep);
 		void get_LargeX_Type(int large_x_extrapolator);
+		double get_Y_at(int i);
 
 		bool IsPathExist(const std::string &s);
 		void check_for_tabs_folders();
@@ -169,6 +198,10 @@ class MVDipole{
 		bool is_in_range(double x, double x1,double x2);
 
 		void set_largeX_values();
+
+	 	double MVExponent(double r, double T,double Q2x, MVRep rep );
+
+		
 
  };
 

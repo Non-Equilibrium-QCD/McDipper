@@ -123,6 +123,7 @@ class Charges{
 
 
     bool initialized=false;
+    double safe_Tmin = 0.1;
 
 };
 

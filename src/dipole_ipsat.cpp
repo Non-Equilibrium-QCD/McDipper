@@ -114,7 +114,7 @@ namespace HankelDipoleIPSat{
 
 Dipole::Dipole(){}
 
-Dipole::Dipole(int set, bool Verbose){
+Dipole::Dipole(int set,VerboseLevel Verbose){
 	DipVerbose=Verbose;
 	DipSet= set;
 	HankelMode=IPsat_pars::HankelTransMode;
@@ -200,7 +200,7 @@ Dipole::Dipole(int set, bool Verbose){
 
 	fclose(table1);
 
-	if(DipVerbose){std::cerr<<"Dipole succesfully created for Parameter Set  " << set <<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cerr<<"[IP-Sat-Dipole]: Dipole succesfully created for Parameter Set  " << set <<std::endl;}
 
 	Get_Momentum_Dipoles();
 
@@ -648,7 +648,7 @@ void Dipole::Make_Dipole_Grids(){
 	T_grid= new double[N3];
 	for (int iT = 0; iT < N3; iT++) {T_grid[iT]=T_MIN + iT*DT;}
 
-	if(DipVerbose){std::cout<<"---> Grid created for Dipoles with Nk = " << N1<< " and  NY = " << N2<<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"[IP-Sat-Dipole]: Grid created for Dipoles with Nk = " << N1<< " and  NY = " << N2<<std::endl;}
 	is_initialized=true;
 }
 
@@ -661,14 +661,14 @@ void Dipole::Make_Dipole_Interpolators(){
 
 	xaccF = new gsl_interp_accel*[N3] ;
 	yaccF = new gsl_interp_accel*[N3] ;
-	if(DipVerbose){std::cout<<"\nInterpolator Grid created for Dipoles" <<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"\n[IP-Sat-Dipole]: Interpolator Grid created for Dipoles" <<std::endl;}
 
 }
 
 void Dipole::read_in_dipoles(){
 	Make_Dipole_Interpolators();
 	bool is_imported = import_dipole(Rep::Fundamental) && import_dipole(Rep::Adjoint) ;
-	if(!is_imported){std::cerr<<"Error while importing dipole!"<<std::endl;exit(EXIT_FAILURE);}
+	if(!is_imported){std::cerr<<"[IP-Sat-Dipole-ERROR]: Error while importing dipole!"<<std::endl;exit(EXIT_FAILURE);}
 }
 
 void Dipole::Make_Momentum_Dipoles(){
@@ -677,13 +677,13 @@ void Dipole::Make_Momentum_Dipoles(){
 	MaxFactor=HankelParameters::MinFactor;
 	write_config();
 	//Transform
-	if(IPsat_pars::HankelTransMode==0){
-		if(DipVerbose){std::cout<<"Transforming IP-Sat Dipoles using the Fast Hankel Transform Method" <<std::endl;}
+	if(IPsat_pars::HankelTransMode==0){ 
+		if(DipVerbose>VerboseLevel::None){std::cout<<"[IP-Sat-Dipole]: Transforming IP-Sat Dipoles using the Fast Hankel Transform Method" <<std::endl;}
 		Transform_Dipole(Rep::Fundamental);
 		Transform_Dipole(Rep::Adjoint);
 	}
 	else if(IPsat_pars::HankelTransMode==1){
-		if(DipVerbose){std::cerr<<"Transforming IP-Sat Dipoles using the Bessel-Zero method integration method" <<std::endl;}
+		if(DipVerbose>VerboseLevel::None){std::cerr<<"[IP-Sat-Dipole]: Transforming IP-Sat Dipoles using the Bessel-Zero method integration method" <<std::endl;}
 		Transform_Dipole_Naive(Rep::Fundamental);
 		Transform_Dipole_Naive(Rep::Adjoint);
 	}
@@ -707,9 +707,11 @@ void Dipole::Transform_Dipole(Rep rep){
 	if(rep==Rep::Fundamental){path_to_dip << path_to_set<< "/FundamentalDipole.dat" ;}
 	else if(rep==Rep::Adjoint){path_to_dip << path_to_set<< "/AdjointDipole.dat" ;}
 
-	if(DipVerbose){
-		if(rep==Rep::Fundamental){std::cout<< "Transforming Fundamental Dipole"<< std::endl;}
-		else if(rep==Rep::Adjoint){std::cout<< "Transforming Adjoint Dipole "<< std::endl;}
+	if(DipVerbose> VerboseLevel::None){
+		if(rep==Rep::Fundamental){std::cout<< "[IP-Sat-Dipole]: Transforming Fundamental Dipole"<< std::endl;}
+		else if(rep==Rep::Adjoint){std::cout<< "[IP-Sat-Dipole]: Transforming Adjoint Dipole "<< std::endl;}
+	}
+	if(DipVerbose== VerboseLevel::Dynamic){
 		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl;  ;
 	}  
 	dip_f.open(path_to_dip.str());
@@ -723,7 +725,7 @@ void Dipole::Transform_Dipole(Rep rep){
 			RDom_t= EffectiveRadius(2,x_t,T_t,rep);
 			Hank.Initialize_Domain_w_CharScale(RDom_t);
 			if(iy==0 && iT==0){
-				if(DipVerbose){ std::cout<< "Transforming for discretized function using "<< Hank.get_Npoints() << " points "<<std::endl; }
+				if(DipVerbose> VerboseLevel::None){ std::cout<< "[IP-Sat-Dipole]: Transforming for discretized function using "<< Hank.get_Npoints() << " points "<<std::endl; }
 			}
 			//Set points
 			for (int ix = 0; ix < Hank.get_Npoints(); ix++) {
@@ -773,7 +775,7 @@ void Dipole::Transform_Dipole(Rep rep){
 
 				dip_f<< T_t<<"\t"<< Y_grid[iy]<<"\t"<< q_grid_homo[iq]<<"\t" << Dip_k << std::endl;
 
-				if(DipVerbose){
+				if(DipVerbose== VerboseLevel::Dynamic){
 					if(remainder(iy,gen_pars::skip)==0){
 						double percentage_done1 = double(iy)/double(IPsat_pars::y_dip_points);
 						double percentage_done2 = double(iT)/double(IPsat_pars::T_dip_points);
@@ -785,7 +787,7 @@ void Dipole::Transform_Dipole(Rep rep){
 		}
 	}
 	dip_f.close();
-	if(DipVerbose){
+	if(DipVerbose== VerboseLevel::Dynamic){
 		printProgress(1,1);
 		std::cout<< std::endl;
 	}
@@ -801,11 +803,13 @@ void Dipole::Transform_Dipole_Naive(Rep rep){
 	if(rep==Rep::Fundamental){path_to_dip << path_to_set<< "/FundamentalDipole.dat" ;}
 	else if(rep==Rep::Adjoint){path_to_dip << path_to_set<< "/AdjointDipole.dat" ;}
 
-	if(DipVerbose){
-		if(rep==Rep::Fundamental){std::cout<< "Transforming Fundamental Dipole"<< std::endl;}
-		else if(rep==Rep::Adjoint){std::cout<< "Transforming Adjoint Dipole "<< std::endl;}
-		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl;  ;
+	if(DipVerbose> VerboseLevel::None){
+		if(rep==Rep::Fundamental){std::cout<< "[IP-Sat-Dipole]: Transforming Fundamental Dipole"<< std::endl;}
+		else if(rep==Rep::Adjoint){std::cout<< "[IP-Sat-Dipole]: Transforming Adjoint Dipole "<< std::endl;}
 	}
+	if(DipVerbose== VerboseLevel::Dynamic){
+		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl;  ;
+	}  
 	dip_f.open(path_to_dip.str());
 
 	for (int iT = 0; iT < IPsat_pars::T_dip_points; iT++) {
@@ -825,7 +829,7 @@ void Dipole::Transform_Dipole_Naive(Rep rep){
 					dip_f<< T_t<<"\t"<< Y_grid[iy]<<"\t"<< q_grid_homo[ik]<<"\t" << Dip_k << std::endl;
 				}
 			}
-			if(DipVerbose){
+			if(DipVerbose== VerboseLevel::Dynamic){
 				if(remainder(iy,gen_pars::skip)==0){
 					double percentage_done1 = double(iy)/double(IPsat_pars::y_dip_points);
 					double percentage_done2 = double(iT)/double(IPsat_pars::T_dip_points);
@@ -834,7 +838,7 @@ void Dipole::Transform_Dipole_Naive(Rep rep){
 		}
 	}
 	dip_f.close();
-	if(DipVerbose){
+	if(DipVerbose== VerboseLevel::Dynamic){
 		printProgress(1,1);
 		std::cout<< std::endl;
 	}
@@ -865,9 +869,9 @@ void Dipole::Transform_Dipole_Naive_Test(Rep rep,double Tt){
 	if(rep==Rep::Fundamental){path_to_dip << path_to_set<< "/FundamentalDipole_test_T_"<< Tt<< ".dat" ;}
 	else if(rep==Rep::Adjoint){path_to_dip << path_to_set<< "/AdjointDipole_test_T_"<< Tt<< ".dat" ;}
 
-	if(DipVerbose){
-		if(rep==Rep::Fundamental){std::cout<< "Transforming Fundamental Dipole"<< std::endl;}
-		else if(rep==Rep::Adjoint){std::cout<< "Transforming Adjoint Dipole "<< std::endl;}
+	if(DipVerbose> VerboseLevel:: None){
+		if(rep==Rep::Fundamental){std::cout<< "[IP-Sat-Dipole]: Transforming Fundamental Dipole"<< std::endl;}
+		else if(rep==Rep::Adjoint){std::cout<< "[IP-Sat-Dipole]: Transforming Adjoint Dipole "<< std::endl;}
 	}
 	dip_f.open(path_to_dip.str());
 	dip_f<< "# k";
@@ -1091,9 +1095,9 @@ bool Dipole::import_dipole(Rep dipole_rep){
 	if(dipole_rep==Rep::Fundamental){tablename << path_to_set <<"/FundamentalDipole.dat" ;}
 	else if(dipole_rep==Rep::Adjoint){ tablename << path_to_set <<"/AdjointDipole.dat" ;}
 
-	if(DipVerbose){
-		if(dipole_rep==Rep::Fundamental){std::cout<<"Importing Fundamental Dipole. SRCFILE=" << tablename.str()<< std::endl ;}
-		else if(dipole_rep==Rep::Adjoint){ std::cout<<"Importing Adjoint Dipole. SRCFILE=" << tablename.str()<< std::endl ;}
+	if(DipVerbose>VerboseLevel::None){
+		if(dipole_rep==Rep::Fundamental){std::cout<<"[IP-Sat-Dipole]: Importing Fundamental Dipole. SRCFILE=" << tablename.str()<< std::endl ;}
+		else if(dipole_rep==Rep::Adjoint){ std::cout<<"[IP-Sat-Dipole]: Importing Adjoint Dipole. SRCFILE=" << tablename.str()<< std::endl ;}
 	}
 
 	double DipArray[N1*N2];
@@ -1131,7 +1135,7 @@ bool Dipole::import_dipole(Rep dipole_rep){
 	}
 	fclose(table);
  	is_read=true;
-	if(DipVerbose){std::cout<<"---> Done "<< std::endl ;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"---> Done "<< std::endl ;}
   return is_read;
 }
 
@@ -1640,8 +1644,7 @@ void Dipole::get_Q2(){
   std::ostringstream Q2_scaling_name;
   Q2_scaling_name << path_to_set <<"/Q2_scaling.dat";
 	Q2_scaling_f.open(Q2_scaling_name.str());
-	if(DipVerbose){
- 	 std::cout<< Q2_scaling_name.str() << std::endl;}
+
 
 	//Output to plot out the Scaling Q
 	double T_t, x_t;

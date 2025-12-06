@@ -1,4 +1,4 @@
-Version: 1.2
+Version: 1.3
 
 Logging:
     Verbose: True
@@ -14,14 +14,15 @@ General:
         Z:    82
         mode: 0
     GlauberAcceptance: Gaussian
-    Events: 10
+    Events: 5000
     Model: 0
     Impact:
-        Value: 2.5
+        Range: [0, 40]
+        Sampling: Quadratic
     PDFs:
       PDFSet: CT18NNLO
       ForcePositive: 1
-    K-Factor: 1.
+    K-Factor: 2.
     Fluctuations:
         Thickness_fluct: False
         Fluct_mode: Log_Normal
@@ -53,6 +54,6 @@ Model_Parameters:
 Output:
     path_to_output: Runs/
     run_name: PbPb_2760GeV_GBW
-    Format: ["EMoments","NMoments","Charges"]
+    Format: ["EMoments","NMoments"]
     PrintAvg: False
-    BoostInvariant: False
+    BoostInvariant: True

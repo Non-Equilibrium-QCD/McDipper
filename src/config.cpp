@@ -19,7 +19,7 @@ Config::Config(std::string configfile_path){
   NModelParams=0;
   process_parameters();
   set_seed();
-  if(Verbose){terminal_setup_output();}
+  if(int(Verbose)>0){terminal_setup_output();}
 }
 
 Config::~Config(){}
@@ -62,12 +62,37 @@ void Config::process_parameters(){
 }
 
 ///////////////////// Version Check  ///////////////////////
+std::vector<int> Config::parseVersion(const std::string& v) {
+    std::vector<int> parts;
+    std::stringstream ss(v);
+    std::string item;
+    while (std::getline(ss, item, '.')) {
+        parts.push_back(std::stoi(item));
+    }
+    // Ensure at least major/minor
+    while (parts.size() < 2) {
+        parts.push_back(0);
+    }
+    return parts;
+}
 
+bool Config::isVersionAtLeast(const std::string& version, const std::string& minimum) {
+    auto v = parseVersion(version);
+    auto m = parseVersion(minimum);
+
+    // Compare major, then minor
+    if (v[0] != m[0])
+        return v[0] > m[0];
+    return v[1] >= m[1];
+}
 void Config::check_version(std::string testline){
   std::string line_temp= testline;
   int pos = line_temp.find(":");
   version = line_temp.substr(pos+1, line_temp.length()-pos );
   version.erase(std::remove(version.begin(), version.end(), ' '), version.end());
+  if(!isVersionAtLeast(version, version_cutoff)){
+    std::cerr<< "[Config]: Catastrophic Error! Used config file points to earlier version. Check config file and re-run!" <<std::endl; exit(0); 
+  }
   /// Later on, checks version and if not compatible, exits. For now this is just a placeholder.
 }
 
@@ -77,7 +102,20 @@ void Config::check_version(std::string testline){
 void Config::process_logging_parameters(std::string testline){
   std::string subheader_t,value_t;
   get_name_and_value(testline,subheader_t, value_t);
-  Verbose = make_bool(value_t);
+  if (value_t=="True"){ 
+    std::cerr<< "[Config]: Warning! Verbose should be given as an integer, indicating the output volume level. Check documentation!" <<std::endl;
+    std::cerr<< "[Config]: Setting VerboseLevel to 1 -> Minimal" <<std::endl;
+    Verbose = VerboseLevel::Minimal;
+  }
+  else if (value_t=="False"){ 
+    std::cerr<< "[Config]: Warning! Verbose should be given as an integer, indicating the output volume level. Check documentation!" <<std::endl;
+    std::cerr<< "[Config]: Setting VerboseLevel to 0 -> None" <<std::endl;
+    Verbose = VerboseLevel::None;
+  }
+  else{
+    Verbose = VerboseLevel(std::stoi(value_t));
+  }
+  
 }
 ////////////////////////  General  ///////////////////////
 ////////////////////////  General  ///////////////////////
@@ -218,7 +256,7 @@ void Config::process_ipsat_parameters(std::string testline){
 void Config::process_mv_parameters(std::string testline){
   std::string name_t,value_t;
   get_name_and_value(testline,name_t,value_t);
-  if(name_t=="Path"){modelPath = value_t;}
+  if(name_t=="Path"){modelPath = value_t; std::cout<< modelPath << std::endl;}
   if(name_t=="P_reg"){ModelPars[0]=std::stod(value_t);NModelParams++;}
   if(name_t=="LargeX"){ModelPars[1]=std::stod(value_t); NModelParams++;}
   if(name_t=="Npoints"){ModelPars[2]=std::stod(value_t); NModelParams++;}
@@ -226,6 +264,10 @@ void Config::process_mv_parameters(std::string testline){
   /// And here comes ANY other! I need to organize them by cases
   //LargeX ==1
   if(name_t=="beta"){ModelPars[4]=std::stod(value_t); NModelParams++;}
+  //LargeX ==2
+  //LargeX ==3
+  //LargeX ==4
+
   
   
 }
@@ -309,6 +351,7 @@ void Config::terminal_setup_output(){
     std::cout<< "               Thickness fluctuation distribution: " << fluct_mode << "\n";
     std::cout<< "               Thickness fluctuation width parameter: " << sigma << "\n"; 
   }
+  std::cout<< "       PDF Parameter Set: "<< cPDFSetStr << std::endl;
   std::cout<< "|--------------------------------- Grid Parameters --------------------------------------|\n";
   std::cout<< "                       X=["<<XMIN<<","<< XMAX<< "] ,   NX = "<<NX<<" ,   dX = "<< dX << " fm \n";
   std::cout<< "                       Y=["<<YMIN<<","<< YMAX<< "] ,   NY = "<<NY<<" ,   dY = "<< dY << " fm \n";
@@ -325,6 +368,9 @@ void Config::terminal_setup_output(){
   }
   if(cModel==Model::IPSat){
   std::cout<< "               ParameterSet -> "<<ModelPars[0]<<",    x0_scaling="<<ModelPars[1]<<"\n";
+  }
+  if(cModel==Model::MV){
+  std::cout<< "      modelPath -> "<< modelPath <<",   LargeX="<<ModelPars[1]<<",   Npoints="<< int(ModelPars[2])<<",   Xmax="<<ModelPars[3]<<"\n";
   }
   std::cout<< "|-------------------------------------- Output ------------------------------------------|\n";
   std::cout<< "  Writing output to : " << path_to_output << " \n";
@@ -350,7 +396,7 @@ void Config::dump(std::string OUTPATH){
   config_f << "Version:"<<version<<"\n";
   config_f << "\n";
   config_f << "Logging:\n";
-  config_f << "    Verbose: "<< bool_string(Verbose)<<"\n";
+  config_f << "    Verbose: "<< int(Verbose)<<"\n";
   config_f << "\n";
   config_f << "General:\n";
   config_f << "    SqrtsNN: "<< sqrtsNN<<"\n";
@@ -479,6 +525,14 @@ void Config::set_dump(std::string OUTPATH){
     config_f << "    XScaling: "<<ModelPars[1]<<  "\n";
     config_f << "    P_reg: "<<ModelPars[2]<<  "\n";
   }
+  else if(cModel==Model::MV){
+    config_f << "    Path: "<< modelPath<<  "\n";
+    config_f << "    P_reg: "<<ModelPars[0]<<  "\n";
+    config_f << "    LargeX: "<<int(ModelPars[1])<<  "\n";
+    config_f << "    Npoints: "<<int(ModelPars[2])<<  "\n";
+    config_f << "    xmax: "<<ModelPars[3]<<  "\n";
+    if(int(ModelPars[1])==1){config_f << "    beta: "<<ModelPars[4]<<  "\n";}
+  }
   config_f << "\n";
   config_f << "Thickness:\n";
   config_f << "    TMax: "<< TMax<<"\n";
@@ -593,6 +647,7 @@ Config::Config(const Config& OldConf){
    // Model Parameters
    for (int i = 0; i < 10; i++) {ModelPars[i]=OldConf.ModelPars[i];}
    NModelParams=OldConf.NModelParams;
+   if(cModel==Model::MV){modelPath=OldConf.modelPath;}
    //OutPut params
    n_formats= OldConf.n_formats;
    path_to_output=OldConf.path_to_output;
@@ -607,6 +662,7 @@ Config::Config(const Config& OldConf){
    TMin= OldConf.TMin;
    NT= OldConf.NT;
 }
+
 
 bool Config::compare_grid_parameters (Config *OldConf, double tolerance){
   bool is_equal= ( NETA==OldConf->get_NETA()) ;
@@ -632,9 +688,11 @@ bool Config::compare_model_parameters (Config * OldConf, double tolerance){
   bool is_equal=false;
   if(cModel == OldConf->get_model()){
     is_equal=true;
+    if(cModel==Model::MV){ is_equal = is_equal && (modelPath==OldConf->modelPath);}
     for (int i = 0; i < get_mpars_number(); i++) {
       if(ModelPars[i]==0 && OldConf->get_ModelParams(i) == 0){continue;}
       else{
+        // std::cerr<< ModelPars[i]<<"\t"<<OldConf->get_ModelParams(i) <<std::endl;
         double diff = NDiff(ModelPars[i],OldConf->get_ModelParams(i));
         is_equal=is_equal && (diff<tolerance );
       }
@@ -643,3 +701,5 @@ bool Config::compare_model_parameters (Config * OldConf, double tolerance){
   }
   return is_equal;
 }
+
+
