@@ -157,6 +157,14 @@ double Nucleus::nuclear_thickness_optical(double x,double y){
 	return 0;
 }
 
+double Nucleus::uni_nu_rn(){
+	static std::uniform_real_distribution<double> dist(0.0, 1.0);
+	return dist(engine);  // uses global engine
+}
+int Nucleus::uni_nu_int(){
+	static std::uniform_int_distribution<long> dist(0, 0x7FFFFFFF); // 2^31-1
+	return dist(engine);  // uses global engine
+}
 double Nucleus::random_position(){
 	return RSampFactor*NucPars[0]*(uni_nu_rn()-0.5);
 }

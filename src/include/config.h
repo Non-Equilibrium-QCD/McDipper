@@ -183,7 +183,7 @@ class Config{
   private:
 
     std::string path_to_configfile;
-    //Version
+    //Versionx
     std::string version;
     std::string version_cutoff="1.3";
     //Logging
@@ -221,7 +221,7 @@ class Config{
     double ImpactValue;
     double bMin, bMax;
     double KFactor=1.;
-    int seed=-1;
+    int64_t seed=-1;
     int NEvents=1;
 
 

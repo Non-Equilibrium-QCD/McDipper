@@ -79,7 +79,6 @@ std::vector<int> Config::parseVersion(const std::string& v) {
 bool Config::isVersionAtLeast(const std::string& version, const std::string& minimum) {
     auto v = parseVersion(version);
     auto m = parseVersion(minimum);
-
     // Compare major, then minor
     if (v[0] != m[0])
         return v[0] > m[0];
@@ -91,7 +90,7 @@ void Config::check_version(std::string testline){
   version = line_temp.substr(pos+1, line_temp.length()-pos );
   version.erase(std::remove(version.begin(), version.end(), ' '), version.end());
   if(!isVersionAtLeast(version, version_cutoff)){
-    std::cerr<< "[Config]: Catastrophic Error! Used config file points to earlier version. Check config file and re-run!" <<std::endl; exit(0); 
+    std::cerr<< "[Config]: Catastrophic Error! Used config file points to earlier version v"<< version <<" than the expected >= v"<< version_cutoff <<". Check config file and re-run!" <<std::endl; exit(0); 
   }
   /// Later on, checks version and if not compatible, exits. For now this is just a placeholder.
 }
@@ -171,7 +170,7 @@ void Config::process_general_parameters(std::string testline){
       if(subheader=="Nucleus2"){Nucleus2ListFile=value_t;}
     }
     if(name_t== "IsospinSpecified"){
-      if(subheader=="Nucleus1"){N1IsospinSpec=make_bool(value_t);}
+      if (subheader=="Nucleus1"){N1IsospinSpec=make_bool(value_t);}
       if(subheader=="Nucleus2"){N2IsospinSpec=make_bool(value_t);}
     }
     if(name_t== "Configurations"){
@@ -197,7 +196,7 @@ void Config::process_general_parameters(std::string testline){
       else if(value_t=="Uniform"){ImpactMode=ImpSample::dbSampled;}
       else{std::cerr<< "Config Error! Impact sampling mode is not valid! "<<std::endl; exit(EXIT_FAILURE);}
     }
-    if(name_t=="Seed"){seed=std::stoi(value_t);}
+    if(name_t=="Seed"){seed=std::stoll(value_t);}
     if(subheader=="PDFs" && name_t=="PDFSet"){cPDFSetStr=value_t;}
     if(subheader=="PDFs" && name_t=="ForcePositive"){cForcedMode=std::stoi(value_t);}
     if(name_t=="K-Factor"){KFactor=std::stod(value_t);}
@@ -353,9 +352,9 @@ void Config::terminal_setup_output(){
   }
   std::cout<< "       PDF Parameter Set: "<< cPDFSetStr << std::endl;
   std::cout<< "|--------------------------------- Grid Parameters --------------------------------------|\n";
-  std::cout<< "                       X=["<<XMIN<<","<< XMAX<< "] ,   NX = "<<NX<<" ,   dX = "<< dX << " fm \n";
-  std::cout<< "                       Y=["<<YMIN<<","<< YMAX<< "] ,   NY = "<<NY<<" ,   dY = "<< dY << " fm \n";
-  std::cout<< "                     ETA=["<<ETAMIN<<","<< ETAMAX<< "] , NETA = "<<NETA<<" , dETA = "<< dETA << "\n";
+  std::cout<< "                       X=["<<XMIN<<", "<< XMAX<< "] ,   NX = "<<NX<<" ,   dX = "<< dX << " fm \n";
+  std::cout<< "                       Y=["<<YMIN<<", "<< YMAX<< "] ,   NY = "<<NY<<" ,   dY = "<< dY << " fm \n";
+  std::cout<< "                     ETA=["<<ETAMIN<<", "<< ETAMAX<< "] , NETA = "<<NETA<<" , dETA = "<< dETA << "\n";
   std::cout<< "                     Nucleonic smearing parameter B_G = "<< BG <<"fm^2 \n";
   if (hotspots_fluct){
   std::cout<< "                 Hotspots  fluctuation: True\n";
@@ -393,7 +392,7 @@ void Config::dump(std::string OUTPATH){
   configname << OUTPATH << "/config.yaml";
   config_f.open(configname.str());
 
-  config_f << "Version:"<<version<<"\n";
+  config_f << "Version: "<<version<<"\n";
   config_f << "\n";
   config_f << "Logging:\n";
   config_f << "    Verbose: "<< int(Verbose)<<"\n";
@@ -423,7 +422,7 @@ void Config::dump(std::string OUTPATH){
     }
   }
 
-  config_f << " GlauberAcceptance: " << GModeStr << "\n";
+  config_f << "    GlauberAcceptance: " << GModeStr << "\n";
   config_f << "    Events: "<< NEvents << "\n";
   if(cModel==Model::GBW){config_f << "    Model: 0\n";}
   if(cModel==Model::IPSat){config_f << "    Model: 1\n";}
@@ -432,7 +431,7 @@ void Config::dump(std::string OUTPATH){
   config_f << "    Impact:\n";
   if(ImpactMode==ImpSample::Fixed){config_f << "        Value: "<< ImpactValue<<"\n";}
   if(ImpactMode!=ImpSample::Fixed){
-    config_f << "        Range:  ["<< bMin<<","<< bMax<<"]\n";
+    config_f << "        Range:  ["<< bMin<<", "<< bMax<<"]\n";
     if(ImpactMode==ImpSample::bdbSampled){config_f << "        Sampling:  Quadratic\n";}
     if(ImpactMode==ImpSample::dbSampled){config_f << "        Sampling:  Uniform\n";}
   }
@@ -448,14 +447,21 @@ void Config::dump(std::string OUTPATH){
   config_f << "        Hotspots_fluct: " << hotspots_fluct << "\n";
   config_f << "        Bq: "             << Bq << "\n";
   config_f << "        Nq: "             << Nq << "\n";
+  config_f << "\n";
   config_f << "Grid:\n";
   config_f << "    NX: "<< NX<<"\n";
   config_f << "    NY: "<< NY<<"\n";
   config_f << "    NETA: "<< NETA<<"\n";
-  config_f << "    X_RANGE: ["<< XMIN<<","<< XMAX <<"]\n";
-  config_f << "    Y_RANGE: ["<< YMIN<<","<< YMAX <<"]\n";
-  config_f << "    ETA_RANGE: ["<< ETAMIN<<","<< ETAMAX <<"]\n";
+  config_f << "    X_RANGE: ["<< XMIN<<", "<< XMAX <<"]\n";
+  config_f << "    Y_RANGE: ["<< YMIN<<", "<< YMAX <<"]\n";
+  config_f << "    ETA_RANGE: ["<< ETAMIN<<", "<< ETAMAX <<"]\n";
   config_f << "    BG: "<< BG<<"\n";
+  config_f << "\n";
+  config_f << "Thickness:\n";
+  config_f << "    TMax: "<< TMax<<"\n";
+  config_f << "    TMin: "<< TMin<<"\n";
+  config_f << "    NT: "<< NT<<"\n";
+  config_f << "\n";
   config_f << "Model_Parameters:\n";
   if(cModel==Model::GBW){
     config_f << "    Q02: "<<ModelPars[0]<<  "\n";
@@ -467,18 +473,28 @@ void Config::dump(std::string OUTPATH){
     config_f << "    Set: "<<ModelPars[0]<<  "\n";
     config_f << "    XScaling: "<<ModelPars[1]<<  "\n";
     config_f << "    P_reg: "<<ModelPars[2]<<  "\n";
+  }
+  if(cModel==Model::MV){
+    config_f << "    Path: "<< modelPath<<  "\n";
+    config_f << "    P_reg: "<<ModelPars[0]<<  "\n";
+    config_f << "    LargeX: "<<int(ModelPars[1])<<  "\n";\
+    config_f << "    Npoints: "<<int(ModelPars[2])<<  "\n";
+    config_f << "    xmax: "<<ModelPars[3]<<  "\n";
 
+    if(int(ModelPars[1])==1){
+      config_f << "    beta: "<<ModelPars[4]<<  "\n";
+    }
   }
   config_f << "\n";
   config_f << "Output:\n";
   config_f << "    path_to_output: "<< path_to_output<<"\n";
   config_f << "    Format:  [";
   for (int i = 0; i < n_formats; i++) { if(i==n_formats-1){config_f << "\"" << format[i] << "\"]\n";}else{config_f << "\"" << format[i] << "\", ";}}
-  config_f << "PrintAvg: ";
+  config_f << "    PrintAvg: ";
   if(print_avg==0){config_f<< "False\n";}
   else if(print_avg==1){config_f<< "ObservablesOnly\n";}
   else if(print_avg==2){config_f<< "True\n";}
-  config_f<< "  BoostInvariant: " ;
+  config_f<< "    BoostInvariant: " ;
   if(boost_invariant){ config_f<<"True\n";}
   else{ config_f<<"False\n";}
   config_f << "\n";
@@ -508,9 +524,9 @@ void Config::set_dump(std::string OUTPATH){
   config_f << "    NX: "<< NX<<"\n";
   config_f << "    NY: "<< NY<<"\n";
   config_f << "    NETA: "<< NETA<<"\n";
-  config_f << "    X_RANGE: ["<< XMIN<<","<< XMAX <<"]\n";
-  config_f << "    Y_RANGE: ["<< YMIN<<","<< YMAX <<"]\n";
-  config_f << "    ETA_RANGE: ["<< ETAMIN<<","<< ETAMAX <<"]\n";
+  config_f << "    X_RANGE: ["<< XMIN<<", "<< XMAX <<"]\n";
+  config_f << "    Y_RANGE: ["<< YMIN<<", "<< YMAX <<"]\n";
+  config_f << "    ETA_RANGE: ["<< ETAMIN<<", "<< ETAMAX <<"]\n";
   config_f << "    BG: "<< BG<<"\n";
   config_f << "\n";
   config_f << "Model_Parameters:\n";

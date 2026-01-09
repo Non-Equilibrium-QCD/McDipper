@@ -58,7 +58,7 @@ Event::Event(Config ConfInput){
 	}
 
 	PrimalSeed=config.get_seed();
-	srand48(PrimalSeed);
+	// srand48(static_cast<long>(PrimalSeed & 0xFFFFFFFF));
     engine.seed(static_cast<Engine::result_type>(PrimalSeed));
 
 	b1=new double[2];
@@ -290,6 +290,14 @@ void Event::MakeEventByEvent(){
 	// RemoveBlock();
 }
 
+double Event::uni_ev_rn(){
+	static std::uniform_real_distribution<double> dist(0.0, 1.0);
+	return dist(engine);  // uses global engine
+}
+int Event::uni_ev_int(){
+	static std::uniform_int_distribution<long> dist(0, 0x7FFFFFFF); // 2^31-1
+	return dist(engine);  // uses global engine
+}
 
 void Event::get_impact_from_value(double AbsB, double ThetaB){
 	b1[0] =  AbsB*cos(ThetaB)/2.;
@@ -525,7 +533,7 @@ void Event::MakeGlobalQuantities(){
 			}
 		}
 
-		if(dEdeta[ieta]==0){
+		if(dEdeta[ieta]<1e-10){
 			x_cm[ieta]=0;
 			y_cm[ieta]=0;
 		}
@@ -641,6 +649,10 @@ void Event::MakeGlobalQuantities_Midrapidity(){
 	std::vector<double> eqtau0_2o3_midrap(1,0.0);
 	std::vector<double> etottau0_2o3_midrap(1,0.0);
 
+	std::vector<double> egtau0_4o3_midrap(1,0.0);
+	std::vector<double> eqtau0_4o3_midrap(1,0.0);
+	std::vector<double> etottau0_4o3_midrap(1,0.0);
+
 	int izero = 0;
 
 	dEdeta.assign(1,0.0);
@@ -705,6 +717,10 @@ void Event::MakeGlobalQuantities_Midrapidity(){
 			eqtau0_2o3_midrap[0] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eq_t,2/3.);
 			etottau0_2o3_midrap[0] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow( gen_pars::fmm2_to_GeV2*(eg_t+eq_t),2/3.);
 
+			egtau0_4o3_midrap[0] += cell_trans_volume * pow(gen_pars::GeV2_to_fmm2,2.) * pow(gen_pars::fmm2_to_GeV2*eg_t,4/3.);//cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 4./3.);
+			eqtau0_4o3_midrap[0] += cell_trans_volume * pow(gen_pars::GeV2_to_fmm2,2.) * pow(gen_pars::fmm2_to_GeV2*eq_t,4/3.);
+			etottau0_4o3_midrap[0] += cell_trans_volume * pow(gen_pars::GeV2_to_fmm2,2.) * pow( gen_pars::fmm2_to_GeV2*(eg_t+eq_t),4/3.);
+
 
 			if(config.get_Verbose_int()==3){
 				double percentage_done=double(ix)/double(config.get_NX());
@@ -764,13 +780,17 @@ void Event::MakeGlobalQuantities_Midrapidity(){
 	global_f<<  "Int(eqtau)2/3\t" << eqtau0_2o3_midrap[izero]<<std::endl;
 	global_f<<  "Int(egtau+eqtau)2/3\t" << etottau0_2o3_midrap[izero]<<std::endl;
 
+	global_f<<  "Int(egtau)4/3\t" << egtau0_4o3_midrap[izero] <<std::endl;
+	global_f<<  "Int(eqtau)4/3\t" << eqtau0_4o3_midrap[izero]<<std::endl;
+	global_f<<  "Int(egtau+eqtau)4/3\t" << etottau0_4o3_midrap[izero]<<std::endl;
+
 	global_f<<  "N_u\t" << total_u_event<<std::endl;
 	global_f<<  "N_d\t" << total_d_event<<std::endl;
-	global_f<<  "N_s\t" << total_s_event<<std::endl;
+	// global_f<<  "N_s\t" << total_s_event<<std::endl;
 
 	global_f<<  "dNu_deta(eta=0)\t" << dnudeta[izero]<<std::endl;
 	global_f<<  "dNd_deta(eta=0)\t" << dnddeta[izero]<<std::endl;
-	global_f<<  "dNs_deta(eta=0)\t" << dnsdeta[izero]<<std::endl;
+	// global_f<<  "dNs_deta(eta=0)\t" << dnsdeta[izero]<<std::endl;
 
 	global_f<<  "Q\t" << total_q_event<<std::endl;
 	global_f<<  "B\t" << total_B_event<<std::endl;
@@ -836,7 +856,8 @@ void Event::MakeChargeOutput(){
 	if(config.get_Verbose_int()>1){std::cout<< "\nWriting out charges and moments for Event " << EventID <<std::endl;}
 
 	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
-		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
+	
+		double eta_t= ieta*config.get_dETA() + config.get_ETAMIN();
 
 		double lattice_sum_dint23dy = 0.;
 		double lattice_sum_dint43dy = 0.;
@@ -863,8 +884,8 @@ void Event::MakeChargeOutput(){
 		for (int ix = 0; ix < config.get_NX(); ix++) {
 			for (int iy = 0; iy < config.get_NY(); iy++) {
 
-				double x_t= get_x(ix)-x_cm_global;
-				double y_t= get_y(iy)-y_cm_global;
+				double x_t= get_x(ix);//-x_cm_global;
+				double y_t= get_y(iy);//-y_cm_global;
 
 				t1p_t=T1p(ix,iy);
 				t1n_t=T1n(ix,iy);
@@ -1263,7 +1284,7 @@ bool Event::check_interaction_status(Nucleus *N1,int ind1,Nucleus *N2,int ind2){
 		//and the interaction probability coming from the overlap
 		double NNInteractionProbability=ComputeInteractionProbability(NNOverlap);
 		// Sampling to see if interaction happens
-		is_interacting=uni_nu_rn()<NNInteractionProbability;
+		is_interacting=uni_ev_rn()<NNInteractionProbability;
 	}
 	return is_interacting;
 }

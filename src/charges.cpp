@@ -370,34 +370,41 @@ bool Charges::read_in_nK_quark(int k, QuarkID qid){
 ////// Evaluate
 
 
-double Charges::gluon_energy(double eta, double T1, double T2){
+double Charges::gluon_energy(double eta_p, double T1, double T2){
+  double eta= eta_p;
+  
   if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
   if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
   if ( T1 == 0.0 ){return 0.0;}
   if ( T2 == 0.0 ){return 0.0;}
   if ( T1 > config_set.get_TMax() ){
     if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing nuclear matter.";
+      std::cerr<<"[ Charges::Warning ] Gluon Energy: Accessed T(1)="<< T1 << " larger than range. Increase T range to avoid missing nuclear matter.";
       set_T_warning_off();
     }
     return 0.0;
   }
   if ( T2 > config_set.get_TMax() ){
     if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing nuclear matter.";
+      std::cerr<<"[ Charges::Warning ] Gluon Energy: Accessed T(2)="<< T2 << " larger than range. Increase T range to avoid missing nuclear matter.";
       set_T_warning_off();
     }
     return 0.0;
   }
-  if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-    if(eta_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed eta not in range. Increase eta range to include forward/backward rapidities.";
+  if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
+    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
+    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
+
+    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
+      if(eta_warning){
+      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Gluon Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
       set_eta_warning_off();
-    }
-    return 0.0;
+      exit(2);
+      }
+    } 
   }
-  else if ( eta == config.get_ETAMIN() ){return gsl_spline2d_eval(e_g_spl[0],T1,T2,xaccEG[0], yaccEG[0]);}
-  else if ( eta == config.get_ETAMAX() ){return gsl_spline2d_eval(e_g_spl[config.get_NETA()-1],T1,T2,xaccEG[config.get_NETA()-1], yaccEG[config.get_NETA()-1]);}
+  // else if ( eta == config.get_ETAMIN() ){return gsl_spline2d_eval(e_g_spl[0],T1,T2,xaccEG[0], yaccEG[0]);}
+  // else if ( eta == config.get_ETAMAX() ){return gsl_spline2d_eval(e_g_spl[config.get_NETA()-1],T1,T2,xaccEG[config.get_NETA()-1], yaccEG[config.get_NETA()-1]);}
   
 
   // Low-T extrapolations
@@ -434,10 +441,23 @@ double Charges::gluon_energy(double eta, double T1, double T2){
   }
 }
 
-double Charges::quark_energy(double eta, double T1, double T2){
+double Charges::quark_energy(double eta_p, double T1, double T2){
    // High rapidity Catch
-   bool condition = eta > config.get_ETAMIN() || eta < config.get_ETAMAX();
+   double eta = eta_p;
+   if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
+    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
+    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
+
+    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
+      if(eta_warning){
+      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Quark Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
+      set_eta_warning_off();
+      exit(2);
+      }
+    } 
+  }
    // High rapidity Catch
+  bool condition = eta > config.get_ETAMIN() || eta < config.get_ETAMAX();
   if ( condition ){
     if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
     if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
@@ -495,16 +515,9 @@ double Charges::quark_energy(double eta, double T1, double T2){
       return TEMP ;
     }
   }
-  else{
-     if(eta_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed eta not in range. Increase eta range to include forward/backward rapidities.";
-      set_eta_warning_off();
-    }
-    return 0.0;
-  }
 }
 
-double Charges::u_density(double eta, double T1p,double T1n, double T2p, double T2n){
+double Charges::u_density(double eta_p, double T1p,double T1n, double T2p, double T2n){
   // TO conserve charges, we apply isospin symmetry
   // meaning ->  p:u -> n:d. Therefore, for the u density
   // n_u = n_u(Tp)+n_d(Tn)
@@ -530,12 +543,18 @@ double Charges::u_density(double eta, double T1p,double T1n, double T2p, double 
     return 0.0;
   }
   // High rapidity Catch
-  if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-    if(eta_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed eta not in range. Increase eta range to include forward/backward rapidities.";
+  double eta = eta_p;
+  if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
+    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
+    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
+
+    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
+      if(eta_warning){
+      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Quark Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
       set_eta_warning_off();
-    }
-    return 0.0;
+      exit(2);
+      }
+    } 
   }
 
   if ( T1 <= safe_Tmin ){
@@ -629,7 +648,7 @@ double Charges::u_density(double eta, double T1p,double T1n, double T2p, double 
   }
 }
 
-double Charges::d_density(double eta, double T1p,double T1n, double T2p, double T2n){
+double Charges::d_density(double eta_p, double T1p,double T1n, double T2p, double T2n){
   // TO conserve charges, we apply isospin symmetry
   // meaning ->  p:d -> n:u. Therefore, for the d density
   // n_d = n_d(Tp)+n_u(Tn)
@@ -654,12 +673,18 @@ double Charges::d_density(double eta, double T1p,double T1n, double T2p, double 
     }
     return 0.0;
   }
-  if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-    if(eta_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed eta not in range. Increase eta range to include forward/backward rapidities.";
+  double eta = eta_p;
+   if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
+    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
+    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
+
+    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
+      if(eta_warning){
+      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Quark Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
       set_eta_warning_off();
-    }
-    return 0.0;
+      exit(2);
+      }
+    } 
   }
   
   if ( T1 <= safe_Tmin ){
@@ -753,7 +778,7 @@ double Charges::d_density(double eta, double T1p,double T1n, double T2p, double 
   }
 }
 
-double Charges::s_density(double eta, double T1, double T2){
+double Charges::s_density(double eta_p, double T1, double T2){
   if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
   if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
   if ( T1 == 0.0 ){return 0.0;}
@@ -773,12 +798,18 @@ double Charges::s_density(double eta, double T1, double T2){
     }
     return 0.0;
   }
-  if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-    if(eta_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed eta not in range. Increase eta range to include forward/backward rapidities.";
+  double eta = eta_p;
+   if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
+    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
+    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
+
+    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
+      if(eta_warning){
+      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Quark Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
       set_eta_warning_off();
-    }
-    return 0.0;
+      exit(2);
+      }
+    } 
   }
   
   if ( T1 <= safe_Tmin ){
