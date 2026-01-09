@@ -61,7 +61,8 @@ class Charges{
     void set_output_tests();
 
     /////// OBSERVABLES!!
- 
+  
+    double get_eps(){return safe_limit;}
 
   private:
     Config config;
@@ -121,7 +122,7 @@ class Charges{
 
     std::vector<double> T_vector;
 
-
+    double safe_limit= 1e-6;
     bool initialized=false;
     double safe_Tmin = 0.1;
 

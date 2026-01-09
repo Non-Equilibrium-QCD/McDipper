@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <vector>
 
 struct Impact{ double b1[2];double b2[2];};
 enum class ImpSample : int { Fixed = 0, dbSampled = 1, bdbSampled = 2 };

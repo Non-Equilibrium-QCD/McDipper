@@ -26,8 +26,8 @@ class Event{
 		void MakeEventByEvent();
 		void InitializeAverageEvent();
 
-		double uni_nu_rn(){return drand48();}
-		int uni_nu_int(){return lrand48();}
+		
+		
 
 		// Interfaces of T1 and T2
 		const double& T1p (int64_t nx, int64_t ny) const ;
@@ -86,7 +86,8 @@ class Event{
 		
 
 		////   TOOLS
-		double uni_ev_rn(){return drand48();}
+		double uni_ev_rn();
+		int uni_ev_int();
 
 		double get_x(double ix);
 		double get_y(double iy);
