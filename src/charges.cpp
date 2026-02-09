@@ -391,10 +391,9 @@ double Charges::gluon_energy(double eta_p, double T1, double T2){
     }
     return 0.0;
   }
-  if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
-    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
-    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
-
+  if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
+    // if(eta < config.get_ETAMIN()){eta = eta_p+safe_limit;}
+    // else if(eta > config.get_ETAMAX()){eta = eta_p-safe_limit;}
     if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
       if(eta_warning){
       std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Gluon Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
@@ -403,6 +402,7 @@ double Charges::gluon_energy(double eta_p, double T1, double T2){
       }
     } 
   }
+  // std::clamp(iETA, 0, NETA - 2);
   // else if ( eta == config.get_ETAMIN() ){return gsl_spline2d_eval(e_g_spl[0],T1,T2,xaccEG[0], yaccEG[0]);}
   // else if ( eta == config.get_ETAMAX() ){return gsl_spline2d_eval(e_g_spl[config.get_NETA()-1],T1,T2,xaccEG[config.get_NETA()-1], yaccEG[config.get_NETA()-1]);}
   
@@ -431,6 +431,8 @@ double Charges::gluon_energy(double eta_p, double T1, double T2){
     double tmp1,tmp2;
 
     iETA = (int) ( (eta - config.get_ETAMIN() )/ config.get_dETA() );
+    iETA = std::clamp(iETA, 0, config.get_NETA() - 2);
+    
     ETA1= iETA * config.get_dETA() + config.get_ETAMIN() ;
     ETA2= (iETA+1) * config.get_dETA() + config.get_ETAMIN() ;
 
