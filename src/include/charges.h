@@ -122,7 +122,7 @@ class Charges{
 
     std::vector<double> T_vector;
 
-    double safe_limit= 1e-6;
+    double safe_limit= 1e-4;
     bool initialized=false;
     double safe_Tmin = 0.1;
 
