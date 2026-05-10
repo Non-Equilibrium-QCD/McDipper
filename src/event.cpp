@@ -464,6 +464,10 @@ void Event::MakeGlobalQuantities(){
 	std::vector<double> eqtau0_2o3_midrap(config.get_NETA(),0.0);
 	std::vector<double> etottau0_2o3_midrap(config.get_NETA(),0.0);
 
+	std::vector<double> egtau0_4o3_midrap(config.get_NETA(),0.0);
+	std::vector<double> eqtau0_4o3_midrap(config.get_NETA(),0.0);
+	std::vector<double> etottau0_4o3_midrap(config.get_NETA(),0.0);
+
 	int izero = int( -config.get_ETAMIN()/config.get_dETA());
 
 	dEdeta.assign(config.get_NETA(),0.0);
@@ -529,6 +533,9 @@ void Event::MakeGlobalQuantities(){
 				eqtau0_2o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eq_t,2/3.);
 				etottau0_2o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow( gen_pars::fmm2_to_GeV2*(eg_t+eq_t),2/3.);
 
+				egtau0_4o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eg_t,4/3.);//cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 2./3.);
+				eqtau0_4o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eq_t,4/3.);
+				etottau0_4o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow( gen_pars::fmm2_to_GeV2*(eg_t+eq_t),4/3.);
 
 			}
 		}
@@ -577,38 +584,43 @@ void Event::MakeGlobalQuantities(){
 	std::ostringstream global_name;
 	global_name << OUTPATH <<"/Global.dat" ;
 	global_f.open(global_name.str(), std::ios_base::app);
-	global_f<<  "E_g\t" << total_energy_event_g<<std::endl;
-	global_f<<  "E_q\t" << total_energy_event_q<<std::endl;
-	global_f<<  "E_tot\t" << total_energy_event<<std::endl;
+	global_f<< "\t" << total_energy_event_g;
+	global_f<< "\t" << total_energy_event_q ;
+	global_f<< "\t" << total_energy_event;
 
-	global_f<<  "dEg_deta\t" << dEgdeta[izero]<<std::endl;
-	global_f<<  "dEq_deta\t" << dEqdeta[izero]<<std::endl;
-	global_f<<  "dE_deta\t" << dEdeta[izero]<<std::endl;
+	global_f<< "\t" << dEgdeta[izero];
+	global_f<< "\t" << dEqdeta[izero];
+	global_f<<  "\t" << dEdeta[izero];
 
-	global_f<<  "Int(egtau)2/3\t" << egtau0_2o3_midrap[izero] <<std::endl;
-	global_f<<  "Int(eqtau)2/3\t" << eqtau0_2o3_midrap[izero]<<std::endl;
-	global_f<<  "Int(egtau+eqtau)2/3\t" << etottau0_2o3_midrap[izero]<<std::endl;
+	global_f<<  "\t" << egtau0_2o3_midrap[izero] ;
+	global_f<<  "\t" << eqtau0_2o3_midrap[izero];
+	global_f<<  "\t" << etottau0_2o3_midrap[izero];
 
-	global_f<<  "N_u\t" << total_u_event<<std::endl;
-	global_f<<  "N_d\t" << total_d_event<<std::endl;
-	global_f<<  "N_s\t" << total_s_event<<std::endl;
+	global_f<<  "\t" << egtau0_4o3_midrap[izero];
+	global_f<<  "\t" << eqtau0_4o3_midrap[izero];
+	global_f<<  "\t" << etottau0_4o3_midrap[izero];
 
-	global_f<<  "dNu_deta(eta=0)\t" << dnudeta[izero]<<std::endl;
-	global_f<<  "dNd_deta(eta=0)\t" << dnddeta[izero]<<std::endl;
-	global_f<<  "dNs_deta(eta=0)\t" << dnsdeta[izero]<<std::endl;
+	global_f<<  "\t" << total_u_event;
+	global_f<<  "\t" << total_d_event;
+	global_f<<  "\t" << total_s_event;
 
-	global_f<<  "Q\t" << total_q_event<<std::endl;
-	global_f<<  "B\t" << total_B_event<<std::endl;
+	global_f<<  "\t" << dnudeta[izero];
+	global_f<<  "\t" << dnddeta[izero];
+	global_f<<  "\t" << dnsdeta[izero];
 
-	global_f<<  "dQ_deta(eta=0)\t" << (2*dnudeta[izero]-dnddeta[izero] )/3.<<std::endl;
-	global_f<<  "dB_deta(eta=0)\t" << (dnudeta[izero]+dnddeta[izero] )/3.<<std::endl;
+	global_f<<  "\t" << total_q_event;
+	global_f<<  "\t" << total_B_event;
 
-	global_f<<  "x_cm_global\t" << x_cm_global<<std::endl;
-	global_f<<  "y_cm_global\t" << y_cm_global<<std::endl;
+	global_f<<  "\t" << (2*dnudeta[izero]-dnddeta[izero] )/3.;
+	global_f<<  "\t" << (dnudeta[izero]+dnddeta[izero] )/3.;
 
-	global_f<<  "x_cm_mid\t" << x_cm[izero]<<std::endl;
-	global_f<<  "y_cm_mid\t" << y_cm[izero]<<std::endl;
-	global_f<<"# End Event "<< EventID << std::endl;
+	global_f<<  "\t" << x_cm_global;
+	global_f<<  "\t" << y_cm_global;
+
+	global_f<<  "\t" << x_cm[izero];
+	global_f<<  "\t" << y_cm[izero];
+	global_f << std::endl;
+	
 	global_f.close();
 
 
@@ -768,42 +780,43 @@ void Event::MakeGlobalQuantities_Midrapidity(){
 	std::ostringstream global_name;
 	global_name << OUTPATH <<"/Global.dat" ;
 	global_f.open(global_name.str(), std::ios_base::app);
-	global_f<<  "E_g\t" << total_energy_event_g<<std::endl;
-	global_f<<  "E_q\t" << total_energy_event_q<<std::endl;
-	global_f<<  "E_tot\t" << total_energy_event<<std::endl;
+	///////// Cheaper implementation!
+	global_f<< "\t" << total_energy_event_g;
+	global_f<< "\t" << total_energy_event_q ;
+	global_f<< "\t" << total_energy_event;
 
-	global_f<<  "dEg_deta\t" << dEgdeta[izero]<<std::endl;
-	global_f<<  "dEq_deta\t" << dEqdeta[izero]<<std::endl;
-	global_f<<  "dE_deta\t" << dEdeta[izero]<<std::endl;
+	global_f<< "\t" << dEgdeta[izero];
+	global_f<< "\t" << dEqdeta[izero];
+	global_f<<  "\t" << dEdeta[izero];
 
-	global_f<<  "Int(egtau)2/3\t" << egtau0_2o3_midrap[izero] <<std::endl;
-	global_f<<  "Int(eqtau)2/3\t" << eqtau0_2o3_midrap[izero]<<std::endl;
-	global_f<<  "Int(egtau+eqtau)2/3\t" << etottau0_2o3_midrap[izero]<<std::endl;
+	global_f<<  "\t" << egtau0_2o3_midrap[izero] ;
+	global_f<<  "\t" << eqtau0_2o3_midrap[izero];
+	global_f<<  "\t" << etottau0_2o3_midrap[izero];
 
-	global_f<<  "Int(egtau)4/3\t" << egtau0_4o3_midrap[izero] <<std::endl;
-	global_f<<  "Int(eqtau)4/3\t" << eqtau0_4o3_midrap[izero]<<std::endl;
-	global_f<<  "Int(egtau+eqtau)4/3\t" << etottau0_4o3_midrap[izero]<<std::endl;
+	global_f<<  "\t" << egtau0_4o3_midrap[izero];
+	global_f<<  "\t" << eqtau0_4o3_midrap[izero];
+	global_f<<  "\t" << etottau0_4o3_midrap[izero];
 
-	global_f<<  "N_u\t" << total_u_event<<std::endl;
-	global_f<<  "N_d\t" << total_d_event<<std::endl;
-	// global_f<<  "N_s\t" << total_s_event<<std::endl;
+	global_f<<  "\t" << total_u_event;
+	global_f<<  "\t" << total_d_event;
+	global_f<<  "\t" << total_s_event;
 
-	global_f<<  "dNu_deta(eta=0)\t" << dnudeta[izero]<<std::endl;
-	global_f<<  "dNd_deta(eta=0)\t" << dnddeta[izero]<<std::endl;
-	// global_f<<  "dNs_deta(eta=0)\t" << dnsdeta[izero]<<std::endl;
+	global_f<<  "\t" << dnudeta[izero];
+	global_f<<  "\t" << dnddeta[izero];
+	global_f<<  "\t" << dnsdeta[izero];
 
-	global_f<<  "Q\t" << total_q_event<<std::endl;
-	global_f<<  "B\t" << total_B_event<<std::endl;
+	global_f<<  "\t" << total_q_event;
+	global_f<<  "\t" << total_B_event;
 
-	global_f<<  "dQ_deta(eta=0)\t" << (2*dnudeta[izero]-dnddeta[izero] )/3.<<std::endl;
-	global_f<<  "dB_deta(eta=0)\t" << (dnudeta[izero]+dnddeta[izero] )/3.<<std::endl;
+	global_f<<  "\t" << (2*dnudeta[izero]-dnddeta[izero] )/3.;
+	global_f<<  "\t" << (dnudeta[izero]+dnddeta[izero] )/3.;
 
-	global_f<<  "x_cm_global\t" << x_cm_global<<std::endl;
-	global_f<<  "y_cm_global\t" << y_cm_global<<std::endl;
+	global_f<<  "\t" << x_cm_global;
+	global_f<<  "\t" << y_cm_global;
 
-	global_f<<  "x_cm_mid\t" << x_cm[izero]<<std::endl;
-	global_f<<  "y_cm_mid\t" << y_cm[izero]<<std::endl;
-	global_f<<"# End Event "<< EventID << std::endl;
+	global_f<<  "\t" << x_cm[izero];
+	global_f<<  "\t" << y_cm[izero];
+	global_f << std::endl;
 	global_f.close();
 
 
@@ -1354,17 +1367,37 @@ void Event::print_glauber_data_to_file(Nucleus * N1,Nucleus * N2){
 	std::ostringstream global_name;
 	global_name << OUTPATH <<"/Global.dat" ;
 	global_f.open(global_name.str(), std::ios_base::app);
-	global_f<<"# Start Event "<< EventID << std::endl;
+	if(EventID==0){
+		global_f<<  "Event\tN_part_1\tN_part_2\tN_coll_1\tN_coll_2\tbx\tby";
+		global_f<<  "E_g\tE_q\tE_tot\t";
+		global_f<<  "dEg_deta\tdEq_deta\tdE_deta\t";
+		global_f<<  "Int(egtau)2/3\tInt(eqtau)2/3\tInt(egtau+eqtau)2/3\t";
+		global_f<<  "Int(egtau)4/3\tInt(eqtau)4/3\tInt(egtau+eqtau)4/3\t";
+		global_f<<  "N_u\tN_d\tN_s\t";
+		global_f<<  "dNu_deta(eta=0)\tdNd_deta(eta=0)\tdNs_deta(eta=0)\t";
+		global_f<<  "Q\tB\t";
+		global_f<<  "dQ_deta(eta=0)\tdB_deta(eta=0)\t";
+		global_f<<  "x_cm_global\ty_cm_global\t";
+		global_f<<  "x_cm_mid\ty_cm_mid\t"<<std::endl;
+	}	
+	global_f<<  EventID; 
+	global_f<<  "\t" << N1->get_number_of_participants();
+	global_f<<  "\t" << N2->get_number_of_participants();
 
-	global_f<<  "N_part_1\t"<< N1->get_number_of_participants() << std::endl;
-	global_f<<  "N_part_2\t"<< N2->get_number_of_participants() << std::endl;
+	global_f<<  "\t" << N1->get_NColl();
+	global_f<<  "\t" << N2->get_NColl();
 
-	global_f<<  "N_coll_1\t"<< N1->get_NColl() << std::endl;
-	global_f<<  "N_coll_2\t"<< N2->get_NColl() << std::endl;
+	global_f<<  "\t"<< abs(b1[0]-b2[0]);
+	global_f<<  "\t"<< abs(b1[1]-b2[1]);
 
-	global_f<<  "bx\t"<< abs(b1[0]-b2[0]) << std::endl;
-	global_f<<  "by\t"<< abs(b1[1]-b2[1])  << std::endl;
+	// global_f<<  "N_part_1\t"<< N1->get_number_of_participants() << std::endl;
+	// global_f<<  "N_part_2\t"<< N2->get_number_of_participants() << std::endl;
 
+	// global_f<<  "N_coll_1\t"<< N1->get_NColl() << std::endl;
+	// global_f<<  "N_coll_2\t"<< N2->get_NColl() << std::endl;
+
+	// global_f<<  "bx\t"<< abs(b1[0]-b2[0]) << std::endl;
+	// global_f<<  "by\t"<< abs(b1[1]-b2[1])  << std::endl;
 
 	global_f.close();
 }
