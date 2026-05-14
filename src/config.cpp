@@ -19,7 +19,7 @@ Config::Config(std::string configfile_path){
   NModelParams=0;
   process_parameters();
   set_seed();
-  if(Verbose){terminal_setup_output();}
+  if(int(Verbose)>0){terminal_setup_output();}
 }
 
 Config::~Config(){}
@@ -62,12 +62,36 @@ void Config::process_parameters(){
 }
 
 ///////////////////// Version Check  ///////////////////////
+std::vector<int> Config::parseVersion(const std::string& v) {
+    std::vector<int> parts;
+    std::stringstream ss(v);
+    std::string item;
+    while (std::getline(ss, item, '.')) {
+        parts.push_back(std::stoi(item));
+    }
+    // Ensure at least major/minor
+    while (parts.size() < 2) {
+        parts.push_back(0);
+    }
+    return parts;
+}
 
+bool Config::isVersionAtLeast(const std::string& version, const std::string& minimum) {
+    auto v = parseVersion(version);
+    auto m = parseVersion(minimum);
+    // Compare major, then minor
+    if (v[0] != m[0])
+        return v[0] > m[0];
+    return v[1] >= m[1];
+}
 void Config::check_version(std::string testline){
   std::string line_temp= testline;
   int pos = line_temp.find(":");
   version = line_temp.substr(pos+1, line_temp.length()-pos );
   version.erase(std::remove(version.begin(), version.end(), ' '), version.end());
+  if(!isVersionAtLeast(version, version_cutoff)){
+    std::cerr<< "[Config]: Catastrophic Error! Used config file points to earlier version v"<< version <<" than the expected >= v"<< version_cutoff <<". Check config file and re-run!" <<std::endl; exit(0); 
+  }
   /// Later on, checks version and if not compatible, exits. For now this is just a placeholder.
 }
 
@@ -77,7 +101,20 @@ void Config::check_version(std::string testline){
 void Config::process_logging_parameters(std::string testline){
   std::string subheader_t,value_t;
   get_name_and_value(testline,subheader_t, value_t);
-  Verbose = make_bool(value_t);
+  if (value_t=="True"){ 
+    std::cerr<< "[Config]: Warning! Verbose should be given as an integer, indicating the output volume level. Check documentation!" <<std::endl;
+    std::cerr<< "[Config]: Setting VerboseLevel to 1 -> Minimal" <<std::endl;
+    Verbose = VerboseLevel::Minimal;
+  }
+  else if (value_t=="False"){ 
+    std::cerr<< "[Config]: Warning! Verbose should be given as an integer, indicating the output volume level. Check documentation!" <<std::endl;
+    std::cerr<< "[Config]: Setting VerboseLevel to 0 -> None" <<std::endl;
+    Verbose = VerboseLevel::None;
+  }
+  else{
+    Verbose = VerboseLevel(std::stoi(value_t));
+  }
+  
 }
 ////////////////////////  General  ///////////////////////
 ////////////////////////  General  ///////////////////////
@@ -133,13 +170,19 @@ void Config::process_general_parameters(std::string testline){
       if(subheader=="Nucleus2"){Nucleus2ListFile=value_t;}
     }
     if(name_t== "IsospinSpecified"){
-      if(subheader=="Nucleus1"){N1IsospinSpec=make_bool(value_t);}
+      if (subheader=="Nucleus1"){N1IsospinSpec=make_bool(value_t);}
       if(subheader=="Nucleus2"){N2IsospinSpec=make_bool(value_t);}
     }
     if(name_t== "Configurations"){
       if(subheader=="Nucleus1"){NConf1=std::stoi(value_t);}
       if(subheader=="Nucleus2"){NConf2=std::stoi(value_t);}
     }
+    if(name_t== "Weights"){
+      if(subheader=="Nucleus1"){N1_weights=make_bool(value_t);}
+      if(subheader=="Nucleus2"){N2_weights=make_bool(value_t);}
+      
+    }
+
     if(name_t=="GlauberAcceptance"){
       if(value_t=="Standard"){GMode=GlauberMode::Standard;GModeStr="Standard";}
       else if(value_t=="Gaussian"){GMode=GlauberMode::Gaussian;GModeStr="Gaussian";}
@@ -153,7 +196,7 @@ void Config::process_general_parameters(std::string testline){
       else if(value_t=="Uniform"){ImpactMode=ImpSample::dbSampled;}
       else{std::cerr<< "Config Error! Impact sampling mode is not valid! "<<std::endl; exit(EXIT_FAILURE);}
     }
-    if(name_t=="Seed"){seed=std::stoi(value_t);}
+    if(name_t=="Seed"){seed=std::stoll(value_t);}
     if(subheader=="PDFs" && name_t=="PDFSet"){cPDFSetStr=value_t;}
     if(subheader=="PDFs" && name_t=="ForcePositive"){cForcedMode=std::stoi(value_t);}
     if(name_t=="K-Factor"){KFactor=std::stod(value_t);}
@@ -209,7 +252,24 @@ void Config::process_ipsat_parameters(std::string testline){
     NModelParams++;}
   if(name_t=="P_reg"){ModelPars[2]=std::stod(value_t);NModelParams++;}
 }
-void Config::process_mv_parameters(std::string testline){}
+void Config::process_mv_parameters(std::string testline){
+  std::string name_t,value_t;
+  get_name_and_value(testline,name_t,value_t);
+  if(name_t=="Path"){modelPath = value_t; std::cout<< modelPath << std::endl;}
+  if(name_t=="P_reg"){ModelPars[0]=std::stod(value_t);NModelParams++;}
+  if(name_t=="LargeX"){ModelPars[1]=std::stod(value_t); NModelParams++;}
+  if(name_t=="Npoints"){ModelPars[2]=std::stod(value_t); NModelParams++;}
+  if(name_t=="xmax"){ModelPars[3]=std::stod(value_t); NModelParams++;}
+  /// And here comes ANY other! I need to organize them by cases
+  //LargeX ==1
+  if(name_t=="beta"){ModelPars[4]=std::stod(value_t); NModelParams++;}
+  //LargeX ==2
+  //LargeX ==3
+  //LargeX ==4
+
+  
+  
+}
 
 
 ///////////////////// Thickness //////////////////////
@@ -290,10 +350,11 @@ void Config::terminal_setup_output(){
     std::cout<< "               Thickness fluctuation distribution: " << fluct_mode << "\n";
     std::cout<< "               Thickness fluctuation width parameter: " << sigma << "\n"; 
   }
+  std::cout<< "       PDF Parameter Set: "<< cPDFSetStr << std::endl;
   std::cout<< "|--------------------------------- Grid Parameters --------------------------------------|\n";
-  std::cout<< "                       X=["<<XMIN<<","<< XMAX<< "] ,   NX = "<<NX<<" ,   dX = "<< dX << " fm \n";
-  std::cout<< "                       Y=["<<YMIN<<","<< YMAX<< "] ,   NY = "<<NY<<" ,   dY = "<< dY << " fm \n";
-  std::cout<< "                     ETA=["<<ETAMIN<<","<< ETAMAX<< "] , NETA = "<<NETA<<" , dETA = "<< dETA << "\n";
+  std::cout<< "                       X=["<<XMIN<<", "<< XMAX<< "] ,   NX = "<<NX<<" ,   dX = "<< dX << " fm \n";
+  std::cout<< "                       Y=["<<YMIN<<", "<< YMAX<< "] ,   NY = "<<NY<<" ,   dY = "<< dY << " fm \n";
+  std::cout<< "                     ETA=["<<ETAMIN<<", "<< ETAMAX<< "] , NETA = "<<NETA<<" , dETA = "<< dETA << "\n";
   std::cout<< "                     Nucleonic smearing parameter B_G = "<< BG <<"fm^2 \n";
   if (hotspots_fluct){
   std::cout<< "                 Hotspots  fluctuation: True\n";
@@ -306,6 +367,9 @@ void Config::terminal_setup_output(){
   }
   if(cModel==Model::IPSat){
   std::cout<< "               ParameterSet -> "<<ModelPars[0]<<",    x0_scaling="<<ModelPars[1]<<"\n";
+  }
+  if(cModel==Model::MV){
+  std::cout<< "      modelPath -> "<< modelPath <<",   LargeX="<<ModelPars[1]<<",   Npoints="<< int(ModelPars[2])<<",   Xmax="<<ModelPars[3]<<"\n";
   }
   std::cout<< "|-------------------------------------- Output ------------------------------------------|\n";
   std::cout<< "  Writing output to : " << path_to_output << " \n";
@@ -328,10 +392,10 @@ void Config::dump(std::string OUTPATH){
   configname << OUTPATH << "/config.yaml";
   config_f.open(configname.str());
 
-  config_f << "Version:"<<version<<"\n";
+  config_f << "Version: "<<version<<"\n";
   config_f << "\n";
   config_f << "Logging:\n";
-  config_f << "    Verbose: "<< bool_string(Verbose)<<"\n";
+  config_f << "    Verbose: "<< int(Verbose)<<"\n";
   config_f << "\n";
   config_f << "General:\n";
   config_f << "    SqrtsNN: "<< sqrtsNN<<"\n";
@@ -358,7 +422,7 @@ void Config::dump(std::string OUTPATH){
     }
   }
 
-  config_f << " GlauberAcceptance: " << GModeStr << "\n";
+  config_f << "    GlauberAcceptance: " << GModeStr << "\n";
   config_f << "    Events: "<< NEvents << "\n";
   if(cModel==Model::GBW){config_f << "    Model: 0\n";}
   if(cModel==Model::IPSat){config_f << "    Model: 1\n";}
@@ -367,7 +431,7 @@ void Config::dump(std::string OUTPATH){
   config_f << "    Impact:\n";
   if(ImpactMode==ImpSample::Fixed){config_f << "        Value: "<< ImpactValue<<"\n";}
   if(ImpactMode!=ImpSample::Fixed){
-    config_f << "        Range:  ["<< bMin<<","<< bMax<<"]\n";
+    config_f << "        Range:  ["<< bMin<<", "<< bMax<<"]\n";
     if(ImpactMode==ImpSample::bdbSampled){config_f << "        Sampling:  Quadratic\n";}
     if(ImpactMode==ImpSample::dbSampled){config_f << "        Sampling:  Uniform\n";}
   }
@@ -383,14 +447,21 @@ void Config::dump(std::string OUTPATH){
   config_f << "        Hotspots_fluct: " << hotspots_fluct << "\n";
   config_f << "        Bq: "             << Bq << "\n";
   config_f << "        Nq: "             << Nq << "\n";
+  config_f << "\n";
   config_f << "Grid:\n";
   config_f << "    NX: "<< NX<<"\n";
   config_f << "    NY: "<< NY<<"\n";
   config_f << "    NETA: "<< NETA<<"\n";
-  config_f << "    X_RANGE: ["<< XMIN<<","<< XMAX <<"]\n";
-  config_f << "    Y_RANGE: ["<< YMIN<<","<< YMAX <<"]\n";
-  config_f << "    ETA_RANGE: ["<< ETAMIN<<","<< ETAMAX <<"]\n";
+  config_f << "    X_RANGE: ["<< XMIN<<", "<< XMAX <<"]\n";
+  config_f << "    Y_RANGE: ["<< YMIN<<", "<< YMAX <<"]\n";
+  config_f << "    ETA_RANGE: ["<< ETAMIN<<", "<< ETAMAX <<"]\n";
   config_f << "    BG: "<< BG<<"\n";
+  config_f << "\n";
+  config_f << "Thickness:\n";
+  config_f << "    TMax: "<< TMax<<"\n";
+  config_f << "    TMin: "<< TMin<<"\n";
+  config_f << "    NT: "<< NT<<"\n";
+  config_f << "\n";
   config_f << "Model_Parameters:\n";
   if(cModel==Model::GBW){
     config_f << "    Q02: "<<ModelPars[0]<<  "\n";
@@ -402,18 +473,28 @@ void Config::dump(std::string OUTPATH){
     config_f << "    Set: "<<ModelPars[0]<<  "\n";
     config_f << "    XScaling: "<<ModelPars[1]<<  "\n";
     config_f << "    P_reg: "<<ModelPars[2]<<  "\n";
+  }
+  if(cModel==Model::MV){
+    config_f << "    Path: "<< modelPath<<  "\n";
+    config_f << "    P_reg: "<<ModelPars[0]<<  "\n";
+    config_f << "    LargeX: "<<int(ModelPars[1])<<  "\n";\
+    config_f << "    Npoints: "<<int(ModelPars[2])<<  "\n";
+    config_f << "    xmax: "<<ModelPars[3]<<  "\n";
 
+    if(int(ModelPars[1])==1){
+      config_f << "    beta: "<<ModelPars[4]<<  "\n";
+    }
   }
   config_f << "\n";
   config_f << "Output:\n";
   config_f << "    path_to_output: "<< path_to_output<<"\n";
   config_f << "    Format:  [";
   for (int i = 0; i < n_formats; i++) { if(i==n_formats-1){config_f << "\"" << format[i] << "\"]\n";}else{config_f << "\"" << format[i] << "\", ";}}
-  config_f << "PrintAvg: ";
+  config_f << "    PrintAvg: ";
   if(print_avg==0){config_f<< "False\n";}
   else if(print_avg==1){config_f<< "ObservablesOnly\n";}
   else if(print_avg==2){config_f<< "True\n";}
-  config_f<< "  BoostInvariant: " ;
+  config_f<< "    BoostInvariant: " ;
   if(boost_invariant){ config_f<<"True\n";}
   else{ config_f<<"False\n";}
   config_f << "\n";
@@ -443,9 +524,9 @@ void Config::set_dump(std::string OUTPATH){
   config_f << "    NX: "<< NX<<"\n";
   config_f << "    NY: "<< NY<<"\n";
   config_f << "    NETA: "<< NETA<<"\n";
-  config_f << "    X_RANGE: ["<< XMIN<<","<< XMAX <<"]\n";
-  config_f << "    Y_RANGE: ["<< YMIN<<","<< YMAX <<"]\n";
-  config_f << "    ETA_RANGE: ["<< ETAMIN<<","<< ETAMAX <<"]\n";
+  config_f << "    X_RANGE: ["<< XMIN<<", "<< XMAX <<"]\n";
+  config_f << "    Y_RANGE: ["<< YMIN<<", "<< YMAX <<"]\n";
+  config_f << "    ETA_RANGE: ["<< ETAMIN<<", "<< ETAMAX <<"]\n";
   config_f << "    BG: "<< BG<<"\n";
   config_f << "\n";
   config_f << "Model_Parameters:\n";
@@ -459,6 +540,14 @@ void Config::set_dump(std::string OUTPATH){
     config_f << "    Set: "<<ModelPars[0]<<  "\n";
     config_f << "    XScaling: "<<ModelPars[1]<<  "\n";
     config_f << "    P_reg: "<<ModelPars[2]<<  "\n";
+  }
+  else if(cModel==Model::MV){
+    config_f << "    Path: "<< modelPath<<  "\n";
+    config_f << "    P_reg: "<<ModelPars[0]<<  "\n";
+    config_f << "    LargeX: "<<int(ModelPars[1])<<  "\n";
+    config_f << "    Npoints: "<<int(ModelPars[2])<<  "\n";
+    config_f << "    xmax: "<<ModelPars[3]<<  "\n";
+    if(int(ModelPars[1])==1){config_f << "    beta: "<<ModelPars[4]<<  "\n";}
   }
   config_f << "\n";
   config_f << "Thickness:\n";
@@ -543,6 +632,9 @@ Config::Config(const Config& OldConf){
    N2IsospinSpec=OldConf.N2IsospinSpec;
    NConf1=OldConf.NConf1;
    NConf2=OldConf.NConf2;
+   N1_weights=OldConf.N1_weights;
+   N2_weights=OldConf.N2_weights;
+
    GMode=OldConf.GMode;
    GModeStr=OldConf.GModeStr;
   
@@ -571,6 +663,7 @@ Config::Config(const Config& OldConf){
    // Model Parameters
    for (int i = 0; i < 10; i++) {ModelPars[i]=OldConf.ModelPars[i];}
    NModelParams=OldConf.NModelParams;
+   if(cModel==Model::MV){modelPath=OldConf.modelPath;}
    //OutPut params
    n_formats= OldConf.n_formats;
    path_to_output=OldConf.path_to_output;
@@ -585,6 +678,7 @@ Config::Config(const Config& OldConf){
    TMin= OldConf.TMin;
    NT= OldConf.NT;
 }
+
 
 bool Config::compare_grid_parameters (Config *OldConf, double tolerance){
   bool is_equal= ( NETA==OldConf->get_NETA()) ;
@@ -610,9 +704,11 @@ bool Config::compare_model_parameters (Config * OldConf, double tolerance){
   bool is_equal=false;
   if(cModel == OldConf->get_model()){
     is_equal=true;
+    if(cModel==Model::MV){ is_equal = is_equal && (modelPath==OldConf->modelPath);}
     for (int i = 0; i < get_mpars_number(); i++) {
       if(ModelPars[i]==0 && OldConf->get_ModelParams(i) == 0){continue;}
       else{
+        // std::cerr<< ModelPars[i]<<"\t"<<OldConf->get_ModelParams(i) <<std::endl;
         double diff = NDiff(ModelPars[i],OldConf->get_ModelParams(i));
         is_equal=is_equal && (diff<tolerance );
       }
@@ -621,3 +717,5 @@ bool Config::compare_model_parameters (Config * OldConf, double tolerance){
   }
   return is_equal;
 }
+
+

@@ -27,7 +27,7 @@ namespace fs = std::filesystem;
 
 
 
-namespace HankelDipole{
+namespace HankelDipoleIPSat{
 
 	double BesselTol=1e-5;
 	double EpsRel=1e-5;
@@ -114,24 +114,24 @@ namespace HankelDipole{
 
 Dipole::Dipole(){}
 
-Dipole::Dipole(int set, bool Verbose){
+Dipole::Dipole(int set,VerboseLevel Verbose){
 	DipVerbose=Verbose;
 	DipSet= set;
 	HankelMode=IPsat_pars::HankelTransMode;
 
 	xscaling = IPsat_pars::x0_scaling;
 
-	char Gname[256];
+	std::string Gname;
 	switch (set) {
-			case 1:
-				sprintf(Gname,"ipsat/alpha_S_xg_set1.dat");break;
-			case 2:
-				sprintf(Gname,"ipsat/alpha_S_xg_set2.dat");break;
-			default:
-        std::cerr<<"Error: Parameter set not implemented. Exiting.";exit(EXIT_FAILURE);
-		}
+		case 1:
+			Gname="ipsat/ipsat_set1.txt";break;
+		case 2:
+			Gname="ipsat/ipsat_set2.txt";break;
+		default:
+			std::cerr<<"Error: Parameter set not implemented. Exiting.";exit(EXIT_FAILURE);
+	}
 
-	FILE *table1 = fopen(Gname,"r");
+	FILE *table1 = fopen(Gname.c_str(),"r");
 	// double Gf[IPsat_pars::NY][IPsat_pars::NR];
   	double Gf[IPsat_pars::NY*IPsat_pars::NR];
 	double dGfdu[IPsat_pars::NY*IPsat_pars::NR];
@@ -148,10 +148,13 @@ Dipole::Dipole(int set, bool Verbose){
 
 	for (int iY=0; iY < IPsat_pars::NY; iY++)
 	{
+		
 		for (int ir=0; ir < IPsat_pars::NR; ir++)
 		{
+			
 			if (fscanf(table1,"%lf %lf %lf %lf %lf", &y_t, &r_t, &G_t, &Gp_t, &Gpp_t) != 5){printf("Error reading table 1!\n");exit(1);}
 			Y[iY]=y_t;
+			 
 			if(ir==0){
 				if ((r_t-IPsat_pars::rmin)/r_t > IPsat_pars::rmin_tol){std::cerr<<"Minimum relative radius, r_0 ="<< r_t<< ", not matching parameters, rmin=" <<IPsat_pars::rmin << ". Check IP-Sat input!" << set <<std::endl;exit(1);}
 			}
@@ -163,13 +166,16 @@ Dipole::Dipole(int set, bool Verbose){
 
 			Gf[IPsat_pars::NY*ir+iY] = G_t;
 			dGfdu[IPsat_pars::NY*ir+iY] = Gp_t;
-			d2Gfdu2[IPsat_pars::NY*ir+iY] = Gpp_t;
+			d2Gfdu2[IPsat_pars::NY*ir+iY] = Gpp_t; 
+
 			if(iY==0){
 				r[ir]=r_t;
 				u[ir]=u_t;
 			};
 		}
 	}
+	
+
 
 	int ny = sizeof(Y) / sizeof(Y[0]);
 	int nu = sizeof(u) / sizeof(u[0]);
@@ -194,7 +200,7 @@ Dipole::Dipole(int set, bool Verbose){
 
 	fclose(table1);
 
-	if(DipVerbose){std::cerr<<"Dipole succesfully created for Parameter Set  " << set <<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cerr<<"[IP-Sat-Dipole]: Dipole succesfully created for Parameter Set  " << set <<std::endl;}
 
 	Get_Momentum_Dipoles();
 
@@ -203,26 +209,26 @@ Dipole::Dipole(int set, bool Verbose){
 }
 
 Dipole::~Dipole(){
-  	gsl_spline2d_free (G_spl);
-  	gsl_interp_accel_free (xacc);
-		gsl_interp_accel_free (yacc);
+	gsl_spline2d_free (G_spl);
+	gsl_interp_accel_free (xacc);
+	gsl_interp_accel_free (yacc);
 
-		gsl_spline2d_free (Gp_spl);
-  	gsl_interp_accel_free (xaccP);
-		gsl_interp_accel_free (yaccP);
+	gsl_spline2d_free (Gp_spl);
+	gsl_interp_accel_free (xaccP);
+	gsl_interp_accel_free (yaccP);
 
-		gsl_spline2d_free (Gpp_spl);
-  	gsl_interp_accel_free (xaccPP);
-		gsl_interp_accel_free (yaccPP);
+	gsl_spline2d_free (Gpp_spl);
+	gsl_interp_accel_free (xaccPP);
+	gsl_interp_accel_free (yaccPP);
 
-		for (int i = 0; i < IPsat_pars::NY; i++) {
-	    gsl_spline2d_free(DA_spl[i]);
-	    gsl_spline2d_free(DF_spl[i]);
-	    gsl_interp_accel_free (xaccA[i]);
-	    gsl_interp_accel_free (yaccA[i]);
-	    gsl_interp_accel_free (xaccF[i]);
-	    gsl_interp_accel_free (yaccF[i]);
-		}
+	for (int i = 0; i < IPsat_pars::NY; i++) {
+		gsl_spline2d_free(DA_spl[i]);
+		gsl_spline2d_free(DF_spl[i]);
+		gsl_interp_accel_free (xaccA[i]);
+		gsl_interp_accel_free (yaccA[i]);
+		gsl_interp_accel_free (xaccF[i]);
+		gsl_interp_accel_free (yaccF[i]);
+	}
   }
 
 //////////////////////////////////////////////////////////
@@ -642,7 +648,7 @@ void Dipole::Make_Dipole_Grids(){
 	T_grid= new double[N3];
 	for (int iT = 0; iT < N3; iT++) {T_grid[iT]=T_MIN + iT*DT;}
 
-	if(DipVerbose){std::cout<<"---> Grid created for Dipoles with Nk = " << N1<< " and  NY = " << N2<<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"[IP-Sat-Dipole]: Grid created for Dipoles with Nk = " << N1<< " and  NY = " << N2<<std::endl;}
 	is_initialized=true;
 }
 
@@ -655,14 +661,14 @@ void Dipole::Make_Dipole_Interpolators(){
 
 	xaccF = new gsl_interp_accel*[N3] ;
 	yaccF = new gsl_interp_accel*[N3] ;
-	if(DipVerbose){std::cout<<"\nInterpolator Grid created for Dipoles" <<std::endl;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"\n[IP-Sat-Dipole]: Interpolator Grid created for Dipoles" <<std::endl;}
 
 }
 
 void Dipole::read_in_dipoles(){
 	Make_Dipole_Interpolators();
 	bool is_imported = import_dipole(Rep::Fundamental) && import_dipole(Rep::Adjoint) ;
-	if(!is_imported){std::cerr<<"Error while importing dipole!"<<std::endl;exit(EXIT_FAILURE);}
+	if(!is_imported){std::cerr<<"[IP-Sat-Dipole-ERROR]: Error while importing dipole!"<<std::endl;exit(EXIT_FAILURE);}
 }
 
 void Dipole::Make_Momentum_Dipoles(){
@@ -671,13 +677,13 @@ void Dipole::Make_Momentum_Dipoles(){
 	MaxFactor=HankelParameters::MinFactor;
 	write_config();
 	//Transform
-	if(IPsat_pars::HankelTransMode==0){
-		if(DipVerbose){std::cout<<"Transforming IP-Sat Dipoles using the Fast Hankel Transform Method" <<std::endl;}
+	if(IPsat_pars::HankelTransMode==0){ 
+		if(DipVerbose>VerboseLevel::None){std::cout<<"[IP-Sat-Dipole]: Transforming IP-Sat Dipoles using the Fast Hankel Transform Method" <<std::endl;}
 		Transform_Dipole(Rep::Fundamental);
 		Transform_Dipole(Rep::Adjoint);
 	}
 	else if(IPsat_pars::HankelTransMode==1){
-		if(DipVerbose){std::cerr<<"Transforming IP-Sat Dipoles using the Bessel-Zero method integration method" <<std::endl;}
+		if(DipVerbose>VerboseLevel::None){std::cerr<<"[IP-Sat-Dipole]: Transforming IP-Sat Dipoles using the Bessel-Zero method integration method" <<std::endl;}
 		Transform_Dipole_Naive(Rep::Fundamental);
 		Transform_Dipole_Naive(Rep::Adjoint);
 	}
@@ -701,9 +707,11 @@ void Dipole::Transform_Dipole(Rep rep){
 	if(rep==Rep::Fundamental){path_to_dip << path_to_set<< "/FundamentalDipole.dat" ;}
 	else if(rep==Rep::Adjoint){path_to_dip << path_to_set<< "/AdjointDipole.dat" ;}
 
-	if(DipVerbose){
-		if(rep==Rep::Fundamental){std::cout<< "Transforming Fundamental Dipole"<< std::endl;}
-		else if(rep==Rep::Adjoint){std::cout<< "Transforming Adjoint Dipole "<< std::endl;}
+	if(DipVerbose> VerboseLevel::None){
+		if(rep==Rep::Fundamental){std::cout<< "[IP-Sat-Dipole]: Transforming Fundamental Dipole"<< std::endl;}
+		else if(rep==Rep::Adjoint){std::cout<< "[IP-Sat-Dipole]: Transforming Adjoint Dipole "<< std::endl;}
+	}
+	if(DipVerbose== VerboseLevel::Dynamic){
 		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl;  ;
 	}  
 	dip_f.open(path_to_dip.str());
@@ -717,7 +725,7 @@ void Dipole::Transform_Dipole(Rep rep){
 			RDom_t= EffectiveRadius(2,x_t,T_t,rep);
 			Hank.Initialize_Domain_w_CharScale(RDom_t);
 			if(iy==0 && iT==0){
-				if(DipVerbose){ std::cout<< "Transforming for discretized function using "<< Hank.get_Npoints() << " points "<<std::endl; }
+				if(DipVerbose> VerboseLevel::None){ std::cout<< "[IP-Sat-Dipole]: Transforming for discretized function using "<< Hank.get_Npoints() << " points "<<std::endl; }
 			}
 			//Set points
 			for (int ix = 0; ix < Hank.get_Npoints(); ix++) {
@@ -767,7 +775,7 @@ void Dipole::Transform_Dipole(Rep rep){
 
 				dip_f<< T_t<<"\t"<< Y_grid[iy]<<"\t"<< q_grid_homo[iq]<<"\t" << Dip_k << std::endl;
 
-				if(DipVerbose){
+				if(DipVerbose== VerboseLevel::Dynamic){
 					if(remainder(iy,gen_pars::skip)==0){
 						double percentage_done1 = double(iy)/double(IPsat_pars::y_dip_points);
 						double percentage_done2 = double(iT)/double(IPsat_pars::T_dip_points);
@@ -779,7 +787,7 @@ void Dipole::Transform_Dipole(Rep rep){
 		}
 	}
 	dip_f.close();
-	if(DipVerbose){
+	if(DipVerbose== VerboseLevel::Dynamic){
 		printProgress(1,1);
 		std::cout<< std::endl;
 	}
@@ -795,11 +803,13 @@ void Dipole::Transform_Dipole_Naive(Rep rep){
 	if(rep==Rep::Fundamental){path_to_dip << path_to_set<< "/FundamentalDipole.dat" ;}
 	else if(rep==Rep::Adjoint){path_to_dip << path_to_set<< "/AdjointDipole.dat" ;}
 
-	if(DipVerbose){
-		if(rep==Rep::Fundamental){std::cout<< "Transforming Fundamental Dipole"<< std::endl;}
-		else if(rep==Rep::Adjoint){std::cout<< "Transforming Adjoint Dipole "<< std::endl;}
-		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl;  ;
+	if(DipVerbose> VerboseLevel::None){
+		if(rep==Rep::Fundamental){std::cout<< "[IP-Sat-Dipole]: Transforming Fundamental Dipole"<< std::endl;}
+		else if(rep==Rep::Adjoint){std::cout<< "[IP-Sat-Dipole]: Transforming Adjoint Dipole "<< std::endl;}
 	}
+	if(DipVerbose== VerboseLevel::Dynamic){
+		std::cout<< "Total (T,Y,k)                                                          Local (Y,k)"<< std::endl;  ;
+	}  
 	dip_f.open(path_to_dip.str());
 
 	for (int iT = 0; iT < IPsat_pars::T_dip_points; iT++) {
@@ -813,13 +823,13 @@ void Dipole::Transform_Dipole_Naive(Rep rep){
 				}
 				else{
 					DipFT HTPars={k_grid_homo[ik]*gen_pars::GeV_to_fmm1,x_t,T_t,this};
-					if(rep==Rep::Fundamental){Dip_k = HankelDipole::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
-					else if(rep==Rep::Adjoint){Dip_k = HankelDipole::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
+					if(rep==Rep::Fundamental){Dip_k = HankelDipoleIPSat::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
+					else if(rep==Rep::Adjoint){Dip_k = HankelDipoleIPSat::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
 
 					dip_f<< T_t<<"\t"<< Y_grid[iy]<<"\t"<< q_grid_homo[ik]<<"\t" << Dip_k << std::endl;
 				}
 			}
-			if(DipVerbose){
+			if(DipVerbose== VerboseLevel::Dynamic){
 				if(remainder(iy,gen_pars::skip)==0){
 					double percentage_done1 = double(iy)/double(IPsat_pars::y_dip_points);
 					double percentage_done2 = double(iT)/double(IPsat_pars::T_dip_points);
@@ -828,7 +838,7 @@ void Dipole::Transform_Dipole_Naive(Rep rep){
 		}
 	}
 	dip_f.close();
-	if(DipVerbose){
+	if(DipVerbose== VerboseLevel::Dynamic){
 		printProgress(1,1);
 		std::cout<< std::endl;
 	}
@@ -859,9 +869,9 @@ void Dipole::Transform_Dipole_Naive_Test(Rep rep,double Tt){
 	if(rep==Rep::Fundamental){path_to_dip << path_to_set<< "/FundamentalDipole_test_T_"<< Tt<< ".dat" ;}
 	else if(rep==Rep::Adjoint){path_to_dip << path_to_set<< "/AdjointDipole_test_T_"<< Tt<< ".dat" ;}
 
-	if(DipVerbose){
-		if(rep==Rep::Fundamental){std::cout<< "Transforming Fundamental Dipole"<< std::endl;}
-		else if(rep==Rep::Adjoint){std::cout<< "Transforming Adjoint Dipole "<< std::endl;}
+	if(DipVerbose> VerboseLevel:: None){
+		if(rep==Rep::Fundamental){std::cout<< "[IP-Sat-Dipole]: Transforming Fundamental Dipole"<< std::endl;}
+		else if(rep==Rep::Adjoint){std::cout<< "[IP-Sat-Dipole]: Transforming Adjoint Dipole "<< std::endl;}
 	}
 	dip_f.open(path_to_dip.str());
 	dip_f<< "# k";
@@ -873,8 +883,8 @@ void Dipole::Transform_Dipole_Naive_Test(Rep rep,double Tt){
 		for (int iy = 0; iy < Nx_t; iy++) {
 			x_t=get_X(y[iy]);
 			DipFT HTPars={k_grid_homo[ik]*gen_pars::GeV_to_fmm1,x_t,Tt,this};
-			if(rep==Rep::Fundamental){Dip_k = HankelDipole::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
-			else if(rep==Rep::Adjoint){Dip_k = HankelDipole::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
+			if(rep==Rep::Fundamental){Dip_k = HankelDipoleIPSat::DipoleFunFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
+			else if(rep==Rep::Adjoint){Dip_k = HankelDipoleIPSat::DipoleAdjFT(&HTPars)*gen_pars::fm2_to_GeVm2;}
 			dip_f<<"\t" << Dip_k ;
 		}
 		dip_f << std::endl;
@@ -915,7 +925,7 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 	double tmp=0;
 	if( x>=0.999 ){return 0.0;}
 	else if ( k<0 || k >= K_MAX ){return 0.0;}
-	else if ( T <= T_MIN || T >= T_MAX ){return 0.0;}
+	else if ( T < T_MIN || T > T_MAX ){return 0.0;}
 	else if(x <= X_MIN ){return 0;}
 	else{
 		double Y_t = get_Y(x);
@@ -933,9 +943,21 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 				Q2X = a*pow(1-x,b);
 			}
 			else{
-				Q2X = gsl_spline2d_eval(Q2A_spl,T,Y_t,xaccQ2A, yaccQ2A);
+				Q2X = gsl_spline2d_eval(Q2F_spl,T,Y_t,xaccQ2F, yaccQ2F);
 			}
 			tmp= (Q20/Q2X)*FundamentalDipole_k(xscaling, k * sqrt(Q20/Q2X), T);
+		}
+		else if (T< IPsat_pars::Tscaling){
+			double T1= IPsat_pars::Tscaling;
+			double T2=IPsat_pars::T_dip_dT/2.;
+			double Q12 = gsl_spline2d_eval(Q2F_spl,T1,Y_t,xaccQ2F, yaccQ2F);
+			double Q22 = gsl_spline2d_eval(Q2F_spl,T2,Y_t,xaccQ2F, yaccQ2F);
+			double a=(-(Q22*T1) + Q12*T2)/(T1*(T1 - T2)*T2);
+			double b= (Q22*pow(T1,2) - Q12*pow(T2,2))/(pow(T1,2)*T2 - T1*pow(T2,2));
+			// double a = Q12*pow(T1,-2.);
+			
+			double Q2T = a * pow(T,2.) + b * T;
+			tmp= (Q12/Q2T)*FundamentalDipole_k(x, k * sqrt(Q12/Q2T), IPsat_pars::Tscaling);
 		}
 		else{
 			int jT;
@@ -981,11 +1003,11 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 	double tmp=0;
 	if( x>=0.999 ){tmp=0.0;}
 	else if (  k<0 || k >= K_MAX ){tmp=0.0;}
-	else if ( T <= T_MIN || T >= T_MAX ){tmp=0.0;}
+	else if ( T < T_MIN || T > T_MAX ){tmp=0.0;}
 	else if(x <= X_MIN ){tmp=0.0;}
 	else{
 		double Y_t = get_Y(x);
-		if(x > xscaling){
+		if(x > xscaling && T>= IPsat_pars::Tscaling ){
 			double Y0 = get_Y(xscaling);
 			double Q20= gsl_spline2d_eval(Q2A_spl,T,Y0,xaccQ2A, yaccQ2A);
 			double Q2X; 
@@ -1002,8 +1024,20 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 				Q2X = gsl_spline2d_eval(Q2A_spl,T,Y_t,xaccQ2A, yaccQ2A);
 			}
 			tmp= (Q20/Q2X)*AdjointDipole_k(xscaling, k * sqrt(Q20/Q2X), T);
-			// if(tmp!=tmp){std::cerr<<"TEST"<<x<<"\t"<<k<<"\t"<<T<< std::endl;}
-
+		}
+		else if (T< IPsat_pars::Tscaling && x < xscaling ){
+			double T1= IPsat_pars::Tscaling;
+			double T2=IPsat_pars::T_dip_dT/2.;
+			double Q12 = gsl_spline2d_eval(Q2A_spl,T1,Y_t,xaccQ2A, yaccQ2A);
+			double Q22 = gsl_spline2d_eval(Q2A_spl,T2,Y_t,xaccQ2A, yaccQ2A);
+			double a=(-(Q22*T1) + Q12*T2)/(T1*(T1 - T2)*T2);
+			double b= (Q22*pow(T1,2) - Q12*pow(T2,2))/(pow(T1,2)*T2 - T1*pow(T2,2));
+			// double a = Q12*pow(T1,-2.);
+			double Q2T = a * pow(T,2.) + b * T;
+			tmp= (Q12/Q2T)*AdjointDipole_k(x, k * sqrt(Q12/Q2T), IPsat_pars::Tscaling);
+		}
+		else if (T< IPsat_pars::Tscaling && x > xscaling ){
+			tmp=0;
 		}
 		else{
 			int jT;
@@ -1042,6 +1076,10 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 			tmp = tmp1 + (tmp2-tmp1) * (T-T1)/(T2-T1) ;  // lin interpolation in Q
 		}
 	}
+
+	if(tmp!=tmp){
+		tmp= 0.0;
+	}
 	return tmp;
 }
 
@@ -1057,9 +1095,9 @@ bool Dipole::import_dipole(Rep dipole_rep){
 	if(dipole_rep==Rep::Fundamental){tablename << path_to_set <<"/FundamentalDipole.dat" ;}
 	else if(dipole_rep==Rep::Adjoint){ tablename << path_to_set <<"/AdjointDipole.dat" ;}
 
-	if(DipVerbose){
-		if(dipole_rep==Rep::Fundamental){std::cout<<"Importing Fundamental Dipole. SRCFILE=" << tablename.str()<< std::endl ;}
-		else if(dipole_rep==Rep::Adjoint){ std::cout<<"Importing Adjoint Dipole. SRCFILE=" << tablename.str()<< std::endl ;}
+	if(DipVerbose>VerboseLevel::None){
+		if(dipole_rep==Rep::Fundamental){std::cout<<"[IP-Sat-Dipole]: Importing Fundamental Dipole. SRCFILE=" << tablename.str()<< std::endl ;}
+		else if(dipole_rep==Rep::Adjoint){ std::cout<<"[IP-Sat-Dipole]: Importing Adjoint Dipole. SRCFILE=" << tablename.str()<< std::endl ;}
 	}
 
 	double DipArray[N1*N2];
@@ -1097,7 +1135,7 @@ bool Dipole::import_dipole(Rep dipole_rep){
 	}
 	fclose(table);
  	is_read=true;
-	if(DipVerbose){std::cout<<"---> Done "<< std::endl ;}
+	if(DipVerbose>VerboseLevel::None){std::cout<<"---> Done "<< std::endl ;}
   return is_read;
 }
 
@@ -1360,6 +1398,13 @@ void Dipole::make_test_output(){
 	dump_transformed_norm(1);
 	dump_transformed_norm(2);
 	dump_transformed_norm(4);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// exit(0);
 }
 
 void Dipole::dump_transformed_norm(double T){
@@ -1382,6 +1427,138 @@ void Dipole::dump_transformed_norm(double T){
 	}
 	dip_A_f.close();
 	dip_F_f.close();
+}
+
+
+void Dipole::dump_test_norm(){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_test.dat" ;
+	dip_f.open(path_to_file.str());
+	int Nx_t = 151;
+	int NT_t = 151;
+	int Nk_t = 151;
+	double Y_MIN_OUT =  0.01*1.01;
+	double Y_MAX_OUT = Y_MAX *0.99;
+	double Tmin=0;
+	double Tmax=25;
+	double dT = (Tmax-Tmin)/(NT_t-1.);
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double T_t,kt_t;
+	double Dip_A_k,Dip_F_k;
+	for (int iT = 0; iT < NT_t; iT++) {
+		T_t=Tmin + iT * dT;
+		for (int iy = 0; iy < Nx_t; iy++) {
+			double y_t = Y_MIN_OUT + iy*(Y_MAX_OUT-Y_MIN_OUT)/(Nx_t-1.);
+			double x_t = get_X(y_t);
+			for (int ik = 0; ik < Nk_t; ik++) {
+				kt_t = kmin*exp(ik*dk);
+				Dip_F_k = FundamentalDipole_k(x_t,kt_t, T_t);
+				Dip_A_k = AdjointDipole_k(x_t,kt_t, T_t);
+				dip_f<< T_t<<"\t"<< x_t<<"\t"<< kt_t <<"\t" << Dip_F_k<<"\t" << Dip_A_k << std::endl;
+			}
+		}
+	}
+	dip_f.close();
+}
+void Dipole::dump_test_fixed(){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_fixed.dat" ;
+	dip_f.open(path_to_file.str());
+	int NT_t = 151;
+	int Nk_t = 151;
+	double etamin=-7;
+	double etamax=7;
+	double NETA = 15;
+	double dETA= (etamax-etamin)/(NETA-1.);
+	double Tmin=0;
+	double Tmax=25;
+	double dT = (Tmax-Tmin)/(NT_t-1.);
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double T_t, x1_t,x2_t,kt_t;
+	double Dip1_A_k,Dip1_F_k;
+	double Dip2_A_k,Dip2_F_k;
+	for (int iT = 0; iT < NT_t; iT++) {
+		T_t=Tmin + iT * dT;
+
+		for (size_t ieta = 0; ieta < NETA; ieta++)
+		{
+			double eta_t = etamin + dETA*ieta;
+			for (int ik = 0; ik < Nk_t; ik++) {
+				kt_t = kmin*exp(ik*dk);
+				x1_t = kt_t*exp(eta_t)/200;
+				x2_t = kt_t*exp(-eta_t)/200;
+				Dip1_F_k = FundamentalDipole_k(x1_t,kt_t, T_t);
+				Dip2_F_k = FundamentalDipole_k(x2_t,kt_t, T_t);
+				Dip1_A_k = AdjointDipole_k(x1_t,kt_t, T_t);
+				Dip2_A_k = AdjointDipole_k(x2_t,kt_t, T_t);
+				dip_f<< T_t<<"\t"<< eta_t<<"\t"<< kt_t <<"\t" << Dip1_F_k<<"\t" << Dip2_F_k<<"\t" << Dip1_A_k <<"\t" << Dip2_A_k << std::endl;
+			}
+		}
+	}
+	dip_f.close();
+	exit(0);
+}
+
+void Dipole::dump_test_integrand(double T1, double T2, double eta, double sqrts, double m){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_test_problem_T1_"<< T1<< "_T2_"<< T2 << "_eta_"<<eta<< "_sqrts_"<<sqrts<< "_reg_"<<m << "_trans_norm.dat" ;
+	dip_f.open(path_to_file.str());
+	int Nk_t = 151;
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double x1_t,x2_t,kt_t,qt_t;
+	// double Dip1_A_k,Dip1_F_k;
+	// double Dip2_A_k,Dip2_F_k;
+
+	int Nphi = 4;
+	double dPhi = M_PI/Nphi;
+
+	double integrand=0;
+
+	for (int iq = 0; iq < Nk_t; iq++) {
+		qt_t = kmin*exp(iq*dk);
+		for (int ik = 0; ik < Nk_t; ik++) {
+			kt_t = kmin*exp(ik*dk);
+
+			dip_f<< qt_t<<"\t"<< kt_t ;
+			
+			for (size_t iphi = 0; iphi < Nphi; iphi++)
+			{
+				double phi_t=dPhi*iphi;
+				double p_t=   sqrt(qt_t*qt_t + kt_t*kt_t + 2*qt_t*kt_t*cos(phi_t));
+				double cutP2 = m*m + p_t*p_t  ;
+				x1_t=p_t*exp( eta)/sqrts;
+				x2_t=p_t*exp(-eta)/sqrts;
+				double D1 =AdjointDipole_k(x1_t,qt_t,T1);
+				double D2 =AdjointDipole_k(x2_t,kt_t,T2);
+
+				if(D1<0){D1=0.0;}
+				if(D2<0){D2=0.0;}
+				if(p_t==0){integrand=0.0;}
+				else{
+					integrand= 2*M_PI * ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( qt_t,3.)* pow(kt_t,3.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
+				}
+				dip_f<< "\t"<<integrand;
+			}
+			dip_f<< std::endl;
+			
+		}
+		dip_f<< std::endl;
+		
+	}
+	dip_f.close();
+	
 }
 
 void Dipole::dump_momentum_Dipole(double T){
@@ -1467,8 +1644,7 @@ void Dipole::get_Q2(){
   std::ostringstream Q2_scaling_name;
   Q2_scaling_name << path_to_set <<"/Q2_scaling.dat";
 	Q2_scaling_f.open(Q2_scaling_name.str());
-	if(DipVerbose){
- 	 std::cout<< Q2_scaling_name.str() << std::endl;}
+
 
 	//Output to plot out the Scaling Q
 	double T_t, x_t;

@@ -1,19 +1,19 @@
-/* Copyright (c) 2023 Oscar Garcia-Montero
+/* Copyright (c) 2025 Oscar Garcia-Montero
  * All rights reserved. */
 
-#ifndef IPSAT_H
-#define IPSAT_H
+#ifndef MV_H
+#define MV_H
 #include <iostream>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_sf_bessel.h>
 
 #include "config.h"
 #include "pdfs_lhapdf.h"
-#include "dipole_ipsat.h"
+#include "dipole_mv.h"
 
 #include "routines.h"
 
-struct GluonParsIPSat{
+struct GluonParsMV{
 //Dynamical
   double sqrts;
   double y;
@@ -22,10 +22,12 @@ struct GluonParsIPSat{
 //Geometrical
   double T1;
   double T2;
-  Dipole * dip;
+  MVDipole * dip;
+  double kmax;
+  double kmin;
 };
 
-struct QuarkParsIPSat{
+struct QuarkParsMV{
 //Dynamical
   double sqrts;
   double y;
@@ -35,14 +37,16 @@ struct QuarkParsIPSat{
   PDFs *partons;
   QuarkID quark_id;
   int k;
-  Dipole * dip;
+  MVDipole * dip;
+  double kmax;
+  double kmin;
 };
 
-class IPSat{
+class MV{
 	public:
-		IPSat();
-		IPSat(Config ConfInput);
-		virtual ~IPSat();
+		MV();
+		MV(Config ConfInput);
+		virtual ~MV();
 
 		void MakeTable(std::string path_to_set);
     void make_gluon_energy();
@@ -60,7 +64,7 @@ class IPSat{
 
 		PDFs * quark_dist;
 
-    Dipole * Dip;
+    MVDipole * Dip;
 		std::string path_to_set;
     int p_set;
     double xscaling;
@@ -88,6 +92,7 @@ class IPSat{
     int skip=3;
 
     void TestDump(double T1,double T2);
+    void dump_test_norm();
 
 
 

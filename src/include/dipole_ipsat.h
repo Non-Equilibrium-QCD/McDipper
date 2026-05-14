@@ -17,6 +17,7 @@
 
 #include "params_ipsat.h"
 #include "Hankel.h"
+#include "config.h"
 
 enum class Rep : int { Fundamental = 0, Adjoint = 1};
 
@@ -24,7 +25,7 @@ class Dipole{
 	/* This is the (IP-Sat) Dipole class. It reads in input from the */
 	public:
 	Dipole();
-	Dipole(int set, bool Verbose);
+	Dipole(int set, VerboseLevel Verbose);
 	virtual ~Dipole();
 	// --------------------------------------- EVALUATION OF PDFS --------------------------------------- //
 	// G Functions -> rx-space
@@ -69,6 +70,9 @@ class Dipole{
 
 	double get_XMIN(){return  X_MIN;}
 	double get_XMAX(){return  X_MAX;}
+	double get_KMIN(){return  K_MIN;}
+	double get_KMAX(){return  K_MAX;}
+	double getMaxEta(){return 0.5*log(X_MAX/X_MIN);}
 
 	//output
 	void write_config();
@@ -76,14 +80,20 @@ class Dipole{
 	void print_Dk_config();
 	void dump_momentum_Dipole(double T);
 	void dump_transformed_norm(double T);
+
 	void Transform_Dipole_Naive_Test(Rep rep,double T_t);
 	void make_test_output();
+	
 
 
+	//debugging tools 
+	void dump_test_norm();
+	void dump_test_fixed();
+	void dump_test_integrand(double T1, double T2, double eta, double sqrts, double m2);
 
 	private:
 
-	bool DipVerbose;
+	VerboseLevel DipVerbose;
 	int DipSet;
 	int HankelMode;
 

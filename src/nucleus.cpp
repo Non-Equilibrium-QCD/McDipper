@@ -27,6 +27,8 @@ Nucleus::Nucleus(NucStruct NucIn){
 		NConf=NucIn.NConf;
         is_hotspots_fluct=NucIn.is_hotspots_fluct;
         is_thick_fluct=NucIn.is_thick_fluct;
+		is_weights=NucIn.is_weights;
+
         if (is_hotspots_fluct){
           Nq=NucIn.Nq;
           Bq=NucIn.Bq;
@@ -41,6 +43,7 @@ Nucleus::Nucleus(NucStruct NucIn){
           if (fluct_mode=="Gamma"){gamma_dist=std::gamma_distribution<double>(sigma, 1.0/sigma);}
           if (fluct_mode=="Log_Normal"){lognorm_dist=std::lognormal_distribution<double>(0.0,sigma);}
         }
+		
 		// Chose parameter structure according to
 		if(mode<3){
 			if(A==1){modeStr="Proton";}
@@ -154,6 +157,14 @@ double Nucleus::nuclear_thickness_optical(double x,double y){
 	return 0;
 }
 
+double Nucleus::uni_nu_rn(){
+	static std::uniform_real_distribution<double> dist(0.0, 1.0);
+	return dist(engine);  // uses global engine
+}
+int Nucleus::uni_nu_int(){
+	static std::uniform_int_distribution<long> dist(0, 0x7FFFFFFF); // 2^31-1
+	return dist(engine);  // uses global engine
+}
 double Nucleus::random_position(){
 	return RSampFactor*NucPars[0]*(uni_nu_rn()-0.5);
 }
@@ -225,7 +236,7 @@ void Nucleus::set_nucleon_positions(){
 			for(int n=0;n<A;n++){
 				sample_single_position(r[n]);
                 if (is_hotspots_fluct) {sample_hotspots(r[n]);}
-				if(n<=Z){NucleonType[n]=Nucleon::proton;}
+				if(n<Z){NucleonType[n]=Nucleon::proton;}
 				else{NucleonType[n]=Nucleon::neutron;}
 			}
 		} 
@@ -234,6 +245,7 @@ void Nucleus::set_nucleon_positions(){
 		// Sample a configuration and set the positions
 		int conf_index = uni_nu_int()%NConf; 
 		for(int n=0;n<A;n++){
+			if(is_weights){weight=Config_weights[conf_index];}
 			for(int ix=0;ix<3;ix++){ r[n][ix]=Configuration(conf_index,n,ix);}
             if (is_hotspots_fluct) {sample_hotspots(r[n]);}
 		}
@@ -245,7 +257,7 @@ void Nucleus::set_nucleon_positions(){
 		if(IsIsospinSpecified){
 			/* Since the nucleons are sorted at importing-time, we only need to set them as in the WS case*/
 			for(int n=0;n<A;n++){
-				if(n<=Z){NucleonType[n]=Nucleon::proton;}
+				if(n<Z){NucleonType[n]=Nucleon::proton;}
 				else{NucleonType[n]=Nucleon::neutron;}
 			}
 		}
@@ -259,7 +271,7 @@ void Nucleus::set_nucleon_positions(){
 			// This needs to be changed when the new random is shown, were we can use a more modern library. For now it works
 			for(int n=0;n<A;n++){
 				int n_shuffled= nucleon_labels[n];
-				if(n<=Z){NucleonType[n_shuffled]=Nucleon::proton;}
+				if(n<Z){NucleonType[n_shuffled]=Nucleon::proton;}
 				else{NucleonType[n_shuffled]=Nucleon::neutron;}
 			}
 		}
@@ -296,8 +308,9 @@ void Nucleus::rotate_nucleus(){
 
 void Nucleus::Thickness_fluct(){
     w=new double*[A];
+    int nq_alloc = is_hotspots_fluct ? Nq : 1;
     for  (int i=0; i<A; i++){
-        w[i]=new double[Nq];
+        w[i]=new double[nq_alloc];
       }
 
     if ( fluct_mode=="Gamma" )
@@ -305,9 +318,9 @@ void Nucleus::Thickness_fluct(){
         for (int i=0; i<A; i++)
         {
             if (ParticipantStatus[i]==1)
-            { for (int j=0; j<Nq; j++) {w[i][j]=gamma_dist(engine);} }
+            { for (int j=0; j<nq_alloc; j++) {w[i][j]=gamma_dist(engine);} }
             else
-            { for (int j=0; j<Nq; j++) {w[i][j]=0.0;}}
+            { for (int j=0; j<nq_alloc; j++) {w[i][j]=0.0;}}
         }
     }
     else if ( fluct_mode=="Log_Normal" )
@@ -315,13 +328,13 @@ void Nucleus::Thickness_fluct(){
         for (int i=0; i<A; i++)
         {
             if (ParticipantStatus[i]==1)
-            { for (int j=0; j<Nq; j++) {w[i][j]=lognorm_dist(engine)/exp( sigma*sigma/2.0);} }
+            { for (int j=0; j<nq_alloc; j++) {w[i][j]=lognorm_dist(engine)/exp( sigma*sigma/2.0);} }
             else
-            { for (int j=0; j<Nq; j++) {w[i][j]=0.0;} }
+            { for (int j=0; j<nq_alloc; j++) {w[i][j]=0.0;} }
         }
     }
     else
-    { std::cerr << "Please choose fluct_mode from Gamma, Log_Normal!!!" << std::endl;
+    { std::cerr << "Please choose fluct_mode betwen from Gamma and Log_Normal!!!" << std::endl;
       exit(EXIT_FAILURE);}
 }
 
@@ -437,57 +450,148 @@ void Nucleus::import_nuclear_configurations(){
 
 	FILE *NuclearConfigurations = fopen(InputName.c_str(),"r");
 
+
 	Configurations_ptr=new double[3*A*NConf];
+	Config_weights=new double[NConf];
 	int iA=0;
 	int iZ=0;
 	int iC=0;
+	bool read_weight=true; // Condition to read for weights
 	int sample=0;
+	double weight_t;
 	
 	double x_t,y_t,z_t; 
-	
+	int TotLines;
+	if(is_weights){TotLines= NConf*(A+1);}
+	else{TotLines= NConf*A;}
+
 	if(IsIsospinSpecified){
 		int iN=0;
 		int isospin;
-		for (size_t j = 0; j< NConf*A; j++){
-			if (fscanf(NuclearConfigurations,"%d %lf %lf %lf %d", &sample, &x_t, &y_t, &z_t, &isospin) == 5){
-				if(iC<sample){iA=0;iZ=0;iN=0;iC++;}
-				if(isospin==1){
-					Configuration(iC,iZ,0)=x_t;
-					Configuration(iC,iZ,1)=y_t;
-					Configuration(iC,iZ,2)=z_t;
-					iZ++;
+		for (size_t j = 0; j< TotLines; j++){
+			if(is_weights){
+				if (read_weight){
+					// std::cerr << "w " << j<< std::endl;
+					char temp1[10];char temp2[10];
+					if (fscanf(NuclearConfigurations,"%s %s %lf", temp1,temp2,&weight_t) == 3){
+						Config_weights[iC]=weight_t;
+						// std::cout << "Weight "<< iC << "= " << Config_weights[iC]<< std::endl;
+						read_weight=false;
+						iA=0;iZ=0;iN=0;
+					}
+					else{
+						std::cerr<<" [ Error :: Nucleus ]: Weight format incorrect or no weights specified for weighted configurations!"  <<std::endl; exit(EXIT_FAILURE);
+					}
 				}
 				else{
-					Configuration(iC,Z+iN,0)=x_t;
-					Configuration(iC,Z+iN,1)=y_t;
-					Configuration(iC,Z+iN,2)=z_t;
-					iN++;
+					// std::cerr << "pos " << j<< std::endl;
+					if (fscanf(NuclearConfigurations,"%d %lf %lf %lf %d", &sample, &x_t, &y_t, &z_t, &isospin) == 5){
+						
+						if(isospin==1){
+							Configuration(iC,iZ,0)=x_t;
+							Configuration(iC,iZ,1)=y_t;
+							Configuration(iC,iZ,2)=z_t;
+							iZ++;
+						}
+						else if (isospin==0){
+							Configuration(iC,Z+iN,0)=x_t;
+							Configuration(iC,Z+iN,1)=y_t;
+							Configuration(iC,Z+iN,2)=z_t;
+							iN++;
+						}
+
+						// std::cerr << iA<<"\t"<<x_t << std::endl;
+						if (iA==A-1){
+							read_weight=true;
+							iC++;
+						}
+						else{iA++;}
+						// if(iA>A-1){std::cerr<<" [ Error :: Nucleus  ]: Input configurations has different number of nucleons than specified in config-file!!" << iA ;exit(EXIT_FAILURE);}
+						
+						
+					}
+					else{
+						std::cerr<<" [ Error :: Nucleus ]: Configuration format incorrect for isospin-specified configuration file!!" <<std::endl;exit(EXIT_FAILURE);
+					}
 				}
-				
-				if(iA>A-1){std::cerr<<" [ Error ]: Input configurations has different number of nucleons than specified in config-file!!" << iA ;exit(EXIT_FAILURE);}
-				iA++;
+			}
+			else{
+				if (fscanf(NuclearConfigurations,"%d %lf %lf %lf %d", &sample, &x_t, &y_t, &z_t, &isospin) == 5){
+					if(iC<sample){iA=0;iZ=0;iN=0;iC++;}
+					if(isospin==1){
+						Configuration(iC,iZ,0)=x_t;
+						Configuration(iC,iZ,1)=y_t;
+						Configuration(iC,iZ,2)=z_t;
+						iZ++;
+					}
+					else if (isospin==0){
+						Configuration(iC,Z+iN,0)=x_t;
+						Configuration(iC,Z+iN,1)=y_t;
+						Configuration(iC,Z+iN,2)=z_t;
+						iN++;
+					}
+					
+					if(iA>A-1){std::cerr<<" [ Error ]: Input configurations has different number of nucleons than specified in config-file!!" << iA ;exit(EXIT_FAILURE);}
+					iA++;
+				}
 			}
 			
 		}
 	}
 	else{
-		for (size_t j = 0; j< NConf*A; j++){
-			if (fscanf(NuclearConfigurations,"%d %lf %lf %lf", &sample, &x_t, &y_t, &z_t) == 4){
-				if(iC<sample){iA=0;iC++;}
-
-				Configuration(iC,iA,0)=x_t;
-				Configuration(iC,iA,1)=y_t;
-				Configuration(iC,iA,2)=z_t;
-				if(iA>A-1){std::cerr<<" [ Error ]: Input configurations has different number of nucleons than specified in config-file!!";exit(EXIT_FAILURE);}
-				iA++;
+		for (size_t j = 0; j< TotLines; j++){
+			if(is_weights){
+				if (read_weight){
+					// std::cerr << "w " << j<< std::endl;
+					char temp1[10];char temp2[10];
+					if (fscanf(NuclearConfigurations,"%s %s %lf", temp1,temp2,&weight_t) == 3){
+						Config_weights[iC]=weight_t;
+						// std::cout << "Weight "<< iC << "= " << Config_weights[iC]<< std::endl;
+						read_weight=false;
+						iA=0;
+					}
+					else{
+						std::cerr<<" [ Error :: Nucleus ]: Weight format incorrect or no weights specified for weighted configurations!"  <<std::endl; exit(EXIT_FAILURE);
+					}
+				}
+				else{
+					// std::cerr << "pos " << j<< std::endl;
+					if (fscanf(NuclearConfigurations,"%d %lf %lf %lf", &sample, &x_t, &y_t, &z_t) == 4){
+						Configuration(iC,iA,0)=x_t;
+						Configuration(iC,iA,1)=y_t;
+						Configuration(iC,iA,2)=z_t;
+						if(iA>A-1){std::cerr<<" [ Error ]: Input configurations has different number of nucleons than specified in config-file!!";exit(EXIT_FAILURE);}
+						if (iA==A-1){
+							read_weight=true;
+							iC++;
+						}
+						else{iA++;}
+					}				
+					else{
+						std::cerr<<" [ Error :: Nucleus ]: Configuration format incorrect for isospin-specified configuration file!!" <<std::endl;exit(EXIT_FAILURE);
+					}
+				}
 			}
 			else{
-				std::cout<< sample<<"\t"<<x_t<<"\t"<<y_t <<"\t"<< z_t<<std::endl;
+				if (fscanf(NuclearConfigurations,"%d %lf %lf %lf", &sample, &x_t, &y_t, &z_t) == 4){
+					if(iC<sample){iA=0;iC++;}
+
+					Configuration(iC,iA,0)=x_t;
+					Configuration(iC,iA,1)=y_t;
+					Configuration(iC,iA,2)=z_t;
+					if(iA>A-1){std::cerr<<" [ Error ]: Input configurations has different number of nucleons than specified in config-file!!";exit(EXIT_FAILURE);}
+					iA++;
+				}
+				else{
+					std::cout<< sample<<"\t"<<x_t<<"\t"<<y_t <<"\t"<< z_t<<std::endl;
+				}
 			}
 		}
 		
 
 	}
+
+	// std::cout<<Configuration(19999,8,1)<<"\t"<<Config_weights[19999]<< std::endl;
 	fclose(NuclearConfigurations);
 // 
 }

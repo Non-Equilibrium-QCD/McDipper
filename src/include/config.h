@@ -6,17 +6,20 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <vector>
 
 struct Impact{ double b1[2];double b2[2];};
 enum class ImpSample : int { Fixed = 0, dbSampled = 1, bdbSampled = 2 };
 enum class Model : int { GBW = 0, IPSat = 1, MV = 2, GBWSimp = 3};
 enum class QuarkID : int { u = 2, d = 1, s = 3,ubar = -2, dbar = -1, sbar = -3, g=21 };
 enum class GlauberMode : int { Standard = 0, Gaussian=1, Exponential=2};
+enum class VerboseLevel : int { None = 0, Minimal=1, Complete=2, Dynamic=3};
 
 struct NucStruct{ 
     int A; int Z;int mode;
     std::string inputFile;
     bool IsospinSpecified; int NConf; 
+    bool is_weights;
     bool is_thick_fluct; 
     bool is_hotspots_fluct;
     int Nq; double Bq; double Br;
@@ -65,7 +68,8 @@ class Config{
     bool compare_PDF_parameters (Config *OldConf, double tolerance);
 
     //  RETRIEVING FUNCTIONS
-    bool get_Verbose(){return Verbose;};
+    VerboseLevel get_Verbose(){return Verbose;};
+    int get_Verbose_int(){return int(Verbose);};
     // bool& getVerbose(){return Verbose;};
     //
     Model get_Model(){return cModel;};
@@ -79,11 +83,20 @@ class Config{
       return input;
     };
     bool get_IsospinDefinition(int i){
-      int IsoDef_t=false;
+      bool IsoDef_t=false;
       if(i==1 && mode1==3){IsoDef_t= N1IsospinSpec;}
       else if(i==2 && mode2 ==3){IsoDef_t= N2IsospinSpec;}
-      return IsoDef_t;};
+      return IsoDef_t;
+    }
+
     int get_NConf(int i){int NConf_t=0;if(i==1){NConf_t=NConf1;}else if(i==2){NConf_t=NConf2;}return NConf_t;};
+
+
+    bool get_weight(int i){
+      bool DefWeight_t=false;
+      if(i==1 && mode1==3){DefWeight_t= N1_weights;}
+      else if(i==2 && mode2 ==3){DefWeight_t= N2_weights;}
+      return DefWeight_t;}
 
     bool is_hotspots_fluct(){return hotspots_fluct;}
     int get_Nq() {return Nq;}
@@ -128,6 +141,7 @@ class Config{
     double get_BG(){return BG;}
 
     double get_ModelParams(int i){return ModelPars[i];}
+    std::string get_modelPath(){return modelPath;}
 
     int get_seed(){return seed;}
     void set_seed();
@@ -141,6 +155,8 @@ class Config{
     double get_TMin(){return TMin;}
     int get_NT(){return NT;}
     double get_dT(){return dT;}
+
+
     bool is_thick_fluct(){return thick_fluct;}
     double get_sigma(){return sigma;}
     std::string get_fluct_mode() {return fluct_mode;}
@@ -168,10 +184,11 @@ class Config{
   private:
 
     std::string path_to_configfile;
-    //Version
+    //Versionx
     std::string version;
+    std::string version_cutoff="1.3";
     //Logging
-    bool Verbose=false;
+    VerboseLevel Verbose=VerboseLevel::None;
     // General
     Model cModel;
     bool hotspots_fluct=false;
@@ -192,6 +209,8 @@ class Config{
     bool N2IsospinSpec=false;
     int NConf1 = 0;
     int NConf2 = 0;
+    bool N1_weights=false;
+    bool N2_weights=false;
     
     std::string mode1name,mode2name;
     double sqrtsNN;
@@ -203,7 +222,7 @@ class Config{
     double ImpactValue;
     double bMin, bMax;
     double KFactor=1.;
-    int seed=-1;
+    int64_t seed=-1;
     int NEvents=1;
 
 
@@ -220,6 +239,7 @@ class Config{
     // // Model Parameters
     double ModelPars[10];
     int NModelParams;
+    std::string modelPath;
     // Output
     int n_formats;
     std::string path_to_output;
@@ -252,6 +272,8 @@ class Config{
         else {return fabs( (a-b)/a );}                   
     }
 
+    std::vector<int> parseVersion(const std::string& v);
+    bool isVersionAtLeast(const std::string& version, const std::string& minimum);
     //Temps
     std::string subheader;
     int cModel_int;

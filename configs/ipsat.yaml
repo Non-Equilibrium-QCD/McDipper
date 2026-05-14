@@ -1,10 +1,10 @@
-Version: 1.2
+Version: 1.3
 
 Logging:
-    Verbose: True
+    Verbose: 3
 
 General:
-    SqrtsNN: 2760.0
+    SqrtsNN: 5020.0
     Nucleus1:
         A:    208
         Z:    82
@@ -14,7 +14,7 @@ General:
         Z:    82
         mode: 0
     GlauberAcceptance: Gaussian
-    Events: 10 
+    Events: 1000
     Model: 1
     Impact:
         Range: [0, 40]
@@ -32,25 +32,27 @@ General:
         Nq: 3
 
 Thickness:
-    TMax: 25
+    TMax: 10
     TMin: 0
-    NT: 251
+    NT: 101
 
 Grid:
     NX:        201
     NY:        201
-    NETA:      201
+    NETA:      151
     X_RANGE:   [-12,12]
     Y_RANGE:   [-12,12]
-    ETA_RANGE: [-12,12]
+    ETA_RANGE: [-10,10]
     BG: 0.156
 
 Model_Parameters:
     Set:   1
     XScaling: 0.01
-    P_reg: 0.00001
+    P_reg: 0.1
 
 Output:
-    path_to_output: ./test/
-    run_name: PbPb_2760GeV_IPSat_Set1
-    Format: ["EMoments","NMoments","Charges"]
+    path_to_output: IPSatRuns
+    run_name: PbPb_5020GeV_Set1
+    Format: ["EMoments","NMoments"]
+    PrintAvg: False
+    BoostInvariant: False
