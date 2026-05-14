@@ -4,7 +4,7 @@ The ```McDIPPER``` is a saturation-based heavy-ion initial condition MC generato
 
 ### Code Citation
 
-If you use this software, please cite the code itself as:
+If you use this software, please cite the code itself using the DOI 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20179552.svg)](https://doi.org/10.5281/zenodo.20179552)
 
 The BibTex format is added ad the end of this README file. 
@@ -88,11 +88,12 @@ For usage in the mac environment, a couple of issues may arise when installing t
 ### BibTeX
 ```bibtex
 @software{McDIPPER,
-  author = {Garcia-Montero, Oscar; Zhu, Jie},
+  author = {Garcia-Montero, O. and Zhu, J.},
   title = {Monte-Carlo Dipole Event-geneRator },
-  year = {2023},
+  year = {2026},
   url = {https://github.com/Non-Equilibrium-QCD/McDipper},
   doi = {10.5281/zenodo.20179552},
   version = {1.3.0}
 }
 ```
+Notice that the ```@software``` tag is not supported by all BibTeX bibliography styles. If encountering issues, use ```@misc```
