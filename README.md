@@ -1,6 +1,6 @@
 # McDIPPER (Monte-Carlo Dipole Event-geneRator )
 
-The ```McDIPPER``` is a saturation-based heavy-ion initial condition MC generator. It used the input from diverse saturation models and fits to produce a 3D energy and charge deposition. The main reference to cite is [2308.11713](https://arxiv.org/abs/2308.11713).
+The ```McDIPPER``` is a saturation-based heavy-ion initial condition MC generator. It used the input from diverse saturation models and fits to produce a 3D energy and charge deposition. The main reference to cite is [Phys.Rev.C 109 (2024) 4, 044916](https://arxiv.org/abs/2308.11713), and  additionally [Phys.Rev.D 111 (2025) 7, 076029](https://inspirehep.net/literature/2872464) when using it with Hotspots. A long discussion about quark charge deposition is given in [Phys.Rev.C 111 (2025) 2, 024912](https://inspirehep.net/literature/2827183)
 
 ## Requisites 
 
