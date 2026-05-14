@@ -46,7 +46,7 @@ Grid:
     BG: 0.156
 
 Model_Parameters:
-    Path: MVDipoles/MV
+    Path: path/to/MV/
     LargeX: 1
     Npoints: 20
     xmax: 0.5

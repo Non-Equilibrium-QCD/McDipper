@@ -85,11 +85,6 @@ For usage in the mac environment, a couple of issues may arise when installing t
 - This work is supported by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) through the CRC-TR 211 'Strong-interaction matter under extreme conditions'– project number 315477589 – TRR 211.
 
 
-
-### APA
-LastName, FirstInitial. (2024). Project Title (Version 1.0.0) [Computer software]. 
-https://doi.org/10.5281/zenodo.XXXXXXX
-
 ### BibTeX
 ```bibtex
 @software{McDIPPER,
