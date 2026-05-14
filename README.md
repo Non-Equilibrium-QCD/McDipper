@@ -2,6 +2,13 @@
 
 The ```McDIPPER``` is a saturation-based heavy-ion initial condition MC generator. It used the input from diverse saturation models and fits to produce a 3D energy and charge deposition. The main reference to cite is [Phys.Rev.C 109 (2024) 4, 044916](https://arxiv.org/abs/2308.11713), and  additionally [Phys.Rev.D 111 (2025) 7, 076029](https://inspirehep.net/literature/2872464) when using it with Hotspots. A long discussion about quark charge deposition is given in [Phys.Rev.C 111 (2025) 2, 024912](https://inspirehep.net/literature/2827183)
 
+### Code Citation
+
+If you use this software, please cite the code itself as:
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20179552.svg)](https://doi.org/10.5281/zenodo.20179552)
+
+The BibTex format is added ad the end of this README file. 
+
 ## Requisites 
 
 ### GSL
@@ -77,3 +84,20 @@ For usage in the mac environment, a couple of issues may arise when installing t
 
 - This work is supported by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) through the CRC-TR 211 'Strong-interaction matter under extreme conditions'– project number 315477589 – TRR 211.
 
+
+
+### APA
+LastName, FirstInitial. (2024). Project Title (Version 1.0.0) [Computer software]. 
+https://doi.org/10.5281/zenodo.XXXXXXX
+
+### BibTeX
+```bibtex
+@software{McDIPPER,
+  author = {Garcia-Montero, Oscar; Zhu, Jie},
+  title = {Monte-Carlo Dipole Event-geneRator },
+  year = {2023},
+  url = {https://github.com/Non-Equilibrium-QCD/McDipper},
+  doi = {10.5281/zenodo.20179552},
+  version = {1.3.0}
+}
+```
