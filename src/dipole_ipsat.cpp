@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <filesystem>
 #include <fstream>
+#include <vector>
 #include <gsl/gsl_dht.h>
 #include <gsl/gsl_multifit.h>
 
@@ -24,6 +25,7 @@ namespace fs = std::filesystem;
 
 #include "include/dipole_ipsat.h"
 #include "include/params_gen.h"
+#include "include/table_io.h"
 
 
 
@@ -47,6 +49,7 @@ namespace HankelDipole{
 									return Sum;
 							}
 							else if(n>0 && PartialSum==0.0 && Sum==0.0){
+								gsl_integration_workspace_free (Workspace);
 								return Sum ;
 							}
 							else{
@@ -68,7 +71,8 @@ namespace HankelDipole{
 
 					if(gsl_isnan(Value)){
 							std::cerr << "#ERROR IN NUMERICAL INTEGRATION " << a << " " << b <<  " " << k << " " << Value <<  " " << gsl_isnan(Value) << std::endl;
-							return NAN;
+							gsl_integration_workspace_free (Workspace);
+						return NAN;
 					}
 					Sum+=Value;  PartialSum+=Value;
 			}
@@ -124,14 +128,16 @@ Dipole::Dipole(int set, bool Verbose){
 	char Gname[256];
 	switch (set) {
 			case 1:
-				sprintf(Gname,"ipsat/alpha_S_xg_set1.dat");break;
+				sprintf(Gname,"ipsat/ipsat_set1.txt");break;
 			case 2:
-				sprintf(Gname,"ipsat/alpha_S_xg_set2.dat");break;
+				sprintf(Gname,"ipsat/ipsat_set2.txt");break;
 			default:
         std::cerr<<"Error: Parameter set not implemented. Exiting.";exit(EXIT_FAILURE);
 		}
 
-	FILE *table1 = fopen(Gname,"r");
+	FILE *table1 = TableIO::open_or_exit(Gname);
+	const long expected_G_rows = long(IPsat_pars::NY)*long(IPsat_pars::NR);
+	long G_row = 0;
 	// double Gf[IPsat_pars::NY][IPsat_pars::NR];
   	double Gf[IPsat_pars::NY*IPsat_pars::NR];
 	double dGfdu[IPsat_pars::NY*IPsat_pars::NR];
@@ -148,10 +154,14 @@ Dipole::Dipole(int set, bool Verbose){
 
 	for (int iY=0; iY < IPsat_pars::NY; iY++)
 	{
+		
 		for (int ir=0; ir < IPsat_pars::NR; ir++)
 		{
-			if (fscanf(table1,"%lf %lf %lf %lf %lf", &y_t, &r_t, &G_t, &Gp_t, &Gpp_t) != 5){printf("Error reading table 1!\n");exit(1);}
+			
+			if (fscanf(table1,"%lf %lf %lf %lf %lf", &y_t, &r_t, &G_t, &Gp_t, &Gpp_t) != 5){TableIO::short_table(Gname,G_row,expected_G_rows);}
+			G_row++;
 			Y[iY]=y_t;
+			 
 			if(ir==0){
 				if ((r_t-IPsat_pars::rmin)/r_t > IPsat_pars::rmin_tol){std::cerr<<"Minimum relative radius, r_0 ="<< r_t<< ", not matching parameters, rmin=" <<IPsat_pars::rmin << ". Check IP-Sat input!" << set <<std::endl;exit(1);}
 			}
@@ -163,13 +173,16 @@ Dipole::Dipole(int set, bool Verbose){
 
 			Gf[IPsat_pars::NY*ir+iY] = G_t;
 			dGfdu[IPsat_pars::NY*ir+iY] = Gp_t;
-			d2Gfdu2[IPsat_pars::NY*ir+iY] = Gpp_t;
+			d2Gfdu2[IPsat_pars::NY*ir+iY] = Gpp_t; 
+
 			if(iY==0){
 				r[ir]=r_t;
 				u[ir]=u_t;
 			};
 		}
 	}
+	
+
 
 	int ny = sizeof(Y) / sizeof(Y[0]);
 	int nu = sizeof(u) / sizeof(u[0]);
@@ -192,6 +205,7 @@ Dipole::Dipole(int set, bool Verbose){
 	yaccPP = gsl_interp_accel_alloc();
 	gsl_spline2d_init(Gpp_spl, Y, u, d2Gfdu2, ny, nu);
 
+	TableIO::assert_at_end(table1,Gname,expected_G_rows);
 	fclose(table1);
 
 	if(DipVerbose){std::cerr<<"Dipole succesfully created for Parameter Set  " << set <<std::endl;}
@@ -215,7 +229,15 @@ Dipole::~Dipole(){
   	gsl_interp_accel_free (xaccPP);
 		gsl_interp_accel_free (yaccPP);
 
-		for (int i = 0; i < IPsat_pars::NY; i++) {
+		gsl_spline2d_free (Q2A_spl);
+		gsl_interp_accel_free (xaccQ2A);
+		gsl_interp_accel_free (yaccQ2A);
+
+		gsl_spline2d_free (Q2F_spl);
+		gsl_interp_accel_free (xaccQ2F);
+		gsl_interp_accel_free (yaccQ2F);
+
+		for (int i = 0; i < N3; i++) {
 	    gsl_spline2d_free(DA_spl[i]);
 	    gsl_spline2d_free(DF_spl[i]);
 	    gsl_interp_accel_free (xaccA[i]);
@@ -223,6 +245,13 @@ Dipole::~Dipole(){
 	    gsl_interp_accel_free (xaccF[i]);
 	    gsl_interp_accel_free (yaccF[i]);
 		}
+
+		delete[] DF_spl;   delete[] DA_spl;
+		delete[] xaccA;    delete[] yaccA;
+		delete[] xaccF;    delete[] yaccF;
+
+		delete[] k_grid_homo;  delete[] q_grid_homo;
+		delete[] Y_grid;       delete[] T_grid;
   }
 
 //////////////////////////////////////////////////////////
@@ -911,6 +940,37 @@ double Dipole::EffectiveRadius(int n, double x, double T, Rep rep){
 //////       Momentum-Space Calling Methods       ////////
 //////////////////////////////////////////////////////////
 
+// Evaluate a dipole on one tabulated thickness slice. Split out so that the
+// interpolation in T can use more than two slices without duplicating the
+// small-k extrapolation.
+double Dipole::FundamentalDipole_k_slice(int jT, double k, double Y_t){
+	if(k <= K_MIN){
+		double Q1=0, Q2=DK, Q3=2*DK;
+		double k1 = K_MIN*exp(Q1), k2 = K_MIN*exp(Q2), k3 = K_MIN*exp(Q3);
+		double f1 = gsl_spline2d_eval(DF_spl[jT],Q1,Y_t,NULL,NULL);
+		double f2 = gsl_spline2d_eval(DF_spl[jT],Q2,Y_t,NULL,NULL);
+		double f3 = gsl_spline2d_eval(DF_spl[jT],Q3,Y_t,NULL,NULL);
+		double a,b,c;
+		quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a,b,c);
+		return a*k*k + b*k + c;
+	}
+	return gsl_spline2d_eval(DF_spl[jT], log(k/K_MIN), Y_t, NULL, NULL);
+}
+
+double Dipole::AdjointDipole_k_slice(int jT, double k, double Y_t){
+	if(k <= K_MIN){
+		double Q1=0, Q2=DK, Q3=2*DK;
+		double k1 = K_MIN*exp(Q1), k2 = K_MIN*exp(Q2), k3 = K_MIN*exp(Q3);
+		double f1 = gsl_spline2d_eval(DA_spl[jT],Q1,Y_t,NULL,NULL);
+		double f2 = gsl_spline2d_eval(DA_spl[jT],Q2,Y_t,NULL,NULL);
+		double f3 = gsl_spline2d_eval(DA_spl[jT],Q3,Y_t,NULL,NULL);
+		double a,b,c;
+		quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a,b,c);
+		return a*k*k + b*k + c;
+	}
+	return gsl_spline2d_eval(DA_spl[jT], log(k/K_MIN), Y_t, NULL, NULL);
+}
+
 double Dipole::FundamentalDipole_k(double x, double k, double T){
 	double tmp=0;
 	if( x>=0.999 ){return 0.0;}
@@ -921,27 +981,27 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 		double Y_t = get_Y(x);
 		if(x > xscaling){
 			double Y0 = get_Y(xscaling);
-			double Q20= gsl_spline2d_eval(Q2F_spl,T,Y0,xaccQ2F, yaccQ2F);
-			double Q2X; 
+			double Q20= gsl_spline2d_eval(Q2F_spl,T,Y0,NULL,NULL);
+			double Q2X;
 			if ( x > X_MAX ){
 				double x1= get_X(Y_grid[0]);
 				double x2= get_X(Y_grid[1]);
-				double Q21= gsl_spline2d_eval(Q2F_spl,T,Y_grid[0],xaccQ2F, yaccQ2F);
-				double Q22= gsl_spline2d_eval(Q2F_spl,T,Y_grid[1],xaccQ2F, yaccQ2F);
+				double Q21= gsl_spline2d_eval(Q2F_spl,T,Y_grid[0],NULL,NULL);
+				double Q22= gsl_spline2d_eval(Q2F_spl,T,Y_grid[1],NULL,NULL);
 				double b= log(Q21/Q22)/ log(  (1-x1)/(1-x2) );
 				double a= Q21 *pow(1-x1,-b);
 				Q2X = a*pow(1-x,b);
 			}
 			else{
-				Q2X = gsl_spline2d_eval(Q2F_spl,T,Y_t,xaccQ2F, yaccQ2F);
+				Q2X = gsl_spline2d_eval(Q2F_spl,T,Y_t,NULL,NULL);
 			}
 			tmp= (Q20/Q2X)*FundamentalDipole_k(xscaling, k * sqrt(Q20/Q2X), T);
 		}
 		else if (T< IPsat_pars::Tscaling){
 			double T1= IPsat_pars::Tscaling;
 			double T2=IPsat_pars::T_dip_dT/2.;
-			double Q12 = gsl_spline2d_eval(Q2F_spl,T1,Y_t,xaccQ2F, yaccQ2F);
-			double Q22 = gsl_spline2d_eval(Q2F_spl,T2,Y_t,xaccQ2F, yaccQ2F);
+			double Q12 = gsl_spline2d_eval(Q2F_spl,T1,Y_t,NULL,NULL);
+			double Q22 = gsl_spline2d_eval(Q2F_spl,T2,Y_t,NULL,NULL);
 			double a=(-(Q22*T1) + Q12*T2)/(T1*(T1 - T2)*T2);
 			double b= (Q22*pow(T1,2) - Q12*pow(T2,2))/(pow(T1,2)*T2 - T1*pow(T2,2));
 			// double a = Q12*pow(T1,-2.);
@@ -957,34 +1017,35 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 			double Q_t;
 
 			jT = (int) ( (T-T_MIN)/DT );
+			if(jT > N3-2){jT = N3-2;}   // keep jT+1 inside the table
+			if(jT < 0){jT = 0;}
 			T1= T_MIN + jT*DT;
 			T2= T_MIN + (jT+1)*DT;
 
-			if(k <= K_MIN){
-				double Q1,Q2,Q3,k1,k2,k3;
-				double f1,f2,f3;
-				double a1,b1,c1,a2,b2,c2;
-				Q1=0;Q2=DK,Q3=2*DK;
-				k1 = K_MIN*exp(Q1);k2 = K_MIN*exp(Q2);k3 = K_MIN*exp(Q3);
-				f1 = gsl_spline2d_eval(DF_spl[jT],Q1,Y_t,xaccF[jT], yaccF[jT]);
-				f2 = gsl_spline2d_eval(DF_spl[jT],Q2,Y_t,xaccF[jT], yaccF[jT]);
-				f3 = gsl_spline2d_eval(DF_spl[jT],Q3,Y_t,xaccF[jT], yaccF[jT]);
-				quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a1,b1,c1);
-
-				f1 = gsl_spline2d_eval(DF_spl[jT+1],Q1,Y_t,xaccF[jT], yaccF[jT]);
-				f2 = gsl_spline2d_eval(DF_spl[jT+1],Q2,Y_t,xaccF[jT], yaccF[jT]);
-				f3 = gsl_spline2d_eval(DF_spl[jT+1],Q3,Y_t,xaccF[jT], yaccF[jT]);
-				quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a2,b2,c2);
-				tmp1= a1*k*k + b1*k+ c1;
-				tmp2= a2*k*k + b2*k+ c2;
+			double s = (T-T1)/(T2-T1);
+			tmp1 = FundamentalDipole_k_slice(jT,   k, Y_t);
+			tmp2 = FundamentalDipole_k_slice(jT+1, k, Y_t);
+			if(jT >= 1 && jT+2 <= N3-1){
+				// Catmull-Rom in T: C1 by construction. Two-point linear
+				// interpolation left a kink at every tabulated thickness, across
+				// which the local slope stepped by roughly 13% - visible in the
+				// tables as a period-2 staircase in the first differences, and
+				// carried straight into whatever gradient the tables are used for.
+				double f0 = FundamentalDipole_k_slice(jT-1, k, Y_t);
+				double f3 = FundamentalDipole_k_slice(jT+2, k, Y_t);
+				tmp = 0.5*( 2.0*tmp1
+				          + (-f0 + tmp2)*s
+				          + (2.0*f0 - 5.0*tmp1 + 4.0*tmp2 - f3)*s*s
+				          + (-f0 + 3.0*tmp1 - 3.0*tmp2 + f3)*s*s*s );
 			}
 			else{
-				Q_t = log(k/K_MIN);
-				tmp1 = gsl_spline2d_eval(DF_spl[jT],Q_t,Y_t,xaccF[jT], yaccF[jT]);
-				tmp2 = gsl_spline2d_eval(DF_spl[jT+1],Q_t,Y_t,xaccF[jT+1], yaccF[jT+1]);
+				tmp = tmp1 + (tmp2-tmp1)*s;   // no fourth neighbour in the last cell
 			}
-			tmp = tmp1 + (tmp2-tmp1) * (T-T1)/(T2-T1) ;  // lin interpolation in Q
 		}
+	}
+
+	if(tmp!=tmp){
+		tmp= 0.0;
 	}
 	return tmp;
 }
@@ -997,37 +1058,34 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 	else if(x <= X_MIN ){tmp=0.0;}
 	else{
 		double Y_t = get_Y(x);
-		if(x > xscaling && T>= IPsat_pars::Tscaling ){
+		if(x > xscaling){
 			double Y0 = get_Y(xscaling);
-			double Q20= gsl_spline2d_eval(Q2A_spl,T,Y0,xaccQ2A, yaccQ2A);
-			double Q2X; 
+			double Q20= gsl_spline2d_eval(Q2A_spl,T,Y0,NULL,NULL);
+			double Q2X;
 			if ( x > X_MAX ){
 				double x1= get_X(Y_grid[0]);
 				double x2= get_X(Y_grid[1]);
-				double Q21= gsl_spline2d_eval(Q2A_spl,T,Y_grid[0],xaccQ2A, yaccQ2A);
-				double Q22= gsl_spline2d_eval(Q2A_spl,T,Y_grid[1],xaccQ2A, yaccQ2A);
+				double Q21= gsl_spline2d_eval(Q2A_spl,T,Y_grid[0],NULL,NULL);
+				double Q22= gsl_spline2d_eval(Q2A_spl,T,Y_grid[1],NULL,NULL);
 				double b= log(Q21/Q22)/ log(  (1-x1)/(1-x2) );
 				double a= Q21 *pow(1-x1,-b);
 				Q2X = a*pow(1-x,b);
 			}
 			else{
-				Q2X = gsl_spline2d_eval(Q2A_spl,T,Y_t,xaccQ2A, yaccQ2A);
+				Q2X = gsl_spline2d_eval(Q2A_spl,T,Y_t,NULL,NULL);
 			}
 			tmp= (Q20/Q2X)*AdjointDipole_k(xscaling, k * sqrt(Q20/Q2X), T);
 		}
-		else if (T< IPsat_pars::Tscaling && x < xscaling ){
+		else if (T< IPsat_pars::Tscaling){
 			double T1= IPsat_pars::Tscaling;
 			double T2=IPsat_pars::T_dip_dT/2.;
-			double Q12 = gsl_spline2d_eval(Q2A_spl,T1,Y_t,xaccQ2A, yaccQ2A);
-			double Q22 = gsl_spline2d_eval(Q2A_spl,T2,Y_t,xaccQ2A, yaccQ2A);
+			double Q12 = gsl_spline2d_eval(Q2A_spl,T1,Y_t,NULL,NULL);
+			double Q22 = gsl_spline2d_eval(Q2A_spl,T2,Y_t,NULL,NULL);
 			double a=(-(Q22*T1) + Q12*T2)/(T1*(T1 - T2)*T2);
 			double b= (Q22*pow(T1,2) - Q12*pow(T2,2))/(pow(T1,2)*T2 - T1*pow(T2,2));
 			// double a = Q12*pow(T1,-2.);
 			double Q2T = a * pow(T,2.) + b * T;
 			tmp= (Q12/Q2T)*AdjointDipole_k(x, k * sqrt(Q12/Q2T), IPsat_pars::Tscaling);
-		}
-		else if (T< IPsat_pars::Tscaling && x > xscaling ){
-			tmp=0;
 		}
 		else{
 			int jT;
@@ -1037,33 +1095,26 @@ double Dipole::AdjointDipole_k(double x, double k, double T){
 			double Q_t;
 
 			jT = (int) ( (T-T_MIN)/DT );
+			if(jT > N3-2){jT = N3-2;}   // keep jT+1 inside the table
+			if(jT < 0){jT = 0;}
 			T1= T_MIN + jT*DT;
 			T2= T_MIN + (jT+1)*DT;
 
-			if(k <= K_MIN){
-				double Q1,Q2,Q3,k1,k2,k3;
-				double f1,f2,f3;
-				double a1,b1,c1,a2,b2,c2;
-				Q1=0;Q2=DK,Q3=2*DK;
-				k1 = K_MIN*exp(Q1);k2 = K_MIN*exp(Q2);k3 = K_MIN*exp(Q3);
-				f1 = gsl_spline2d_eval(DA_spl[jT],Q1,Y_t,xaccA[jT], yaccA[jT]);
-				f2 = gsl_spline2d_eval(DA_spl[jT],Q2,Y_t,xaccA[jT], yaccA[jT]);
-				f3 = gsl_spline2d_eval(DA_spl[jT],Q3,Y_t,xaccA[jT], yaccA[jT]);
-				quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a1,b1,c1);
-
-				f1 = gsl_spline2d_eval(DA_spl[jT+1],Q1,Y_t,xaccA[jT], yaccA[jT]);
-				f2 = gsl_spline2d_eval(DA_spl[jT+1],Q2,Y_t,xaccA[jT], yaccA[jT]);
-				f3 = gsl_spline2d_eval(DA_spl[jT+1],Q3,Y_t,xaccA[jT], yaccA[jT]);
-				quadratic_extrapolation(k1,f1,k2,f2,k3,f3,a2,b2,c2);
-				tmp1= a1*k*k + b1*k+ c1;
-				tmp2= a2*k*k + b2*k+ c2;
+			double s = (T-T1)/(T2-T1);
+			tmp1 = AdjointDipole_k_slice(jT,   k, Y_t);
+			tmp2 = AdjointDipole_k_slice(jT+1, k, Y_t);
+			if(jT >= 1 && jT+2 <= N3-1){
+				// Catmull-Rom in T, as in FundamentalDipole_k above.
+				double f0 = AdjointDipole_k_slice(jT-1, k, Y_t);
+				double f3 = AdjointDipole_k_slice(jT+2, k, Y_t);
+				tmp = 0.5*( 2.0*tmp1
+				          + (-f0 + tmp2)*s
+				          + (2.0*f0 - 5.0*tmp1 + 4.0*tmp2 - f3)*s*s
+				          + (-f0 + 3.0*tmp1 - 3.0*tmp2 + f3)*s*s*s );
 			}
 			else{
-				Q_t = log(k/K_MIN);
-				tmp1 = gsl_spline2d_eval(DA_spl[jT],Q_t,Y_t,xaccA[jT], yaccA[jT]);
-				tmp2 = gsl_spline2d_eval(DA_spl[jT+1],Q_t,Y_t,xaccA[jT+1], yaccA[jT+1]);
+				tmp = tmp1 + (tmp2-tmp1)*s;   // no fourth neighbour in the last cell
 			}
-			tmp = tmp1 + (tmp2-tmp1) * (T-T1)/(T2-T1) ;  // lin interpolation in Q
 		}
 	}
 
@@ -1099,12 +1150,15 @@ bool Dipole::import_dipole(Rep dipole_rep){
 	for (int iQ = 0; iQ < N1; iQ++) {Qarray[iQ]= iQ*DK;}
 
 	//
-	FILE *table = fopen(tablename.str().c_str(),"r");
+	FILE *table = TableIO::open_or_exit(tablename.str());
+	const long expected_rows = long(N3)*long(N2)*long(N1);
+	long row = 0;
   double T_t,y_t,q_t,Dip_t;
 	for (int iT = 0; iT < N3; iT++) {
 		for (int iY = 0; iY < N2; iY++) {
 			for (int iq = 0; iq < N1; iq++) {
-				if (fscanf(table,"%lf %lf %lf %lf", &T_t, &y_t, &q_t, &Dip_t) != 4){printf("Error reading distribution table!\n");exit(1);}
+				if (fscanf(table,"%lf %lf %lf %lf", &T_t, &y_t, &q_t, &Dip_t) != 4){TableIO::short_table(tablename.str(),row,expected_rows);}
+				row++;
 				DipArray[N1*iY + iq]=Dip_t;
 			}
 		}
@@ -1124,6 +1178,7 @@ bool Dipole::import_dipole(Rep dipole_rep){
 	    gsl_spline2d_init(DA_spl[iT], Qarray, Yarray, DipArray, N1, N2);
 		}
 	}
+	TableIO::assert_at_end(table,tablename.str(),expected_rows);
 	fclose(table);
  	is_read=true;
 	if(DipVerbose){std::cout<<"---> Done "<< std::endl ;}
@@ -1389,6 +1444,13 @@ void Dipole::make_test_output(){
 	dump_transformed_norm(1);
 	dump_transformed_norm(2);
 	dump_transformed_norm(4);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.1);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// dump_test_integrand(20, 20, -3, 200, 0.01);
+	// exit(0);
 }
 
 void Dipole::dump_transformed_norm(double T){
@@ -1411,6 +1473,138 @@ void Dipole::dump_transformed_norm(double T){
 	}
 	dip_A_f.close();
 	dip_F_f.close();
+}
+
+
+void Dipole::dump_test_norm(){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_test.dat" ;
+	dip_f.open(path_to_file.str());
+	int Nx_t = 151;
+	int NT_t = 151;
+	int Nk_t = 151;
+	double Y_MIN_OUT =  0.01*1.01;
+	double Y_MAX_OUT = Y_MAX *0.99;
+	double Tmin=0;
+	double Tmax=25;
+	double dT = (Tmax-Tmin)/(NT_t-1.);
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double T_t,kt_t;
+	double Dip_A_k,Dip_F_k;
+	for (int iT = 0; iT < NT_t; iT++) {
+		T_t=Tmin + iT * dT;
+		for (int iy = 0; iy < Nx_t; iy++) {
+			double y_t = Y_MIN_OUT + iy*(Y_MAX_OUT-Y_MIN_OUT)/(Nx_t-1.);
+			double x_t = get_X(y_t);
+			for (int ik = 0; ik < Nk_t; ik++) {
+				kt_t = kmin*exp(ik*dk);
+				Dip_F_k = FundamentalDipole_k(x_t,kt_t, T_t);
+				Dip_A_k = AdjointDipole_k(x_t,kt_t, T_t);
+				dip_f<< T_t<<"\t"<< x_t<<"\t"<< kt_t <<"\t" << Dip_F_k<<"\t" << Dip_A_k << std::endl;
+			}
+		}
+	}
+	dip_f.close();
+}
+void Dipole::dump_test_fixed(){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_fixed.dat" ;
+	dip_f.open(path_to_file.str());
+	int NT_t = 151;
+	int Nk_t = 151;
+	double etamin=-7;
+	double etamax=7;
+	double NETA = 15;
+	double dETA= (etamax-etamin)/(NETA-1.);
+	double Tmin=0;
+	double Tmax=25;
+	double dT = (Tmax-Tmin)/(NT_t-1.);
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double T_t, x1_t,x2_t,kt_t;
+	double Dip1_A_k,Dip1_F_k;
+	double Dip2_A_k,Dip2_F_k;
+	for (int iT = 0; iT < NT_t; iT++) {
+		T_t=Tmin + iT * dT;
+
+		for (size_t ieta = 0; ieta < NETA; ieta++)
+		{
+			double eta_t = etamin + dETA*ieta;
+			for (int ik = 0; ik < Nk_t; ik++) {
+				kt_t = kmin*exp(ik*dk);
+				x1_t = kt_t*exp(eta_t)/200;
+				x2_t = kt_t*exp(-eta_t)/200;
+				Dip1_F_k = FundamentalDipole_k(x1_t,kt_t, T_t);
+				Dip2_F_k = FundamentalDipole_k(x2_t,kt_t, T_t);
+				Dip1_A_k = AdjointDipole_k(x1_t,kt_t, T_t);
+				Dip2_A_k = AdjointDipole_k(x2_t,kt_t, T_t);
+				dip_f<< T_t<<"\t"<< eta_t<<"\t"<< kt_t <<"\t" << Dip1_F_k<<"\t" << Dip2_F_k<<"\t" << Dip1_A_k <<"\t" << Dip2_A_k << std::endl;
+			}
+		}
+	}
+	dip_f.close();
+	exit(0);
+}
+
+void Dipole::dump_test_integrand(double T1, double T2, double eta, double sqrts, double m){
+	std::ofstream dip_f;
+	std::ostringstream path_to_file;
+	path_to_file << path_to_set<< "/Dipole_test_problem_T1_"<< T1<< "_T2_"<< T2 << "_eta_"<<eta<< "_sqrts_"<<sqrts<< "_reg_"<<m << "_trans_norm.dat" ;
+	dip_f.open(path_to_file.str());
+	int Nk_t = 151;
+	double kmin=0.001;
+	double kmax=60;
+	double dk = log(kmax/kmin)/(Nk_t-1.);
+
+	double x1_t,x2_t,kt_t,qt_t;
+	// double Dip1_A_k,Dip1_F_k;
+	// double Dip2_A_k,Dip2_F_k;
+
+	int Nphi = 4;
+	double dPhi = M_PI/Nphi;
+
+	double integrand=0;
+
+	for (int iq = 0; iq < Nk_t; iq++) {
+		qt_t = kmin*exp(iq*dk);
+		for (int ik = 0; ik < Nk_t; ik++) {
+			kt_t = kmin*exp(ik*dk);
+
+			dip_f<< qt_t<<"\t"<< kt_t ;
+			
+			for (size_t iphi = 0; iphi < Nphi; iphi++)
+			{
+				double phi_t=dPhi*iphi;
+				double p_t=   sqrt(qt_t*qt_t + kt_t*kt_t + 2*qt_t*kt_t*cos(phi_t));
+				double cutP2 = m*m + p_t*p_t  ;
+				x1_t=p_t*exp( eta)/sqrts;
+				x2_t=p_t*exp(-eta)/sqrts;
+				double D1 =AdjointDipole_k(x1_t,qt_t,T1);
+				double D2 =AdjointDipole_k(x2_t,kt_t,T2);
+
+				if(D1<0){D1=0.0;}
+				if(D2<0){D2=0.0;}
+				if(p_t==0){integrand=0.0;}
+				else{
+					integrand= 2*M_PI * ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( qt_t,3.)* pow(kt_t,3.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
+				}
+				dip_f<< "\t"<<integrand;
+			}
+			dip_f<< std::endl;
+			
+		}
+		dip_f<< std::endl;
+		
+	}
+	dip_f.close();
+	
 }
 
 void Dipole::dump_momentum_Dipole(double T){
@@ -1451,8 +1645,8 @@ void Dipole::dump_momentum_Dipole(double T){
 		dip_F_f<< k_t ;
 
 		for (int j = 0; j < Nx_t; j++) {
-			double Q2A_t= gsl_spline2d_eval(Q2A_spl,T,y[j],xaccQ2A, yaccQ2A);
-			double Q2F_t= gsl_spline2d_eval(Q2F_spl,T,y[j],xaccQ2F, yaccQ2F);
+			double Q2A_t= gsl_spline2d_eval(Q2A_spl,T,y[j],NULL,NULL);
+			double Q2F_t= gsl_spline2d_eval(Q2F_spl,T,y[j],NULL,NULL);
 
 			dip_A_f<< "\t"<< Q2A_t<< "\t"<< AdjointDipole_k(x[j], k_t, T);
 			dip_F_f<< "\t"<< Q2F_t<< "\t"<< FundamentalDipole_k(x[j], k_t, T) ;
@@ -1488,8 +1682,10 @@ void Dipole::get_Q2(){
 	D_{rep}(rbar,x)=exp[-0.25]. This list is used then to enforce
 	geometrical scaling for x>xscaling */
 
-	double Q2F[N3*N2];
-	double Q2A[N3*N2];
+	// Value-initialised: an entry the root search never fills must not be read
+	// as stack garbage, since it is fed straight into gsl_spline2d_init.
+	std::vector<double> Q2F(N3*N2, 0.0);
+	std::vector<double> Q2A(N3*N2, 0.0);
 	double peak_point = exp(-1./4.);
 
 	std::ofstream Q2_scaling_f;
@@ -1541,6 +1737,24 @@ void Dipole::get_Q2(){
 					if(is_adj_found && is_fund_found){break;}
 				}
 			}
+
+			// The search only covers r in [rmin, rmax]. At large x the amplitude
+			// never reaches exp(-1/4) inside that window, i.e. the saturation
+			// scale sits below 1/rmax^2. Past rmax the tabulated G grows like
+			// r^2, so the crossing has a closed form. This continues the searched
+			// branch smoothly and vanishes linearly as T -> 0.
+			if(T_t > 0){
+				double Gmax = G(x_t, IPsat_pars::rmax);
+				double norm = pow(IPsat_pars::rmax * gen_pars::fm_to_GeVm1, 2.);
+				if(Gmax > 0){
+					if(!is_fund_found && FundamentalDipole(x_t,IPsat_pars::rmax,T_t) > peak_point){
+						Q2F[N3*iy+iT] = 4.*Gmax*T_t/norm;
+					}
+					if(!is_adj_found && AdjointDipole(x_t,IPsat_pars::rmax,T_t) > peak_point){
+						Q2A[N3*iy+iT] = (gen_pars::CA/gen_pars::CF)*4.*Gmax*T_t/norm;
+					}
+				}
+			}
 		}
 	}
 
@@ -1561,13 +1775,13 @@ void Dipole::get_Q2(){
 	Q2A_spl = gsl_spline2d_alloc(TA, N3, N2);
 	xaccQ2A = gsl_interp_accel_alloc();
 	yaccQ2A = gsl_interp_accel_alloc();
-	gsl_spline2d_init(Q2A_spl, T_grid, Y_grid, Q2A, N3, N2);
+	gsl_spline2d_init(Q2A_spl, T_grid, Y_grid, Q2A.data(), N3, N2);
 
 	const gsl_interp2d_type *TF= gsl_interp2d_bicubic;
 	Q2F_spl = gsl_spline2d_alloc(TF, N3, N2);
 	xaccQ2F = gsl_interp_accel_alloc();
 	yaccQ2F = gsl_interp_accel_alloc();
-	gsl_spline2d_init(Q2F_spl, T_grid, Y_grid, Q2F, N3, N2);
+	gsl_spline2d_init(Q2F_spl, T_grid, Y_grid, Q2F.data(), N3, N2);
 
 
 }

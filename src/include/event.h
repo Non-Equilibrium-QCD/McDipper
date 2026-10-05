@@ -7,6 +7,7 @@
 #include "config.h"
 #include "charges.h"
 #include "nucleus.h"
+#include "h5_out.h"
 
 // Constructor and destructor
 
@@ -99,19 +100,31 @@ class Event{
 		double ComputeIndividualOverlap_Gaussian(Nucleus *N1,int in1,Nucleus *N2,int in2);
 		double ComputeIndividualOverlap_Exponential(Nucleus *N1,int in1,Nucleus *N2,int in2);
 		double ComputeInteractionProbability(double CollisionOverlap);
+		double solve_parton_sigma();
 		void CheckParticipants(Nucleus* N1,Nucleus *N2);
 
 		// TOOLS!
 
 		double sigma_inelastic_fm2(double sqrts){return mb_to_fm2*(25.2 + 33.8/pow(sqrts,1.1) + 45.2/pow(sqrts,0.9) + 0.05*log(sqrts) + 0.56*pow(log(sqrts),2));}
+		//double sigma_inelastic_fm2(double sqrts){return 3.1253+0.1280 * pow(log(sqrts)-2.0412, 1.8231);}
+
 		// This function is the inverse to the dimensionless solution to the matching (sigmaInel/4piBG = F[sig_g/(4pi BG)])
 		double FitInverseInelXSec(double x){return  0.561459*exp(x) + 0.00615644*x - 0.0533597 ; } // Gives F^{-1}(sigmaInel/4piBG)
     
-		// This function is the inverse to the solution to the matching (sigmaInel = F[sig_g] in hotspot case)
-		double FitInverse_parton_sigma(double x)
-        	{return exp(0.000307231898*pow(x,5)-0.00941060923*pow(x,4)+0.110155447*pow(x,3)-0.556793005*pow(x,2)+1.95110038*x-1.30207108);}//v=0.2fm
-		//{return exp(0.000668144874*pow(x,5)-0.0179029924*pow(x,4) +0.178578559*pow(x,3)-0.621370047*pow(x,2)+2.05178913*x-1.2402280);}//v=0.116fm
-		
+		// Replaced by Event::solve_parton_sigma(), which does the matching at run
+		// time for any Nq, BG and Bq. Kept for reference: each line is a fit to a
+		// set of TRENTo runs, Nq=3 only, at the one (w,v) its comment names.
+		//double FitInverse_parton_sigma(double x)
+		//{return exp(0.000307231898*pow(x,5)-0.0094106092*pow(x,4)+0.110155447*pow(x,3)-0.556793005*pow(x,2)+1.95110038*x-1.30207);}//w=0.4fm,v=0.2fm
+        	//{return exp(0.000154975735*pow(x,5)-0.0050539279*pow(x,4)+0.063947562*pow(x,3)-0.380394993*pow(x,2)+1.60700817*x-1.12212);}//w=0.4fm,v=0.3fm
+		//{return exp(0.000668144874*pow(x,5)-0.0179029924*pow(x,4)+0.178578559*pow(x,3)-0.621370047*pow(x,2)+2.05178913*x-1.24023);}//w=0.4fm,v=0.116fm
+		//{return exp(0.000114104509*pow(x,5)-0.0037398475*pow(x,4)+0.049565563*pow(x,3)-0.333671377*pow(x,2)+1.45320013*x-1.06351);}//w=0.6fm,v=0.3fm
+		//{return exp(0.000111855876*pow(x,5)-0.0037261861*pow(x,4)+0.049413354*pow(x,3)-0.336687571*pow(x,2)+1.42577757*x-1.06848);}//w=0.8fm,v=0.4fm
+		//{return exp(0.000303478666*pow(x,5)-0.0092639543*pow(x,4)+0.107327778*pow(x,3)-0.529384823*pow(x,2)+1.89562230*x-1.25462);}//w=0.3795,v=0.2
+		//{return exp(0.000121814035*pow(x,5)-0.0041679746*pow(x,4)+0.056055270*pow(x,3)-0.357869035*pow(x,2)+1.55038338*x-1.10125);}//w=0.4405,v=0.3
+		//{return exp(0.000110121625*pow(x,5)-0.0036891554*pow(x,4)+0.049334386*pow(x,3)-0.331558266*pow(x,2)+1.45530546*x-1.06012);}//w=0.5138,v=0.4
+		//{return exp(0.000119036963*pow(x,5)-0.0039188703*pow(x,4)+0.051408643*pow(x,3)-0.344204653*pow(x,2)+1.45851547*x-1.07931);}//w=0.595,v=0.5
+		//{return exp(0.000117366864*pow(x,5)-0.0038643018*pow(x,4)+0.050640694*pow(x,3)-0.340879880*pow(x,2)+1.43311119*x-1.06750);}//w=0.6812,v=0.6
 	private:
 		//int Nthreads=1;
 		int id=0;
@@ -162,8 +175,13 @@ class Event{
 
 		std::string OUTPATH;
 		bool is_sigma_output = true;
+		double sigma_parton = 0.0;	// solved once, in the constructor
 
 		Charges * ChargeMaker;
+
+		// One file per event, opened before the first output function runs and
+		// closed after the last. Null unless Output:H5 is set.
+		H5Event * h5out;
 
 		void printProgress(double percentage);
 

@@ -54,7 +54,7 @@ Event::Event(Config ConfInput){
 		N2.inputFile=config.get_NucleusInput(2);
 		N2.IsospinSpecified=config.get_IsospinDefinition(2);
 		N2.NConf=config.get_NConf(2);
-		N2.is_weights=config.get_weight(1);
+		N2.is_weights=config.get_weight(2);
 	}
 
 	PrimalSeed=config.get_seed();
@@ -73,9 +73,12 @@ Event::Event(Config ConfInput){
 	if(config.print_avg_event()>0){InitializeAverageEvent();}
 
 	ChargeMaker = new Charges(config);
+	h5out = NULL;
 	Initialize_output();
 
 	cell_trans_volume=config.get_dX()*config.get_dY();
+
+	if(config.is_hotspots_fluct()){ sigma_parton = solve_parton_sigma(); }
 }
 
 Event::~Event(){
@@ -93,6 +96,8 @@ Event::~Event(){
 		delete[] ndAvg_ptr;
 		delete[] nsAvg_ptr;
 	}
+
+	delete ChargeMaker;
 }
 
 // Structural Functions
@@ -209,6 +214,12 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 				std::cout<< "    Number of Collisions: " <<A1->get_NColl()+A2->get_NColl() <<  "\n";
 			}
 
+			if(config.is_h5()){
+				std::ostringstream h5name;
+				h5name << OUTPATH <<"/Event_"<<EventID<< ".h5";
+				h5out = new H5Event(h5name.str());
+			}
+
 			if (config.is_format("Nuclei") ){print_nucleon_pos(A1,A2,EventID);}
 
 			if(config.get_Verbose()){std::cout<<"    Nucleon Positions written out\n";}
@@ -236,7 +247,9 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 				if(config.is_boost_invariant() ) {MakeChargeOutputMidrapidity();}
 				else{MakeChargeOutput();}
 			}
-			
+
+			if(config.is_h5()){delete h5out; h5out = NULL;}
+
 		}
 		#endif
 	}
@@ -409,22 +422,48 @@ void Event::Initialize_output(){
 
 void Event::print_nucleon_pos(Nucleus *A1,Nucleus *A2, int EventID){
 
+	std::vector<double> nucleons1, nucleons2;
 	std::ofstream pos_f;
 	std::ostringstream posname;
-	posname << OUTPATH << "/Nuclei.dat";
-	pos_f.open(posname.str(), std::ios_base::app);
-	pos_f<<"# Start Event "<< EventID << std::endl;
+
+	if(config.is_h5()){
+		nucleons1.resize(long(A1->get_A())*6);
+		nucleons2.resize(long(A2->get_A())*6);
+	}
+	else{
+		posname << OUTPATH << "/Nuclei.dat";
+		pos_f.open(posname.str(), std::ios_base::app);
+		pos_f<<"# Start Event "<< EventID << std::endl;
+	}
+
 	double x_t,y_t,z_t;
 	for (int i = 0; i < A1->get_A(); i++) {
 		A1->get_position_nucleon(i, x_t,y_t,z_t);
-		pos_f<< 1 <<"\t"<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<< A1->get_ParticipantStatus(i)<<"\t"<< A1->get_nucleon_type(i) <<std::endl;
+		if(config.is_h5()){
+			double * row = &nucleons1[long(i)*6];
+			row[0]=i; row[1]=x_t; row[2]=y_t; row[3]=z_t;
+			row[4]=A1->get_ParticipantStatus(i); row[5]=A1->get_nucleon_type(i);
+		}
+		else{pos_f<< 1 <<"\t"<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<< A1->get_ParticipantStatus(i)<<"\t"<< A1->get_nucleon_type(i) <<std::endl;}
 	}
 	for (int i = 0; i < A2->get_A(); i++) {
 		A2->get_position_nucleon(i, x_t,y_t,z_t);
-		pos_f<< 2 <<"\t"<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<< A2->get_ParticipantStatus(i)<<"\t"<< A2->get_nucleon_type(i)<<std::endl;
+		if(config.is_h5()){
+			double * row = &nucleons2[long(i)*6];
+			row[0]=i; row[1]=x_t; row[2]=y_t; row[3]=z_t;
+			row[4]=A2->get_ParticipantStatus(i); row[5]=A2->get_nucleon_type(i);
+		}
+		else{pos_f<< 2 <<"\t"<< i <<"\t"<< x_t<<"\t"<< y_t<<"\t"<< z_t<<"\t"<< A2->get_ParticipantStatus(i)<<"\t"<< A2->get_nucleon_type(i)<<std::endl;}
 	}
-	pos_f<<"# End Event "<< EventID << std::endl;
-	pos_f.close();	
+
+	if(config.is_h5()){
+		h5out->write_table("Nucleus1", nucleons1.data(), A1->get_A(), 6);
+		h5out->write_table("Nucleus2", nucleons2.data(), A2->get_A(), 6);
+	}
+	else{
+		pos_f<<"# End Event "<< EventID << std::endl;
+		pos_f.close();
+	}
 
 }
 
@@ -451,7 +490,9 @@ void Event::MakeGlobalQuantities(){
 	std::vector<double> eqtau0_2o3_midrap(config.get_NETA(),0.0);
 	std::vector<double> etottau0_2o3_midrap(config.get_NETA(),0.0);
 
-	int izero = int( -config.get_ETAMIN()/config.get_dETA());
+	int izero = (int) lround( -config.get_ETAMIN()/config.get_dETA() );
+	if(izero < 0){izero = 0;}
+	if(izero > config.get_NETA()-1){izero = config.get_NETA()-1;}
 
 	dEdeta.assign(config.get_NETA(),0.0);
 	dEgdeta.assign(config.get_NETA(),0.0);
@@ -560,6 +601,40 @@ void Event::MakeGlobalQuantities(){
 	total_q_event= (2*total_u_event-total_d_event)/3;
 	total_B_event= (total_u_event+total_d_event)/3;
 
+	if(config.is_h5()){
+		h5out->attr("global/E_g", total_energy_event_g);
+		h5out->attr("global/E_q", total_energy_event_q);
+		h5out->attr("global/E_tot", total_energy_event);
+
+		h5out->attr("global/dEg_deta", dEgdeta[izero]);
+		h5out->attr("global/dEq_deta", dEqdeta[izero]);
+		h5out->attr("global/dE_deta", dEdeta[izero]);
+
+		h5out->attr("global/Int(egtau)2/3", egtau0_2o3_midrap[izero]);
+		h5out->attr("global/Int(eqtau)2/3", eqtau0_2o3_midrap[izero]);
+		h5out->attr("global/Int(egtau+eqtau)2/3", etottau0_2o3_midrap[izero]);
+
+		h5out->attr("global/N_u", total_u_event);
+		h5out->attr("global/N_d", total_d_event);
+		h5out->attr("global/N_s", total_s_event);
+
+		h5out->attr("global/dNu_deta(eta=0)", dnudeta[izero]);
+		h5out->attr("global/dNd_deta(eta=0)", dnddeta[izero]);
+		h5out->attr("global/dNs_deta(eta=0)", dnsdeta[izero]);
+
+		h5out->attr("global/Q", total_q_event);
+		h5out->attr("global/B", total_B_event);
+
+		h5out->attr("global/dQ_deta(eta=0)", (2*dnudeta[izero]-dnddeta[izero])/3.);
+		h5out->attr("global/dB_deta(eta=0)", (dnudeta[izero]+dnddeta[izero])/3.);
+
+		h5out->attr("global/x_cm_global", x_cm_global);
+		h5out->attr("global/y_cm_global", y_cm_global);
+
+		h5out->attr("global/x_cm_mid", x_cm[izero]);
+		h5out->attr("global/y_cm_mid", y_cm[izero]);
+	}
+	else{
 	std::ofstream global_f;
 	std::ostringstream global_name;
 	global_name << OUTPATH <<"/Global.dat" ;
@@ -597,6 +672,7 @@ void Event::MakeGlobalQuantities(){
 	global_f<<  "y_cm_mid\t" << y_cm[izero]<<std::endl;
 	global_f<<"# End Event "<< EventID << std::endl;
 	global_f.close();
+	}
 
 
 	if(config.get_Verbose()){
@@ -619,11 +695,29 @@ void Event::MakeChargeOutput(){
 	std::ofstream nu_moments_f; std::ostringstream nu_moments_name;
 	std::ofstream nd_moments_f; std::ostringstream nd_moments_name;
 
+	std::vector<double> charge_slice;
+	std::vector<double> emoments, numoments, ndmoments;
+	long ncell = long(config.get_NX())*config.get_NY();
+	long emom_cols = 3 + 6*(n_max+1);
+	long nmom_cols = 1 + 3*(n_max+1);
+
+	if(config.is_h5()){
+		if(config.is_format("Charges")){
+			h5out->open_charges(long(config.get_NETA())*ncell, ncell);
+			charge_slice.resize(ncell*5);
+		}
+		if(config.is_format("EMoments")){emoments.resize(long(config.get_NETA())*emom_cols);}
+		if(config.is_format("NMoments")){
+			numoments.resize(long(config.get_NETA())*nmom_cols);
+			ndmoments.resize(long(config.get_NETA())*nmom_cols);
+		}
+	}
+	else{
 	if(config.is_format("Charges")){
 		charges_name << OUTPATH <<"/Event_"<<EventID<< "_charges.dat" ;
 		charges_f.open(charges_name.str());
 	}
-	
+
 	if(config.is_format("EMoments")){
 		e_moments_name << OUTPATH <<"/EnergyMoments.dat" ;
 		e_moments_f.open(e_moments_name.str(), std::ios_base::app);
@@ -638,6 +732,7 @@ void Event::MakeChargeOutput(){
 		nd_moments_name << OUTPATH <<"/NdMoments.dat" ;
 		nd_moments_f.open(nd_moments_name.str(), std::ios_base::app);
 		nd_moments_f<<"# Start Event "<< EventID << std::endl;
+	}
 	}
 
 	double eg_t,eq_t,nu_t,nd_t,ns_t;
@@ -728,15 +823,52 @@ void Event::MakeChargeOutput(){
 				}
 
 				if(config.is_format("Charges")){
-					charges_f<< eta_t <<"\t"<< get_x(ix) <<"\t"<< get_y(iy) <<"\t"<< eg_t  <<"\t"<< eq_t<<"\t"<< nu_t <<"\t"<< nd_t<<"\t"<< ns_t <<std::endl;
+					if(config.is_h5()){
+						double * row = &charge_slice[(long(ix)*config.get_NY()+iy)*5];
+						row[0]=eg_t; row[1]=eq_t; row[2]=nu_t; row[3]=nd_t; row[4]=ns_t;
+					}
+					else{charges_f<< eta_t <<"\t"<< get_x(ix) <<"\t"<< get_y(iy) <<"\t"<< eg_t  <<"\t"<< eq_t<<"\t"<< nu_t <<"\t"<< nd_t<<"\t"<< ns_t <<std::endl;}
 				}
 			}
 		}
+
+		if(config.is_h5() && config.is_format("Charges")){
+			h5out->write_charges(charge_slice.data(), ncell);
+		}
+
+		if(config.is_h5()){
+			if(config.is_format("EMoments")){
+				double * row = &emoments[long(ieta)*emom_cols];
+				row[0]=eta_t; row[1]=lattice_sum_dint23dy; row[2]=lattice_sum_dint43dy;
+				for (int j = 0; j <= n_max; j++) {
+					row[3+6*j+0]=lattice_sum_eg[j];
+					row[3+6*j+1]=lattice_sum_eq[j];
+					row[3+6*j+2]=lattice_sum_eg_cos[j];
+					row[3+6*j+3]=lattice_sum_eq_cos[j];
+					row[3+6*j+4]=lattice_sum_eg_sin[j];
+					row[3+6*j+5]=lattice_sum_eq_sin[j];
+				}
+			}
+			if(config.is_format("NMoments")){
+				double * urow = &numoments[long(ieta)*nmom_cols];
+				double * drow = &ndmoments[long(ieta)*nmom_cols];
+				urow[0]=eta_t; drow[0]=eta_t;
+				for (int j = 0; j <= n_max; j++) {
+					urow[1+3*j+0]=lattice_sum_nu[j];
+					urow[1+3*j+1]=lattice_sum_nu_cos[j];
+					urow[1+3*j+2]=lattice_sum_nu_sin[j];
+					drow[1+3*j+0]=lattice_sum_nd[j];
+					drow[1+3*j+1]=lattice_sum_nd_cos[j];
+					drow[1+3*j+2]=lattice_sum_nd_sin[j];
+				}
+			}
+		}
+		else{
 		if(config.is_format("EMoments")){e_moments_f << eta_t << "\t"<< lattice_sum_dint23dy<< "\t"<< lattice_sum_dint43dy ;}
 		if(config.is_format("NMoments")){
 			nu_moments_f << eta_t;
 			nd_moments_f << eta_t;
-		}	
+		}
 
 		for (int j = 0; j <= n_max; j++) {
 			if(config.is_format("EMoments")){
@@ -754,6 +886,7 @@ void Event::MakeChargeOutput(){
 			nu_moments_f << std::endl;
 			nd_moments_f << std::endl;
 		}
+		}
 
 		if(config.get_Verbose()){
 			double percentage_done=double(ieta)/double(config.get_NETA());
@@ -761,6 +894,16 @@ void Event::MakeChargeOutput(){
 		}
 	}
 
+	if(config.is_h5()){
+		if(config.is_format("EMoments")){
+			h5out->write_table("EnergyMoments", emoments.data(), config.get_NETA(), emom_cols);
+		}
+		if(config.is_format("NMoments")){
+			h5out->write_table("NuMoments", numoments.data(), config.get_NETA(), nmom_cols);
+			h5out->write_table("NdMoments", ndmoments.data(), config.get_NETA(), nmom_cols);
+		}
+	}
+	else{
 	if(config.is_format("EMoments")){
 		e_moments_f<<"# End Event "<< EventID << std::endl;
 		e_moments_f.close();}
@@ -772,6 +915,7 @@ void Event::MakeChargeOutput(){
 	}
 
 	if(config.is_format("Charges")){charges_f.close();}
+	}
 
 	if(config.get_Verbose()){printProgress(1);}
 
@@ -1029,26 +1173,77 @@ double Event::ComputeIndividualOverlap_Exponential (Nucleus *N1,int ind1,Nucleus
     return d_12; //exp(-dsqr/(4.0*config.get_BG()))/(4.0*M_PI*config.get_BG());
 }
 
+// The parton-parton cross section is fixed by requiring that the overlap of
+// ComputeIndividualOverlap_Gaussian, averaged over hotspot configurations and
+// integrated over impact parameter, give back sigma_inelastic:
+//
+//     sigma_inel = int d^2b < 1 - exp(-sigma_g That(b)) >
+//
+// The average can only be sampled, but That does not depend on sigma_g, so the
+// samples are drawn once and the bisection sweeps the stored table.
+double Event::solve_parton_sigma(){
+	const int    NCONF = 20000;    // hotspot configurations
+	const int    NB    = 401;      // points in b
+	const double BMAX  = 8.0;      // fm
+	const long   SEED  = 20260906; // own stream, so the answer does not depend
+	                               // on the event seed
+
+	int    Nq = config.get_Nq();
+	double Bq = config.get_Bq();
+	double sigma_inelastic = sigma_inelastic_fm2(config.get_collEnergy());
+
+	Engine gen(SEED);
+	std::normal_distribution<double> off(0.0,sqrt(config.get_Br()));
+
+	double db = BMAX/(NB-1);
+	std::vector<double> ring(NB);
+	for(int ib=0;ib<NB;ib++){ ring[ib] = 2.0*M_PI*ib*db*db; }
+
+	std::vector<double> That(NCONF*NB);
+	std::vector<double> s1(2*Nq), s2(2*Nq);
+	for(int ic=0;ic<NCONF;ic++){
+		sample_hotspot_offsets(&s1[0],Nq,off,gen);
+		sample_hotspot_offsets(&s2[0],Nq,off,gen);
+		for(int ib=0;ib<NB;ib++){
+			double sum = 0.0;
+			for(int i=0;i<Nq;i++){
+				for(int j=0;j<Nq;j++){
+					double dx = ib*db + s1[2*i]   - s2[2*j];
+					double dy =         s1[2*i+1] - s2[2*j+1];
+					sum += exp(-(dx*dx+dy*dy)/(4.0*Bq));
+				}
+			}
+			That[ic*NB+ib] = sum/(4.0*M_PI*Bq*Nq*Nq);
+		}
+	}
+
+	double lo = log(1e-4), hi = log(1e9);
+	for(int it=0;it<40;it++){
+		double mid = 0.5*(lo+hi), sigma_g = exp(mid), sigma = 0.0;
+		for(int ic=0;ic<NCONF;ic++){
+			for(int ib=0;ib<NB;ib++){ sigma += ring[ib]*(1.0-exp(-sigma_g*That[ic*NB+ib])); }
+		}
+		if(sigma/NCONF < sigma_inelastic){ lo = mid; }else{ hi = mid; }
+	}
+	return exp(0.5*(lo+hi));
+}
+
 double Event::ComputeInteractionProbability(double CollisionOverlap){
     // DETERMINE NUCLEON-NUCLEON INELASTIC CROSS-SECTION //
 		double sigma0=4*M_PI*config.get_BG();
 		double sigma_inelastic= sigma_inelastic_fm2(config.get_collEnergy());
-        double sigmaNN=0.0;
+        double sigmaNN=sigma_parton;
 
-        if (!config.is_hotspots_fluct())
-		{ sigmaNN =sigma0 * FitInverseInelXSec(sigma_inelastic/sigma0);}
-        else if (config.get_Nq()==3)
-        { sigmaNN =FitInverse_parton_sigma(sigma_inelastic); }
-        else 
-        {std::cerr << "Fitted cross-section for hotspots only apply for nq=3 case." << std::endl;
-         std::cerr << "The parton cross section should be fit inside the programe." <<std::endl;}
+        if (!config.is_hotspots_fluct()){
+			sigmaNN =sigma0 * FitInverseInelXSec(sigma_inelastic/sigma0);
 
-		if(!is_sigma_in_range(sigma_inelastic/sigma0)){
-			// WARNING MESSAGE //
-			if(config.get_Verbose() && is_sigma_output ){
-				std::cerr << std::endl;
-				std::cerr << "[[ WARNING! ]] -- Solution for SIGMA(SIGMA_INELASTIC) not trusted in the specified range! Re-check assumptions and values! " << std::endl;is_sigma_output=false;
-				std::cerr << std::endl;
+			if(!is_sigma_in_range(sigma_inelastic/sigma0)){
+				// WARNING MESSAGE //
+				if(config.get_Verbose() && is_sigma_output ){
+					std::cerr << std::endl;
+					std::cerr << "[[ WARNING! ]] -- Solution for SIGMA(SIGMA_INELASTIC) not trusted in the specified range! Re-check assumptions and values! " << std::endl;is_sigma_output=false;
+					std::cerr << std::endl;
+				}
 			}
 		}
 
@@ -1068,6 +1263,7 @@ bool Event::check_interaction_status(Nucleus *N1,int ind1,Nucleus *N2,int ind2){
 	if(config.get_GlauberAcceptance() == GlauberMode::Standard){
 		double d_12=Event::compute_internucleon_distance(N1,ind1,N2,ind2);
 		is_interacting= d_12 <=  (sqrt( sigma_inelastic_fm2(config.get_collEnergy())/M_PI) ) ;
+		//std::clog << "lllllllog:::" << sqrt( sigma_inelastic_fm2(config.get_collEnergy())/M_PI) << std::endl;
 	}
 	else{
 		double NNOverlap=0.;
@@ -1129,7 +1325,7 @@ void Event::CheckParticipants(Nucleus* N1,Nucleus *N2){
     }
 
     // CLEAN-UP //
-    for(int s1=0;s1<N1->get_A();s1++){delete InteractionStatus[s1];}
+    for(int s1=0;s1<N1->get_A();s1++){delete[] InteractionStatus[s1];}
     delete[] InteractionStatus;
 }
 
@@ -1144,6 +1340,16 @@ void  Event::printProgress(double percentage) {
 
 void Event::print_glauber_data_to_file(Nucleus * N1,Nucleus * N2){
 	/* This function prints the MC-Glauber*/
+	if(config.is_h5()){
+		h5out->attr("global/N_part_1", N1->get_number_of_participants());
+		h5out->attr("global/N_part_2", N2->get_number_of_participants());
+		h5out->attr("global/N_coll_1", N1->get_NColl());
+		h5out->attr("global/N_coll_2", N2->get_NColl());
+		h5out->attr("global/bx", abs(b1[0]-b2[0]));
+		h5out->attr("global/by", abs(b1[1]-b2[1]));
+		return;
+	}
+
 	std::ofstream global_f;
 	std::ostringstream global_name;
 	global_name << OUTPATH <<"/Global.dat" ;
@@ -1165,6 +1371,13 @@ void Event::print_glauber_data_to_file(Nucleus * N1,Nucleus * N2){
 
 void Event::print_weights(Nucleus * N1,Nucleus * N2, int EventID){
 	/* This function prints the weights in a compact way */
+	if(config.is_h5()){
+		double w[4] = {double(EventID), N1->get_weight(), N2->get_weight(),
+		               N1->get_weight()*N2->get_weight()};
+		h5out->attr("weight", w, 4);
+		return;
+	}
+
 	std::ofstream weights_f;
 	std::ostringstream weights_name;
 	weights_name << OUTPATH <<"/Weights.dat" ;
@@ -1216,7 +1429,9 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 	std::vector<double> eqtau0_2o3_midrap(config.get_NETA(),0.0);
 	std::vector<double> etottau0_2o3_midrap(config.get_NETA(),0.0);
 
-	int izero = int( -config.get_ETAMIN()/config.get_dETA());
+	int izero = (int) lround( -config.get_ETAMIN()/config.get_dETA() );
+	if(izero < 0){izero = 0;}
+	if(izero > config.get_NETA()-1){izero = config.get_NETA()-1;}
 
 	dEdeta.assign(config.get_NETA(),0.0);
 	dEgdeta.assign(config.get_NETA(),0.0);

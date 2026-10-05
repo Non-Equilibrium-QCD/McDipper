@@ -41,6 +41,8 @@ class Dipole{
 	//Moment functions
 	double FundamentalDipole_k(double x, double k, double T);
 	double AdjointDipole_k(double x, double k, double T);
+	double FundamentalDipole_k_slice(int jT, double k, double Y_t);
+	double AdjointDipole_k_slice(int jT, double k, double Y_t);
 	double MomentDipole(int n, double x, double T, Rep rep);
 	double EffectiveRadius(int n, double x, double T, Rep rep);
 
@@ -78,10 +80,16 @@ class Dipole{
 	void print_Dk_config();
 	void dump_momentum_Dipole(double T);
 	void dump_transformed_norm(double T);
+
 	void Transform_Dipole_Naive_Test(Rep rep,double T_t);
 	void make_test_output();
+	
 
 
+	//debugging tools 
+	void dump_test_norm();
+	void dump_test_fixed();
+	void dump_test_integrand(double T1, double T2, double eta, double sqrts, double m2);
 
 	private:
 

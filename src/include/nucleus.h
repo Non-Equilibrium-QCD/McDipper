@@ -99,7 +99,7 @@ class Nucleus{
 		int NConf;
 		bool is_weights=false;
 
-        int Nq=0;
+        int Nq=1;
         double Bq=0.0;
         double Br=0.0;
         
@@ -133,6 +133,11 @@ class Nucleus{
 
 		double weight= 1.0; // Statistical weight of the nuclear configuration, DEF=1, but can change due to, i.e. NLEFT, configs.
 	};
+
+// The hotspot offsets of one nucleon: Nq draws from d, recentred. Free-standing
+// so the cross-section calibration in event.cpp samples from exactly the same
+// distribution the events use.
+void sample_hotspot_offsets(double * s, int Nq, std::normal_distribution<double> & d, Engine & gen);
 
 #endif /* nucleus */
  

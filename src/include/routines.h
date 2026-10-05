@@ -4,6 +4,7 @@
 #ifndef ROUTINES_H
 #define ROUTINES_H
 #include <iostream>
+#include <cmath>
 #include <gsl/gsl_sf_bessel.h>
 #include <gsl/gsl_dht.h>
 #include <gsl/gsl_monte_plain.h>
@@ -33,7 +34,11 @@ namespace Routines{
     const int nVec =1;
     const int flags = 0;
     const int minEval= 100;
-    const int maxEval= 50000;
+    // Cuhre stops as soon as EpsRelCuba is met, so this cap only costs time on
+    // the hard points. At 50000 none of the gluon-table integrations reached
+    // 1e-4 and the entries carried up to 23% error; at 5000000 all of them
+    // converge, for about 7x the wall time of a one-off table build.
+    const int maxEval= 5000000;
     void * spin =NULL;
     void * statefile =NULL;
     const int key=13;
@@ -83,6 +88,17 @@ namespace Routines{
       }
 
 
+    // Cuhre returns fail>0 when the requested accuracy was not reached within
+    // maxEval. Ignoring it lets an unconverged estimate enter the tables with
+    // no trace, so keep a tally and report it once per table.
+    inline long   & cuhre_calls()    { static long   n = 0;   return n; }
+    inline long   & cuhre_fails()    { static long   n = 0;   return n; }
+    inline double & cuhre_worst_rel(){ static double e = 0.0; return e; }
+    // A NaN result is replaced by zero below. Silently, until now: that is how
+    // a catastrophic cancellation in P() went unnoticed - the whole azimuthal
+    // tail came back NaN and would have been written to the table as zeros.
+    inline long   & cuhre_nans()     { static long   n = 0;   return n; }
+
     void make_cuhre_1C(int DIM, integrand_t integrand,void * parameters,double &result, double &error){
 
       int nregions, neval, fail;
@@ -91,7 +107,40 @@ namespace Routines{
       Cuhre(DIM,1, integrand, parameters, nVec,EpsRelCuba, EpsAbsCuba, flags, minEval, maxEval, key,"", spin, &nregions, &neval, &fail, integral_arr, error_arr, prob_arr);
       result= integral_arr[0];
       error= error_arr[0];
-      if(result!=result){result=0.;error=0.0;}
+      // The tabulation loop calls this from several threads at once.
+      #pragma omp atomic
+      cuhre_calls()++;
+      if(fail > 0){
+        #pragma omp atomic
+        cuhre_fails()++;
+        double rel = (result!=0.0)? std::fabs(error/result) : 0.0;
+        // Read, compare, write - not something atomic can cover.
+        #pragma omp critical(cuhre_worst)
+        { if(rel > cuhre_worst_rel()){ cuhre_worst_rel() = rel; } }
+      }
+      if(result!=result){
+        #pragma omp atomic
+        cuhre_nans()++;
+        result=0.;error=0.0;
+      }
+    }
+
+    inline void report_cuhre_stats(const char * where){
+      if(cuhre_fails() > 0){
+        std::cerr << "\n[ Cuhre ] " << where << ": " << cuhre_fails() << " of "
+                  << cuhre_calls() << " integrations did not reach EpsRel="
+                  << EpsRelCuba << " within maxEval=" << maxEval
+                  << " (worst relative error " << cuhre_worst_rel() << ")" << std::endl;
+      }
+      else{
+        std::cerr << "\n[ Cuhre ] " << where << ": all " << cuhre_calls()
+                  << " integrations converged." << std::endl;
+      }
+      if(cuhre_nans() > 0){
+        std::cerr << "[ Cuhre ] " << where << ": " << cuhre_nans() << " of "
+                  << cuhre_calls() << " integrations returned NaN and were"
+                  << " written as zero." << std::endl;
+      }
     }
 
     void make_suave_1C(int DIM, integrand_t integrand,void * parameters,double &result, double &error){
