@@ -13,12 +13,13 @@ namespace  NuclearData { ///TO DO, get more elements!
     //Spherical Nuclei (denoted by sph subindex)
     double O_sph[2]={2.608, 0.5130}; // A=16, Z=8
     double Ar_sph[2]={3.53, 0.542};  // A=40
-    double Cu_sph[2]={4.2, 0.5130};  // A=63
-    double Xe_sph[2]={5.42, 0.57};   // A=129
-    double Au_sph[2]={6.38, 0.535};  // A=197
-    double Pb_sph[2]={6.62, 0.546};  // A=208
+    double Cu_sph[2]={4.2, 0.5130};  // A=63, Z=29 
     double Ru_sph[2]={5.085,0.46};   // A=96, Z =44  from 1607.04697
     double Zr_sph[2]={5.02,0.46};   // A=96, Z =40  from 1607.04697
+    double Xe_sph[2]={5.42, 0.57};   // A=129, Z= 54
+    double Au_sph[2]={6.38, 0.535};  // A=197
+    double Pb_sph[2]={6.62, 0.546};  // A=208
+
 
 
     // Spherically Deviated Nuclei (denoted by dev subindex) //TODO

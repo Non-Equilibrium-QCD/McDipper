@@ -143,7 +143,7 @@ GBW::GBW(){}
 GBW::GBW(Config ConfInput){
   config=Config(ConfInput);
 	quark_dist = new PDFs(&ConfInput);
-  if(config.get_Verbose()){std::cout<<"   --> Initializing GBW model  "<< std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[GBW]: Initializing GBW model  "<< std::endl;}
 
 	//config.set_TMax(gen_pars::TMax);
 	//config.set_TMin(gen_pars::TMin);
@@ -159,13 +159,13 @@ void GBW::MakeTable(std::string path_to_set){
   fs::create_directories(SETPATH);
 	// Write new config to setpath
 	config.set_dump(SETPATH);
-	if(config.get_Verbose()){std::cout<<"New config written to "<<SETPATH  << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[GBW]: New config written to "<<SETPATH  << std::endl;}
 
-	if(config.get_Verbose()){std::cout<<"--> Tabulating conserved charges in the GBW model framework"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[GBW]: Tabulating conserved charges in the GBW model framework"<<SETPATH  << std::endl;}
 	make_gluon_energy();
-	if(config.get_Verbose()){std::cout<<"\nGluon Energy written to"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"\n[GBW]: Gluon Energy written to"<<SETPATH  << std::endl;}
 	make_baryon_stopping_all();
-	if(config.get_Verbose()){std::cout<<"\n(All) Quark elements written to"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"\n[GBW]: (All) Quark elements written to"<<SETPATH  << std::endl;}
 
 }
 
@@ -222,7 +222,7 @@ void GBW::make_gluon_energy(){
 		}
 		density_f<<"\n";\
 		
-		if(config.get_Verbose()){
+		if(config.get_Verbose()==VerboseLevel::Dynamic){
 			if(remainder(iy,gen_pars::skip)==0){double percentage_done = double(iy)/double(config.get_NETA());printProgress(percentage_done);}
 		}
 
@@ -232,7 +232,7 @@ void GBW::make_gluon_energy(){
 	#endif
 	 //
 	density_f.close();
-	if(config.get_Verbose()){printProgress(1);}
+	if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress(1);}
 }
 
 void GBW::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
@@ -300,28 +300,28 @@ void GBW::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
 			density_f<<y_t<< "\t"<<T_t<< "\t"<<res12q<< "\t"<<res12aq<< "\t"<<res21q<< "\t"<<res21aq<< "\n";
 		}
 		density_f<< std::endl;
-		if(config.get_Verbose()){
+		if(config.get_Verbose()==VerboseLevel::Dynamic){
 			if(remainder(iy,gen_pars::skip)==0){double percentage_done = double(iy)/double(config.get_NETA());printProgress(percentage_done);}
 		}
 
 	}
 	gsl_integration_workspace_free (w);
  	density_f.close();
-	if(config.get_Verbose()){printProgress(1);std::cout<<std::endl;}
+	if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress(1);std::cout<<std::endl;}
 }
   
 void GBW::make_baryon_stopping_all(){
 	make_baryon_stopping(0, QuarkID::u, QuarkID::ubar);
 	make_baryon_stopping(1, QuarkID::u, QuarkID::ubar);
-	if(config.get_Verbose()){std::cout<<"\n U-Quark elements written " << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"\n U-Quark elements written " << std::endl;}
 
 	make_baryon_stopping(0, QuarkID::d, QuarkID::dbar);
 	make_baryon_stopping(1, QuarkID::d, QuarkID::dbar);
-	if(config.get_Verbose()){std::cout<<"\n D-Quark elements written " << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"\n D-Quark elements written " << std::endl;}
 
 	make_baryon_stopping(0, QuarkID::s, QuarkID::sbar);
 	make_baryon_stopping(1, QuarkID::s, QuarkID::sbar);
-	if(config.get_Verbose()){std::cout<<"\n S-Quark elements written " << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"\n S-Quark elements written " << std::endl;}
 }
 
 bool GBW::check_if_zero(double y,double T1, double T2, double &Q12, double &Q22){

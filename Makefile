@@ -12,7 +12,7 @@ vpath %.cpp src
 objdir     = obj
 tabdir     = tabs
 
-SRC        = main.cpp config.cpp pdfs_lhapdf.cpp nucleus.cpp event.cpp charges.cpp dipole_ipsat.cpp model_gbw.cpp model_ipsat.cpp random.cpp
+SRC        = main.cpp routines.cpp config.cpp config_mv.cpp pdfs_lhapdf.cpp nucleus.cpp event.cpp charges.cpp dipole_ipsat.cpp dipole_mv.cpp model_gbw.cpp model_ipsat.cpp model_mv.cpp random.cpp 
 SRCH       = Hankel.cpp
 OBJS       = $(patsubst %.cpp,$(objdir)/%.o,$(SRC))
 
@@ -55,6 +55,7 @@ clean:
 again:
 		make clean
 		make
+
 
 Hankel:
 	$(CXX) $(CXXFLAGS) -o Hankel.exe src/Hankel.cpp $(LIBS)

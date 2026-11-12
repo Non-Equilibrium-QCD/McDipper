@@ -162,6 +162,14 @@ double Nucleus::nuclear_thickness_optical(double x,double y){
 	return 0;
 }
 
+double Nucleus::uni_nu_rn(){
+	static std::uniform_real_distribution<double> dist(0.0, 1.0);
+	return dist(engine);  // uses global engine
+}
+int Nucleus::uni_nu_int(){
+	static std::uniform_int_distribution<long> dist(0, 0x7FFFFFFF); // 2^31-1
+	return dist(engine);  // uses global engine
+}
 double Nucleus::random_position(){
 	return RSampFactor*NucPars[0]*(uni_nu_rn()-0.5);
 }
@@ -233,7 +241,7 @@ void Nucleus::set_nucleon_positions(){
 			for(int n=0;n<A;n++){
 				sample_single_position(r[n]);
                 if (is_hotspots_fluct) {sample_hotspots(r[n]);}
-				if(n<=Z){NucleonType[n]=Nucleon::proton;}
+				if(n<Z){NucleonType[n]=Nucleon::proton;}
 				else{NucleonType[n]=Nucleon::neutron;}
 			}
 		} 
@@ -254,7 +262,7 @@ void Nucleus::set_nucleon_positions(){
 		if(IsIsospinSpecified){
 			/* Since the nucleons are sorted at importing-time, we only need to set them as in the WS case*/
 			for(int n=0;n<A;n++){
-				if(n<=Z){NucleonType[n]=Nucleon::proton;}
+				if(n<Z){NucleonType[n]=Nucleon::proton;}
 				else{NucleonType[n]=Nucleon::neutron;}
 			}
 		}
@@ -268,7 +276,7 @@ void Nucleus::set_nucleon_positions(){
 			// This needs to be changed when the new random is shown, were we can use a more modern library. For now it works
 			for(int n=0;n<A;n++){
 				int n_shuffled= nucleon_labels[n];
-				if(n<=Z){NucleonType[n_shuffled]=Nucleon::proton;}
+				if(n<Z){NucleonType[n_shuffled]=Nucleon::proton;}
 				else{NucleonType[n_shuffled]=Nucleon::neutron;}
 			}
 		}
@@ -304,14 +312,20 @@ void Nucleus::rotate_nucleus(){
 }
 
 void Nucleus::Thickness_fluct(){
+    w=new double*[A];
+    int nq_alloc = is_hotspots_fluct ? Nq : 1;
+    for  (int i=0; i<A; i++){
+        w[i]=new double[nq_alloc];
+      }
+
     if ( fluct_mode=="Gamma" )
     {
         for (int i=0; i<A; i++)
         {
             if (ParticipantStatus[i]==1)
-            { for (int j=0; j<Nq; j++) {w[i][j]=gamma_dist(engine);} }
+            { for (int j=0; j<nq_alloc; j++) {w[i][j]=gamma_dist(engine);} }
             else
-            { for (int j=0; j<Nq; j++) {w[i][j]=0.0;}}
+            { for (int j=0; j<nq_alloc; j++) {w[i][j]=0.0;}}
         }
     }
     else if ( fluct_mode=="Log_Normal" )
@@ -319,13 +333,13 @@ void Nucleus::Thickness_fluct(){
         for (int i=0; i<A; i++)
         {
             if (ParticipantStatus[i]==1)
-            { for (int j=0; j<Nq; j++) {w[i][j]=lognorm_dist(engine)/exp( sigma*sigma/2.0);} }
+            { for (int j=0; j<nq_alloc; j++) {w[i][j]=lognorm_dist(engine)/exp( sigma*sigma/2.0);} }
             else
-            { for (int j=0; j<Nq; j++) {w[i][j]=0.0;} }
+            { for (int j=0; j<nq_alloc; j++) {w[i][j]=0.0;} }
         }
     }
     else
-    { std::cerr << "Please choose fluct_mode from Gamma, Log_Normal!!!" << std::endl;
+    { std::cerr << "Please choose fluct_mode betwen from Gamma and Log_Normal!!!" << std::endl;
       exit(EXIT_FAILURE);}
 }
 

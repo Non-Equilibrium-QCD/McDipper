@@ -68,14 +68,18 @@ message(STATUS "LIBRARIES_TO_LINK = " ${LIBRARIES_TO_LINK})
 set(SRC
     src/main.cpp
     src/config.cpp
+    src/config_mv.cpp
     src/pdfs_lhapdf.cpp
     src/nucleus.cpp
     src/event.cpp
     src/charges.cpp
+    src/routines.cpp
     src/dipole_ipsat.cpp
+    src/dipole_mv.cpp
     src/model_gbw.cpp
     src/model_ipsat.cpp
     src/random.cpp
+    src/model_mv.cpp
     # Add other source files here
 )
 
@@ -101,6 +105,7 @@ file(COPY ${CMAKE_SOURCE_DIR}/ipsat DESTINATION  ${CMAKE_BINARY_DIR})
 
 # Create the executable
 add_executable(mcDipper ${SRC})
+
 
 
 # Link libraries

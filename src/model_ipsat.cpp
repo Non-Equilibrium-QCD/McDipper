@@ -34,7 +34,6 @@
 #include "include/model_ipsat.h"
 #include "include/params_gen.h"
 
-#include "include/routines.h"
 
 // BESSEL FUNCTIONS //
 #ifndef BesselJ0
@@ -73,82 +72,6 @@ namespace IPSatYields{
 
     static const int NumberOfIntegrationPoints=64000;
     // static const int VegasInitCalls=1e5;
-
-    double BesselIntegrate(double k,gsl_function F){
-        // SETUP GSL INTEGRATOR //
-        gsl_integration_workspace *Workspace=gsl_integration_workspace_alloc(NumberOfIntegrationPoints);
-        // CALCULATE INTEGRAL BY PARTITION //
-        int max_steps=96000; double a,b; double Value,Error; double Sum=0.0; double PartialSum=0.0;
-        for(int n=0; n< max_steps; n++){
-            if(n%100==0){
-                if(std::abs(PartialSum)<BesselTol*std::abs(Sum)){
-                    gsl_integration_workspace_free (Workspace);
-                    return Sum;
-                }
-                else if(n>0 && PartialSum==0.0 && Sum==0.0){
-                  return Sum ;
-                }
-                else{
-                    PartialSum=0.0;
-                }
-            }
-
-            if(n==0){
-                a = 0.0;
-                b = gsl_sf_bessel_zero_J0(1);
-            }
-            else{
-                a = b;
-                b = gsl_sf_bessel_zero_J0(n+1);
-            }
-
-
-            gsl_integration_qag(&F,a/k,b/k,0,EpsRel,NumberOfIntegrationPoints,BessQuad,Workspace,&Value,&Error);
-
-            if(gsl_isnan(Value)){
-                std::cerr << "#ERROR IN NUMERICAL INTEGRATION " << a << " " << b <<  " " << k << " " << Value <<  " " << gsl_isnan(Value) << std::endl;
-                return NAN;
-            }
-            Sum+=Value;  PartialSum+=Value;
-        }
-
-        std::cerr << "#WARNING SLOW CONVERGENCE FOR k=" << k << " VALUE IS " << Sum << " AND INCREMENTS IS " << Value << " AFTER " << max_steps << " STEPS"  << std::endl;
-
-        gsl_integration_workspace_free (Workspace);
-        return Sum;
-
-    }
-
-    double DipoleAdjFT_Integrand(double r,void * pars){
-      DipFT * params= ((struct DipFT *) pars);
-      return ( 2.0*M_PI*r*BesselJ0( (params->p)*r ) ) * (params->dip)->AdjointDipole(params->x,r,params->T);
-    }
-
-    double DipoleFunFT_Integrand(double r,void * pars){
-      DipFT * params= ((struct DipFT *) pars);
-      return ( 2.0*M_PI*r*BesselJ0( (params->p)*r ) ) * (params->dip)->FundamentalDipole(params->x,r,params->T);
-    }
-
-    double DipoleFunFT(double p,DipFT * Variables){
-      Variables->p=p;
-      // CALCULATE qg TMDS //
-      gsl_function GSL_FundDipole_Integrand;
-      GSL_FundDipole_Integrand.function=&DipoleFunFT_Integrand;
-      GSL_FundDipole_Integrand.params=Variables;
-      double DipMom=BesselIntegrate(p,GSL_FundDipole_Integrand);
-      return DipMom;
-    }
-
-    double DipoleAdjFT(double p,DipFT * Variables){
-      Variables->p=p;
-      // CALCULATE qg TMDS //
-      gsl_function GSL_AdjDipole_Integrand;
-      GSL_AdjDipole_Integrand.function=&DipoleAdjFT_Integrand;
-      GSL_AdjDipole_Integrand.params=Variables;
-      double DipMom=BesselIntegrate(p,GSL_AdjDipole_Integrand);
-      return DipMom;
-    }
-
     bool is_validX(double x, double xmin, double xmax){return (x>xmin) && (x<xmax); }
 
 
@@ -172,7 +95,7 @@ namespace IPSatYields{
       // We return the conditional validity is_valid=not(is_null) to comply with the structure above.
     }
 
-    static int GluonEnergyDensIntegrand(const int *ndim, const double xx[],const int *ncomp, double ff[], void *params) {
+    static int GluonEnergyDensIntegrand_non_log(const int *ndim, const double xx[],const int *ncomp, double ff[], void *params) {
 
           struct GluonParsIPSat * pars = (struct GluonParsIPSat *) params;
 
@@ -197,9 +120,37 @@ namespace IPSatYields{
               
               if(D1<0){D1=0.0;}
               if(D2<0){D2=0.0;}
-              ff[0]= 2*M_PI * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,3.)* pow(k_t,3.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
+              ff[0]= 2*M_PI * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,3.)* pow(k_t,3.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;    
+          }
+          return 0.0 ;
+        }
 
-              
+      static int GluonEnergyDensIntegrand(const int *ndim, const double xx[],const int *ncomp, double ff[], void *params) {
+
+          struct GluonParsIPSat * pars = (struct GluonParsIPSat *) params;
+
+          double phi_t=(phi_max-phi_min)*xx[2]+phi_min;
+          double UMIN = 0; double UMAX=log(IPsat_pars::KTMAX/IPsat_pars::KTMIN);
+          double JacCuba=pow(UMAX-UMIN,2.);
+          double u=(UMAX-UMIN)*xx[0]+ UMIN;
+          double w=(UMAX-UMIN)*xx[1]+ UMIN;
+          double q_t= IPsat_pars::KTMIN*exp(u);
+          double k_t= IPsat_pars::KTMIN*exp(w);
+      
+          double p_t=  P(q_t,k_t,phi_t); 
+          double cutP2 = pow(pars->p_reg,2.) + p_t*p_t  ;
+
+          double x1=p_t*exp( pars->y)/pars->sqrts;
+          double x2=p_t*exp(-pars->y)/pars->sqrts;
+
+          double D1 =(pars->dip)->AdjointDipole_k(x1,q_t,pars->T1);
+          double D2 =(pars->dip)->AdjointDipole_k(x2,k_t,pars->T2);
+
+          if(p_t==0){ff[0]=0.0;}
+          else{
+            if(D1<0){D1=0.0;}
+            if(D2<0){D2=0.0;}
+            ff[0] = 2*M_PI * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,4.)* pow(k_t,4.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
           }
           return 0.0 ;
         }
@@ -215,18 +166,22 @@ namespace IPSatYields{
       double kmin= 0;
       double kmax= sqrts_t*exp(-fabs(y_t));
 
-      double error, result ;
+      double error=0;
+      double result = 0 ;
       //
       bool is_valid = (kmin<kmax);
       is_valid = is_valid && ( Variables->T1>0 && Variables->T2>0 );
-      // is_valid = is_valid && check_if_zero(y_t,sqrts_t,kmin,kmax,xmin_dip, xmax_dip);
-      //
-      if(is_valid){
-        Routines::make_cuhre_1C(3, GluonEnergyDensIntegrand,Variables,result,error);
-      }
-      else{
-        // std::cerr<< "eta = "<< Variables->y<< ", T1 = "<< Variables->T1 << ", T2 = "<< Variables->T2 << std::endl; 
-        return 0;
+      if ( is_valid && std::fabs(y_t) < std::fabs(Variables->dip->getMaxEta()) ){
+          double x1l = Variables->dip->get_KMIN()*exp(y_t)/sqrts_t;
+          double x1h = Variables->dip->get_KMAX()*exp(y_t)/sqrts_t;
+          double x2l = Variables->dip->get_KMIN()*exp(-y_t)/sqrts_t;
+          double x2h = Variables->dip->get_KMAX()*exp(-y_t)/sqrts_t;
+          bool is_x1_within_range = (Variables->dip->get_XMIN() <x1h) && (Variables->dip->get_XMAX() > x1l);
+          bool is_x2_within_range = (Variables->dip->get_XMIN() <x2h) && (Variables->dip->get_XMAX() > x2l);
+          // std::cout<< x1l << "\t"<< x1h << "\t"<< x2l << "\t"<< x2h << "\n";
+          if (is_x1_within_range && is_x2_within_range) {Routines::make_cuhre_1C(3, GluonEnergyDensIntegrand,Variables,result,error);} 
+          else{return result= 0.0;}
+          
       }
       return result;
     }
@@ -255,19 +210,20 @@ IPSat::IPSat(){}
 IPSat::IPSat(Config ConfInput){
   gsl_set_error_handler_off();
   config=Config(ConfInput);
+  
   p_set= int( config.get_ModelParams(0) );
   xscaling = config.get_ModelParams(1);
   p_reg = config.get_ModelParams(2);
-  std::cout<< "Regulator : " << p_reg << std::endl;
+  std::cout<< "[IP-Sat]: Regulator : " << p_reg << std::endl;
 
-  if(config.get_Verbose()){
+  if(config.get_Verbose()> VerboseLevel::None){
     std::cout<< std::endl;
-    std::cout<<"                     ----->  Initializing IPSat model  <----- "<< std::endl;
+    std::cout<<"[IP-Sat]: Initializing IP-Sat model "<< std::endl;
     std::cout<< std::endl;
   }
   quark_dist = new PDFs(&ConfInput);
 
-  if(config.get_Verbose()){std::cout<< std::endl;}
+  if(config.get_Verbose()> VerboseLevel::None){std::cout<< std::endl;}
   Dip= new Dipole(p_set,config.get_Verbose());
   Dip->set_new_xscaling(xscaling);
   config.set_dT();
@@ -288,13 +244,13 @@ void IPSat::MakeTable(std::string path_to_set){
 	// Write new config to setpath
 	config.set_dump(SETPATH);
   
-	if(config.get_Verbose()){std::cout<<"New config written to "<<SETPATH  << std::endl;}
-  if(config.get_Verbose()){std::cout<<"--> Tabulating conserved charges in the IP-Sat model framework"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"[IP-Sat]: New config written to "<<SETPATH  << std::endl;}
+  if(config.get_Verbose()> VerboseLevel::None){std::cout<<"[IP-Sat]: Tabulating conserved charges in the IP-Sat model framework"<<SETPATH  << std::endl;}
   make_gluon_energy();
-	if(config.get_Verbose()){std::cout<<"\nGluon Energy written to"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"\n[IP-Sat]:Gluon Energy written to"<<SETPATH  << std::endl;}
 
   make_baryon_stopping_all();
-	if(config.get_Verbose()){std::cout<<"\n(All) Quark elements written to"<<SETPATH  << std::endl;}
+	if(config.get_Verbose()> VerboseLevel::None){std::cout<<"\n[IP-Sat]:(All) Quark elements written to"<<SETPATH  << std::endl;}
 }
 
 
@@ -303,7 +259,7 @@ void IPSat::make_gluon_energy(){
 	std::ofstream density_f;
   std::ostringstream densityname;
   densityname << SETPATH <<"/"<< gluon_energy_table_name ;
-  if(config.get_Verbose()){ std::cout<< "Total (y,T1,T2)                                                          Local (T1,T2)"<< std::endl;  ;}
+  if(config.get_Verbose()==VerboseLevel::Dynamic){ std::cout<< "Total (y,T1,T2)                                                          Local (T1,T2)"<< std::endl;  ;}
 
 	GluonParsIPSat parameters;
 	parameters.sqrts= config.get_collEnergy();
@@ -312,6 +268,7 @@ void IPSat::make_gluon_energy(){
   
 	double res=0;
   density_f.open(densityname.str());
+  // std::cerr<< config.get_TMin() <<"\t" <<  config.get_TMax() << std::endl;
 	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
 		parameters.y =y_t ;
@@ -326,7 +283,7 @@ void IPSat::make_gluon_energy(){
         res = IPSatYields::GluonEnergyDens(&parameters);
 
 				density_f<<parameters.y << "\t"<<parameters.T1 << "\t"<<parameters.T2 << "\t"<<res<< "\n";
-        if(config.get_Verbose()){
+        if(config.get_Verbose()==VerboseLevel::Dynamic){
 					if(remainder(i1,gen_pars::skip)==0){
 						double percentage_done1 = double(iy)/double(config.get_NETA());
 						double percentage_done2 = double(i1)/double(config.get_NT());
@@ -338,7 +295,7 @@ void IPSat::make_gluon_energy(){
 
 	}
 
-	if(config.get_Verbose()){printProgress2(1,1);}
+	if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress2(1,1);}
 }
 
 void IPSat::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
@@ -407,28 +364,28 @@ void IPSat::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
       density_f<<y_t<< "\t"<<T_t<< "\t"<<res12q<< "\t"<<res12aq<< "\t"<<res21q<< "\t"<<res21aq<< "\n";
 		}
 		density_f<< std::endl;
-		if(config.get_Verbose()){
+		if(config.get_Verbose()==VerboseLevel::Dynamic){
 			if(remainder(iy,gen_pars::skip)==0){double percentage_done = double(iy)/double(config.get_NETA());printProgress(percentage_done);}
 		}
 
 	}
 	gsl_integration_workspace_free (w);
  	density_f.close();
-	if(config.get_Verbose()){printProgress(1);std::cout<<std::endl;}
+	if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress(1);std::cout<<std::endl;}
 }
 
 void IPSat::make_baryon_stopping_all(){
 	make_baryon_stopping(0, QuarkID::u, QuarkID::ubar);
 	make_baryon_stopping(1, QuarkID::u, QuarkID::ubar);
-	if(config.get_Verbose()){std::cout<<"U-Quark elements written \n " << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[IP-Sat]: U-Quark elements written \n " << std::endl;}
 
 	make_baryon_stopping(0, QuarkID::d, QuarkID::dbar);
 	make_baryon_stopping(1, QuarkID::d, QuarkID::dbar);
-	if(config.get_Verbose()){std::cout<<"D-Quark elements written \n " << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[IP-Sat]: D-Quark elements written \n " << std::endl;}
 
 	make_baryon_stopping(0, QuarkID::s, QuarkID::sbar);
 	make_baryon_stopping(1, QuarkID::s, QuarkID::sbar);
-	if(config.get_Verbose()){std::cout<<"S-Quark elements written \n " << std::endl;}
+	if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[IP-Sat]: S-Quark elements written \n " << std::endl;}
 
 
 }
@@ -482,7 +439,7 @@ void IPSat::TestDump(double T1,double T2){
   std::ofstream density_f;
   std::ostringstream densityname;
   densityname << SETPATH <<"/TestDump_T1_"<< T1<<"_T2_"<<T2<< ".dat" ;
-  if(config.get_Verbose()){std::cout<< "Writing dump for " << densityname.str() <<std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<< "Writing dump for " << densityname.str() <<std::endl;}
 
 	GluonParsIPSat parametersG;
 	parametersG.sqrts= config.get_collEnergy();
@@ -656,6 +613,6 @@ void IPSat::TestDump(double T1,double T2){
     // if(config.get_Verbose()){std::cout<<parametersG.y << "\t"<<resEG<< "\t"<<resEQ<< "\t"<<UDens<< "\t"<<DDens<< "\n";}
 	}
   density_f.close();
-  if(config.get_Verbose()){std::cout<<"-> Done"<<std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<<"-> Done"<<std::endl;}
 
 }
