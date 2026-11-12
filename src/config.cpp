@@ -230,9 +230,8 @@ void Config::process_grid_parameters(std::string testline){
 void Config::fill_up_grid_params(){
   dX=(XMAX-XMIN)/(NX-1.);
   dY=(YMAX-YMIN)/(NY-1.);
-  // A single rapidity slice has no spacing. Leaving the division to produce inf
-  // made the first node 0*inf = NaN and poisoned the whole table - and one slice
-  // per job is exactly how a table gets split across a cluster.
+  // A single rapidity slice has no spacing; without this the division gives inf
+  // and the first node becomes NaN. Tables built one slice per job need it.
   dETA=(NETA>1)? (ETAMAX-ETAMIN)/(NETA-1.) : 0.0;
 };
 
@@ -711,7 +710,7 @@ Config::Config(const Config& OldConf){
 bool Config::compare_grid_parameters (Config *OldConf, double tolerance){
   // Coverage, not equality, as for the thickness grid. Charges::gluon_energy
   // locates its interval by searching the tabulated rapidity nodes, so the run
-  // grid no longer has to reproduce the one the tables were built on.
+  // grid only has to lie inside the table range.
   return (OldConf->get_ETAMIN() <= ETAMIN + tolerance)
       && (OldConf->get_ETAMAX() >= ETAMAX - tolerance);
 }
@@ -720,8 +719,8 @@ bool Config::compare_Thickness_parameters (Config *OldConf, double tolerance){
     // Coverage, not equality: the charge tables are 2D splines in (T1,T2) that
     // carry their own abscissae, so any thickness inside the tabulated range is
     // interpolated correctly regardless of how the run's own grid is spaced.
-    // Requiring the grids to match forced a full rebuild - tens of CPU hours -
-    // for a change of TMax or NT that the existing table already covered.
+    // This avoids rebuilding the tables for a change of TMax or NT that they
+    // already cover.
     return (OldConf->get_TMin() <= TMin + tolerance)
         && (OldConf->get_TMax() >= TMax - tolerance);
 }

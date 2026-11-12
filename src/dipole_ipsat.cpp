@@ -1030,11 +1030,9 @@ double Dipole::FundamentalDipole_k(double x, double k, double T){
 			tmp1 = FundamentalDipole_k_slice(jT,   k, Y_t);
 			tmp2 = FundamentalDipole_k_slice(jT+1, k, Y_t);
 			if(jT >= 1 && jT+2 <= N3-1){
-				// Catmull-Rom in T: C1 by construction. Two-point linear
-				// interpolation left a kink at every tabulated thickness, across
-				// which the local slope stepped by roughly 13% - visible in the
-				// tables as a period-2 staircase in the first differences, and
-				// carried straight into whatever gradient the tables are used for.
+				// Catmull-Rom in T: C1 by construction, so the thickness derivative
+				// has no kink at the nodes (linear interpolation changes the slope
+				// by about 13% there).
 				double f0 = FundamentalDipole_k_slice(jT-1, k, Y_t);
 				double f3 = FundamentalDipole_k_slice(jT+2, k, Y_t);
 				tmp = 0.5*( 2.0*tmp1

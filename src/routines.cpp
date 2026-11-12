@@ -21,9 +21,8 @@ namespace Routines{
     const int flags = 0;
     const int minEval= 100;
     // Cuhre stops as soon as EpsRelCuba is met, so this cap only costs time on
-    // the hard points. At 50000 none of the gluon-table integrations reached
-    // 1e-4 and the entries carried up to 23% error; at 5000000 all of them
-    // converge, for about 7x the wall time of a one-off table build.
+    // the hard points. With 5e6 the gluon table is accurate to about 0.4% (the
+    // azimuthal tail to about 1.5%); with 5e4 entries carried up to 23% error.
     const int maxEval= 5000000;
     void * spin =NULL;
     void * statefile =NULL;

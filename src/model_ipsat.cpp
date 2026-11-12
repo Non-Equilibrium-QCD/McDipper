@@ -158,8 +158,7 @@ namespace IPSatYields{
           else{
             if(D1<0){D1=0.0;}
             if(D2<0){D2=0.0;}
-            // The phi jacobian is the width actually integrated over, not the
-            // full circle. With phi_max at 0.99*pi the two differ by 1.01%.
+            // The phi jacobian is the width of the interval actually integrated over.
             ff[0] = (pars->phi_hi - pars->phi_lo) * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,4.)* pow(k_t,4.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
           }
           return 0.0 ;
@@ -293,9 +292,8 @@ IPSat::IPSat(Config ConfInput){
 
   // Cuba forks worker processes of its own, defaulting to one per core. The
   // tabulation loop is already threaded over (T1,T2), so leaving that on would
-  // fork a set of workers from every thread. Measured 30% faster off even
-  // before the loop was parallel: the integrations are small and Cuba was
-  // spending the time on fork rather than on them.
+  // fork a set of workers from every thread. Switched off; it is also about
+  // 30% faster, since the integrations are small and forking dominates.
   { int ncores = 0, pcores = 10000; cubacores(&ncores, &pcores); }
 
   config=Config(ConfInput);
@@ -346,8 +344,8 @@ void IPSat::MakeTable(std::string path_to_set){
 }
 
 
-// Where the azimuthal integration is split. Historic value: the old code cut
-// the integration here and discarded everything beyond it.
+// Where the azimuthal integration is split into a bulk and a tail piece (see
+// the table loop below).
 static const double PHI_SPLIT = M_PI*0.99;
 
 // Coordinates quantised so a point can be looked up by value rather than by
@@ -407,8 +405,7 @@ void IPSat::make_gluon_energy(){
 
 		// Every (T1,T2) point is an independent Cuhre call over a table that is
 		// only read, so the rapidity plane parallelises directly. Each thread
-		// takes its own copy of the parameter struct - the serial version wrote
-		// T1 and T2 into one shared struct. Results go to an array and are
+		// takes its own copy of the parameter struct. Results go to an array and are
 		// written afterwards, so the file does not depend on thread order.
 		#pragma omp parallel for collapse(2) schedule(dynamic)
 		for (int i1 = 0; i1 < NT; i1++) {
@@ -551,10 +548,8 @@ bool IPSat::check_if_zero_F(double y,double T){
 
   double x1=gen_pars::PMIN*exp(y)/config.get_collEnergy();
 
-	// No nuclear matter means no charge. Anything above that carries a small
-	// but physical contribution; the previous cutoff came from a hardcoded grid
-	// in params_gen.h unrelated to the T grid actually configured, so refining
-	// the thickness grid silently zeroed rows that do contribute.
+	// No nuclear matter means no charge; any T > 0 carries a small but physical
+	// contribution and is computed.
 	bool is_null = (T <= 0.0) ;
   is_null = is_null || (x1 > gen_pars::XdipMax);
 

@@ -392,9 +392,9 @@ bool Charges::read_in_nK_quark(int k, QuarkID qid){
 
   for (int ik = 0; ik < NQComp; ik++) {
     // Bicubic for the same reason as the gluon table: this spline's two
-    // coordinates are eta and thickness, and bilinear is only C0, so both the
-    // longitudinal and the radial derivative of the quark densities stepped at
-    // every tabulated node. These tables dominate the conserved charges.
+    // coordinates are eta and thickness, and bilinear interpolation would put a
+    // step in both the longitudinal and the radial derivative of the quark
+    // densities at every node. These tables dominate the conserved charges.
     const gsl_interp2d_type *T= gsl_interp2d_bicubic;
     if(k==0){
       if(qid==QuarkID::u){
@@ -455,9 +455,8 @@ void Charges::assert_T_in_range(double T, int which, const char * caller){
 }
 
 void Charges::assert_eta_in_range(double eta, const char * caller){
-  // Against the tabulated range, which is what actually bounds validity - the
-  // run's own range may be narrower, and since the relaxation may also be wider
-  // in principle, that is exactly the case worth catching.
+  // Checked against the tabulated range, which is what bounds validity; the
+  // run's own range may differ.
   if( eta < config_set.get_ETAMIN() || eta > config_set.get_ETAMAX() ){
     std::cerr<<"\n[ Charges::FATAL ] "<<caller<<": eta = "<<eta
              <<" is outside the tabulated range ["<<config_set.get_ETAMIN()
@@ -488,9 +487,7 @@ double Charges::gluon_energy(double eta, double T1, double T2){
     double tmp1,tmp2;
 
     // Locate the tabulated interval by searching the table's own rapidity
-    // nodes. Deriving the index from the run's ETAMIN and dETA only worked
-    // while the two grids were forced to be identical, and silently indexed
-    // the wrong slice as soon as they were not.
+    // nodes, so the run's eta grid does not have to match the table's.
     {
       int lo=0, hi=NETA-1;
       if(eta <= eta_tab[0]){ iETA = 0; }
@@ -508,10 +505,9 @@ double Charges::gluon_energy(double eta, double T1, double T2){
     tmp2 = gsl_spline2d_eval(e_g_spl[iETA+1],T1c,T2c,xaccEG[iETA+1], yaccEG[iETA+1]);
 
     // Catmull-Rom in eta: the gluon table is one 2D spline per rapidity slice,
-    // so this direction is interpolated by hand, and two-point linear left the
-    // longitudinal derivative stepping at every tabulated rapidity. Unlike the
-    // thickness direction of the dipole, nothing keeps iETA away from the edge
-    // here, so both end cells fall back to linear.
+    // so this direction is interpolated by hand. Linear interpolation would put
+    // a step in the eta derivative at every node. The end cells fall back to
+    // linear.
     if(iETA >= 1 && iETA+2 <= NETA-1){
       double f0 = gsl_spline2d_eval(e_g_spl[iETA-1],T1c,T2c,xaccEG[iETA-1], yaccEG[iETA-1]);
       double f3 = gsl_spline2d_eval(e_g_spl[iETA+2],T1c,T2c,xaccEG[iETA+2], yaccEG[iETA+2]);
