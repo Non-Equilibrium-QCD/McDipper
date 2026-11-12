@@ -50,8 +50,8 @@ class Nucleus{
 		void get_trans_position_hotspot(int n, double &x, double &y, int hotspoti);
 
 		// Tools
-		double uni_nu_rn(){return drand48();}
-		int uni_nu_int(){return lrand48();}
+		double uni_nu_rn();
+		int uni_nu_int();
 
         std::gamma_distribution<double> gamma_dist;
         std::lognormal_distribution<double> lognorm_dist;

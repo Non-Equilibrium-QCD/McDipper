@@ -32,6 +32,9 @@ Charges::Charges(Config ConfInput){
   check_for_tabs_folders();
   bool is_imported=import_charges(); // Import charges from computed table.
 
+  // std::cerr<< "ETAS config" << config.get_ETAMIN() << "\t" << config.get_ETAMAX() << std::endl;
+  // std::cerr<< "ETAS config_set" << config_set.get_ETAMIN() << "\t" << config_set.get_ETAMAX() << std::endl;
+
   if(!is_imported){
     call_models(); // Calls the models if there are no matching set of tables
     if(config.is_table_only()){
@@ -48,7 +51,10 @@ Charges::Charges(Config ConfInput){
     if(is_imported){initialized = true;}
   }
   if(!is_imported){std::cerr<<"Error after importing newly constructed charges!"<<std::endl;exit(EXIT_FAILURE);}
-  set_output_tests();
+  // set_output_tests();
+  // Set the safety Tmin
+  safe_Tmin = 1.1*config_set.get_TMin();
+  std::cout<< "safe_Tmin = " << safe_Tmin << std::endl;
 }
 
 Charges::~Charges(){
@@ -137,7 +143,7 @@ void Charges::MakeGrid(){
   xaccN1s = new gsl_interp_accel*[NQComp] ;
   yaccN1s = new gsl_interp_accel*[NQComp] ;
 
-  if(config.get_Verbose()){std::cout<<"[ Charges ] Grid created for Charges."<<std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<<"[ Charges ] Grid created for Charges."<<std::endl;}
 
 }
  
@@ -149,17 +155,19 @@ bool Charges::import_charges(){
   if(is_table_set){
     MakeGrid();
     import_is_success = import_is_success && read_in_energy_gluons();
-    if(config.get_Verbose()){std::cout<< "[ Charges ] Gluon energy density    -->  Imported " << std::endl;}
+    if(config.get_Verbose()>VerboseLevel::Minimal){std::cout<< "[ Charges ] Gluon energy density    -->  Imported " << std::endl;}
     import_is_success = import_is_success && read_in_nK_quark(0, QuarkID::u );
     import_is_success = import_is_success && read_in_nK_quark(1, QuarkID::u );
-    if(config.get_Verbose()){std::cout<< "[ Charges ] U-Quark constructions   -->  Imported "<< std::endl;}
+    if(config.get_Verbose()>VerboseLevel::Minimal){std::cout<< "[ Charges ] U-Quark constructions   -->  Imported "<< std::endl;}
     import_is_success = import_is_success && read_in_nK_quark(0, QuarkID::d );
     import_is_success = import_is_success && read_in_nK_quark(1, QuarkID::d );
-    if(config.get_Verbose()){std::cout<< "[ Charges ] D-Quark constructions   -->  Imported "<< std::endl;}
+    if(config.get_Verbose()>VerboseLevel::Minimal){std::cout<< "[ Charges ] D-Quark constructions   -->  Imported "<< std::endl;}
     import_is_success = import_is_success && read_in_nK_quark(0, QuarkID::s );
     import_is_success = import_is_success && read_in_nK_quark(1, QuarkID::s );
-    if(config.get_Verbose()){std::cout<< "[ Charges ] S-Quark constructions   -->  Imported "<< std::endl;}
+    if(config.get_Verbose()>VerboseLevel::Minimal){std::cout<< "[ Charges ] S-Quark constructions   -->  Imported "<< std::endl;}
     import_is_success=true;
+    if(config.get_Verbose()==VerboseLevel::Minimal){std::cout<< "[ Charges ] All charges  -->  Imported " << std::endl;}
+
   }
   else{import_is_success=false;}
 
@@ -177,7 +185,10 @@ bool Charges::call_models(){
     IPSat ipsat(config);
     ipsat.MakeTable(path_to_set);
   }
-  if(config.get_model()== Model::MV ){}
+  if(config.get_model()== Model::MV ){
+    MV mv(config);
+    mv.MakeTable(path_to_set);
+  }
   return call_is_success;
 }
 
@@ -211,14 +222,15 @@ bool Charges::check_config(){
   Config * set_conf= new Config(path_to_config.str());
 
   /// Grid Comparison
+
   is_config = is_config && config.compare_grid_parameters(set_conf,double_tolerance);
   is_config = is_config && config.compare_model_parameters(set_conf,double_tolerance);
   is_config = is_config && config.compare_collEnergy(set_conf->get_collEnergy(), double_tolerance);
   is_config = is_config && config.compare_PDF_parameters(set_conf, double_tolerance);
   is_config = is_config && config.compare_Thickness_parameters(set_conf, double_tolerance);
-
+  std::cerr << "PATHS = " << config.get_modelPath() << "\t" << set_conf->get_modelPath()<<std::endl;
   if(is_config){config_set = Config(path_to_config.str());}
-  if(is_config && config.get_Verbose()){
+  if(is_config && config.get_Verbose_int()>0){
     std::cout<<"[ Charges ] Tables tabulated on T in ["
              <<config_set.get_TMin()<<","<<config_set.get_TMax()<<"] with NT="
              <<config_set.get_NT()<<" (dT="
@@ -425,11 +437,11 @@ bool Charges::read_in_nK_quark(int k, QuarkID qid){
 
 
 void Charges::assert_T_in_range(double T, int which, const char * caller){
-  if( T < config_set.get_TMin() ){
+  // Below the table range the charges are extrapolated linearly (see lowT),
+  // so only a negative thickness is an error.
+  if( T < 0.0 ){
     std::cerr<<"\n[ Charges::FATAL ] "<<caller<<": thickness T"<<which<<" = "<<T
-             <<" is below the tabulated TMin = "<<config_set.get_TMin()<<".\n"
-             <<"  A thickness below the table range is unphysical and points to a bug upstream.\n"
-             <<std::endl;
+             <<" is negative, which points to a bug upstream.\n"<<std::endl;
     exit(EXIT_FAILURE);
   }
   if( T > config_set.get_TMax() ){
@@ -455,10 +467,20 @@ void Charges::assert_eta_in_range(double eta, const char * caller){
   }
 }
 
+// Linear extrapolation to T=0 below safe_Tmin: the table is read at safe_Tmin
+// and scaled by T/safe_Tmin.
+static inline double lowT(double T, double Tsafe, double &scale){
+  if(T < Tsafe){ scale = T/Tsafe; return Tsafe; }
+  scale = 1.0; return T;
+}
+
 double Charges::gluon_energy(double eta, double T1, double T2){
   assert_T_in_range(T1, 1, "gluon_energy");
   assert_T_in_range(T2, 2, "gluon_energy");
   assert_eta_in_range(eta, "gluon_energy");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
 
   {
     int iETA;
@@ -482,8 +504,8 @@ double Charges::gluon_energy(double eta, double T1, double T2){
     ETA2 = eta_tab[iETA+1];
 
     double s = (eta-ETA1)/(ETA2-ETA1);
-    tmp1 = gsl_spline2d_eval(e_g_spl[iETA],T1,T2,xaccEG[iETA], yaccEG[iETA]);
-    tmp2 = gsl_spline2d_eval(e_g_spl[iETA+1],T1,T2,xaccEG[iETA+1], yaccEG[iETA+1]);
+    tmp1 = gsl_spline2d_eval(e_g_spl[iETA],T1c,T2c,xaccEG[iETA], yaccEG[iETA]);
+    tmp2 = gsl_spline2d_eval(e_g_spl[iETA+1],T1c,T2c,xaccEG[iETA+1], yaccEG[iETA+1]);
 
     // Catmull-Rom in eta: the gluon table is one 2D spline per rapidity slice,
     // so this direction is interpolated by hand, and two-point linear left the
@@ -491,14 +513,14 @@ double Charges::gluon_energy(double eta, double T1, double T2){
     // thickness direction of the dipole, nothing keeps iETA away from the edge
     // here, so both end cells fall back to linear.
     if(iETA >= 1 && iETA+2 <= NETA-1){
-      double f0 = gsl_spline2d_eval(e_g_spl[iETA-1],T1,T2,xaccEG[iETA-1], yaccEG[iETA-1]);
-      double f3 = gsl_spline2d_eval(e_g_spl[iETA+2],T1,T2,xaccEG[iETA+2], yaccEG[iETA+2]);
-      return 0.5*( 2.0*tmp1
+      double f0 = gsl_spline2d_eval(e_g_spl[iETA-1],T1c,T2c,xaccEG[iETA-1], yaccEG[iETA-1]);
+      double f3 = gsl_spline2d_eval(e_g_spl[iETA+2],T1c,T2c,xaccEG[iETA+2], yaccEG[iETA+2]);
+      return s1*s2*0.5*( 2.0*tmp1
                  + (-f0 + tmp2)*s
                  + (2.0*f0 - 5.0*tmp1 + 4.0*tmp2 - f3)*s*s
                  + (-f0 + 3.0*tmp1 - 3.0*tmp2 + f3)*s*s*s );
     }
-    return ( tmp1 + (tmp2-tmp1) * s ) ;
+    return s1*s2*( tmp1 + (tmp2-tmp1) * s ) ;
   }
 }
 
@@ -506,24 +528,27 @@ double Charges::quark_energy(double eta, double T1, double T2){
   assert_T_in_range(T1, 1, "quark_energy");
   assert_T_in_range(T2, 2, "quark_energy");
   assert_eta_in_range(eta, "quark_energy");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
   {
 
     double TEMP=0;
     // U QUARK
-    TEMP += T1*gsl_spline2d_eval(N1u_spl[0],eta,T2,xaccN1u[0], yaccN1u[0]); // 12 u
-    TEMP += T1*gsl_spline2d_eval(N1u_spl[1],eta,T2,xaccN1u[1], yaccN1u[1]); // 12 ubar
-    TEMP += T2*gsl_spline2d_eval(N1u_spl[2],eta,T1,xaccN1u[2], yaccN1u[2]); // 21 u
-    TEMP += T2*gsl_spline2d_eval(N1u_spl[3],eta,T1,xaccN1u[3], yaccN1u[3]); // 21 ubar
+    TEMP += T1*s2*gsl_spline2d_eval(N1u_spl[0],eta,T2c,xaccN1u[0], yaccN1u[0]); // 12 u
+    TEMP += T1*s2*gsl_spline2d_eval(N1u_spl[1],eta,T2c,xaccN1u[1], yaccN1u[1]); // 12 ubar
+    TEMP += T2*s1*gsl_spline2d_eval(N1u_spl[2],eta,T1c,xaccN1u[2], yaccN1u[2]); // 21 u
+    TEMP += T2*s1*gsl_spline2d_eval(N1u_spl[3],eta,T1c,xaccN1u[3], yaccN1u[3]); // 21 ubar
     // D QUARK
-    TEMP += T1*gsl_spline2d_eval(N1d_spl[0],eta,T2,xaccN1d[0], yaccN1d[0]); // 12 d
-    TEMP += T1*gsl_spline2d_eval(N1d_spl[1],eta,T2,xaccN1d[1], yaccN1d[1]); // 12 dbar
-    TEMP += T2*gsl_spline2d_eval(N1d_spl[2],eta,T1,xaccN1d[2], yaccN1d[2]); // 21 d
-    TEMP += T2*gsl_spline2d_eval(N1d_spl[3],eta,T1,xaccN1d[3], yaccN1d[3]); // 21 dbar
+    TEMP += T1*s2*gsl_spline2d_eval(N1d_spl[0],eta,T2c,xaccN1d[0], yaccN1d[0]); // 12 d
+    TEMP += T1*s2*gsl_spline2d_eval(N1d_spl[1],eta,T2c,xaccN1d[1], yaccN1d[1]); // 12 dbar
+    TEMP += T2*s1*gsl_spline2d_eval(N1d_spl[2],eta,T1c,xaccN1d[2], yaccN1d[2]); // 21 d
+    TEMP += T2*s1*gsl_spline2d_eval(N1d_spl[3],eta,T1c,xaccN1d[3], yaccN1d[3]); // 21 dbar
     // S QUARK
-    TEMP += T1*gsl_spline2d_eval(N1s_spl[0],eta,T2,xaccN1s[0], yaccN1s[0]); // 12 s
-    TEMP += T1*gsl_spline2d_eval(N1s_spl[1],eta,T2,xaccN1s[1], yaccN1s[1]); // 12 sbar
-    TEMP += T2*gsl_spline2d_eval(N1s_spl[2],eta,T1,xaccN1s[2], yaccN1s[2]); // 21 s
-    TEMP += T2*gsl_spline2d_eval(N1s_spl[3],eta,T1,xaccN1s[3], yaccN1s[3]); // 21 sbar
+    TEMP += T1*s2*gsl_spline2d_eval(N1s_spl[0],eta,T2c,xaccN1s[0], yaccN1s[0]); // 12 s
+    TEMP += T1*s2*gsl_spline2d_eval(N1s_spl[1],eta,T2c,xaccN1s[1], yaccN1s[1]); // 12 sbar
+    TEMP += T2*s1*gsl_spline2d_eval(N1s_spl[2],eta,T1c,xaccN1s[2], yaccN1s[2]); // 21 s
+    TEMP += T2*s1*gsl_spline2d_eval(N1s_spl[3],eta,T1c,xaccN1s[3], yaccN1s[3]); // 21 sbar
 
     return TEMP ;
   }
@@ -539,20 +564,23 @@ double Charges::u_density(double eta, double T1p,double T1n, double T2p, double 
   assert_T_in_range(T1, 1, "u_density");
   assert_T_in_range(T2, 2, "u_density");
   assert_eta_in_range(eta, "u_density");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
   {
 
     double TEMP=0;
     // U QUARK - p
-    TEMP += T1p*gsl_spline2d_eval(N0u_spl[0],eta,T2,xaccN0u[0], yaccN0u[0]); // 12 u
-    TEMP -= T1p*gsl_spline2d_eval(N0u_spl[1],eta,T2,xaccN0u[1], yaccN0u[1]); // 12 ubar
-    TEMP += T2p*gsl_spline2d_eval(N0u_spl[2],eta,T1,xaccN0u[2], yaccN0u[2]); // 21 u
-    TEMP -= T2p*gsl_spline2d_eval(N0u_spl[3],eta,T1,xaccN0u[3], yaccN0u[3]); // 21 ubar
+    TEMP += T1p*s2*gsl_spline2d_eval(N0u_spl[0],eta,T2c,xaccN0u[0], yaccN0u[0]); // 12 u
+    TEMP -= T1p*s2*gsl_spline2d_eval(N0u_spl[1],eta,T2c,xaccN0u[1], yaccN0u[1]); // 12 ubar
+    TEMP += T2p*s1*gsl_spline2d_eval(N0u_spl[2],eta,T1c,xaccN0u[2], yaccN0u[2]); // 21 u
+    TEMP -= T2p*s1*gsl_spline2d_eval(N0u_spl[3],eta,T1c,xaccN0u[3], yaccN0u[3]); // 21 ubar
 
     // D QUARK - n
-    TEMP += T1n*gsl_spline2d_eval(N0d_spl[0],eta,T2,xaccN0d[0], yaccN0d[0]); // 12 u
-    TEMP -= T1n*gsl_spline2d_eval(N0d_spl[1],eta,T2,xaccN0d[1], yaccN0d[1]); // 12 ubar
-    TEMP += T2n*gsl_spline2d_eval(N0d_spl[2],eta,T1,xaccN0d[2], yaccN0d[2]); // 21 u
-    TEMP -= T2n*gsl_spline2d_eval(N0d_spl[3],eta,T1,xaccN0d[3], yaccN0d[3]); // 21 ubar
+    TEMP += T1n*s2*gsl_spline2d_eval(N0d_spl[0],eta,T2c,xaccN0d[0], yaccN0d[0]); // 12 u
+    TEMP -= T1n*s2*gsl_spline2d_eval(N0d_spl[1],eta,T2c,xaccN0d[1], yaccN0d[1]); // 12 ubar
+    TEMP += T2n*s1*gsl_spline2d_eval(N0d_spl[2],eta,T1c,xaccN0d[2], yaccN0d[2]); // 21 u
+    TEMP -= T2n*s1*gsl_spline2d_eval(N0d_spl[3],eta,T1c,xaccN0d[3], yaccN0d[3]); // 21 ubar
 
     return TEMP ;
   }
@@ -568,20 +596,23 @@ double Charges::d_density(double eta, double T1p,double T1n, double T2p, double 
   assert_T_in_range(T1, 1, "d_density");
   assert_T_in_range(T2, 2, "d_density");
   assert_eta_in_range(eta, "d_density");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
   {
 
     double TEMP=0;
     // U QUARK - n
-    TEMP += T1n*gsl_spline2d_eval(N0u_spl[0],eta,T2,xaccN0u[0], yaccN0u[0]); // 12 u
-    TEMP -= T1n*gsl_spline2d_eval(N0u_spl[1],eta,T2,xaccN0u[1], yaccN0u[1]); // 12 ubar
-    TEMP += T2n*gsl_spline2d_eval(N0u_spl[2],eta,T1,xaccN0u[2], yaccN0u[2]); // 21 u
-    TEMP -= T2n*gsl_spline2d_eval(N0u_spl[3],eta,T1,xaccN0u[3], yaccN0u[3]); // 21 ubar
+    TEMP += T1n*s2*gsl_spline2d_eval(N0u_spl[0],eta,T2c,xaccN0u[0], yaccN0u[0]); // 12 u
+    TEMP -= T1n*s2*gsl_spline2d_eval(N0u_spl[1],eta,T2c,xaccN0u[1], yaccN0u[1]); // 12 ubar
+    TEMP += T2n*s1*gsl_spline2d_eval(N0u_spl[2],eta,T1c,xaccN0u[2], yaccN0u[2]); // 21 u
+    TEMP -= T2n*s1*gsl_spline2d_eval(N0u_spl[3],eta,T1c,xaccN0u[3], yaccN0u[3]); // 21 ubar
 
     // D QUARK - p
-    TEMP += T1p*gsl_spline2d_eval(N0d_spl[0],eta,T2,xaccN0d[0], yaccN0d[0]); // 12 u
-    TEMP -= T1p*gsl_spline2d_eval(N0d_spl[1],eta,T2,xaccN0d[1], yaccN0d[1]); // 12 ubar
-    TEMP += T2p*gsl_spline2d_eval(N0d_spl[2],eta,T1,xaccN0d[2], yaccN0d[2]); // 21 u
-    TEMP -= T2p*gsl_spline2d_eval(N0d_spl[3],eta,T1,xaccN0d[3], yaccN0d[3]); // 21 ubar
+    TEMP += T1p*s2*gsl_spline2d_eval(N0d_spl[0],eta,T2c,xaccN0d[0], yaccN0d[0]); // 12 u
+    TEMP -= T1p*s2*gsl_spline2d_eval(N0d_spl[1],eta,T2c,xaccN0d[1], yaccN0d[1]); // 12 ubar
+    TEMP += T2p*s1*gsl_spline2d_eval(N0d_spl[2],eta,T1c,xaccN0d[2], yaccN0d[2]); // 21 u
+    TEMP -= T2p*s1*gsl_spline2d_eval(N0d_spl[3],eta,T1c,xaccN0d[3], yaccN0d[3]); // 21 ubar
 
     return TEMP ;
   }
@@ -591,13 +622,16 @@ double Charges::s_density(double eta, double T1, double T2){
   assert_T_in_range(T1, 1, "s_density");
   assert_T_in_range(T2, 2, "s_density");
   assert_eta_in_range(eta, "s_density");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
   {
     double TEMP=0;
     // S QUARK
-    TEMP += T1*gsl_spline2d_eval(N0s_spl[0],eta,T2,xaccN0s[0], yaccN0s[0]); // 12 s
-    TEMP -= T1*gsl_spline2d_eval(N0s_spl[1],eta,T2,xaccN0s[1], yaccN0s[1]); // 12 sbar
-    TEMP += T2*gsl_spline2d_eval(N0s_spl[2],eta,T1,xaccN0s[2], yaccN0s[2]); // 21 s
-    TEMP -= T2*gsl_spline2d_eval(N0s_spl[3],eta,T1,xaccN0s[3], yaccN0s[3]); // 21 sbar
+    TEMP += T1*s2*gsl_spline2d_eval(N0s_spl[0],eta,T2c,xaccN0s[0], yaccN0s[0]); // 12 s
+    TEMP -= T1*s2*gsl_spline2d_eval(N0s_spl[1],eta,T2c,xaccN0s[1], yaccN0s[1]); // 12 sbar
+    TEMP += T2*s1*gsl_spline2d_eval(N0s_spl[2],eta,T1c,xaccN0s[2], yaccN0s[2]); // 21 s
+    TEMP -= T2*s1*gsl_spline2d_eval(N0s_spl[3],eta,T1c,xaccN0s[3], yaccN0s[3]); // 21 sbar
 
     return TEMP ;
   }
@@ -674,6 +708,6 @@ void Charges::set_output_tests(){
   //dump_charges_eta(7);
   dump_charges_eta(1);
   
-  if(config.get_Verbose()){std::cout<< "[ Charges ] Charge test files written out" << std::endl;}
+  if(config.get_Verbose()>VerboseLevel::None){std::cout<< "[ Charges ] Charge test files written out" << std::endl;}
 
 }

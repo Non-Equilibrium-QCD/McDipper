@@ -6,12 +6,14 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <vector>
 
 struct Impact{ double b1[2];double b2[2];};
 enum class ImpSample : int { Fixed = 0, dbSampled = 1, bdbSampled = 2 };
 enum class Model : int { GBW = 0, IPSat = 1, MV = 2, GBWSimp = 3};
 enum class QuarkID : int { u = 2, d = 1, s = 3,ubar = -2, dbar = -1, sbar = -3, g=21 };
 enum class GlauberMode : int { Standard = 0, Gaussian=1, Exponential=2};
+enum class VerboseLevel : int { None = 0, Minimal=1, Complete=2, Dynamic=3};
 
 struct NucStruct{ 
     int A; int Z;int mode;
@@ -66,7 +68,8 @@ class Config{
     bool compare_PDF_parameters (Config *OldConf, double tolerance);
 
     //  RETRIEVING FUNCTIONS
-    bool get_Verbose(){return Verbose;};
+    VerboseLevel get_Verbose(){return Verbose;};
+    int get_Verbose_int(){return int(Verbose);};
     // bool& getVerbose(){return Verbose;};
     //
     Model get_Model(){return cModel;};
@@ -143,6 +146,7 @@ class Config{
     double get_BG(){return BG;}
 
     double get_ModelParams(int i){return ModelPars[i];}
+    std::string get_modelPath(){return modelPath;}
 
     int get_seed(){return seed;}
     void set_seed();
@@ -156,6 +160,8 @@ class Config{
     double get_TMin(){return TMin;}
     int get_NT(){return NT;}
     double get_dT(){return dT;}
+
+
     bool is_thick_fluct(){return thick_fluct;}
     double get_sigma(){return sigma;}
     std::string get_fluct_mode() {return fluct_mode;}
@@ -187,10 +193,11 @@ class Config{
   private:
 
     std::string path_to_configfile;
-    //Version
+    //Versionx
     std::string version;
+    std::string version_cutoff="1.3";
     //Logging
-    bool Verbose=false;
+    VerboseLevel Verbose=VerboseLevel::None;
     // General
     Model cModel;
     bool hotspots_fluct=false;
@@ -225,7 +232,7 @@ class Config{
     double ImpactValue;
     double bMin=0.0, bMax=0.0;
     double KFactor=1.;
-    int seed=-1;
+    int64_t seed=-1;
     int NEvents=1;
 
 
@@ -242,6 +249,7 @@ class Config{
     // // Model Parameters
     double ModelPars[10];
     int NModelParams;
+    std::string modelPath;
     // Output
     int n_formats;
     std::string path_to_output;
@@ -287,6 +295,8 @@ class Config{
         else {return fabs( (a-b)/a );}                   
     }
 
+    std::vector<int> parseVersion(const std::string& v);
+    bool isVersionAtLeast(const std::string& version, const std::string& minimum);
     //Temps
     std::string subheader;
     int cModel_int;

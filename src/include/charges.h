@@ -13,6 +13,7 @@
 #include "config.h"
 #include "model_gbw.h"
 #include "model_ipsat.h"
+#include "model_mv.h"
 
 
 class Charges{
@@ -64,7 +65,8 @@ class Charges{
     void set_output_tests();
 
     /////// OBSERVABLES!!
- 
+  
+    double get_eps(){return safe_limit;}
 
   private:
     Config config;
@@ -127,8 +129,9 @@ class Charges{
 
     std::vector<double> T_vector;
 
-
+    double safe_limit= 1e-4;
     bool initialized=false;
+    double safe_Tmin = 0.1;
 
 };
 

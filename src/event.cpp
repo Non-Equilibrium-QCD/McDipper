@@ -22,7 +22,7 @@ namespace fs = std::filesystem;
 Event::Event(Config ConfInput){
 	config=Config(ConfInput);
 	
-	N1.A=config.get_A(1);N1.Z=config.get_Z(1);N1.mode=config.get_NuclearMode(1);
+	N1.A=config.get_A(1); N1.Z=config.get_Z(1);N1.mode=config.get_NuclearMode(1);
     N1.is_hotspots_fluct=config.is_hotspots_fluct();
     N1.Nq=config.get_Nq();
     N1.Bq=config.get_Bq();
@@ -58,7 +58,7 @@ Event::Event(Config ConfInput){
 	}
 
 	PrimalSeed=config.get_seed();
-	srand48(PrimalSeed);
+	// srand48(static_cast<long>(PrimalSeed & 0xFFFFFFFF));
     engine.seed(static_cast<Engine::result_type>(PrimalSeed));
 
 	b1=new double[2];
@@ -163,9 +163,12 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 
 	// Create Nuclei
 	bool is_event_valid=false;
-	if(config.get_Verbose()){
+	if(config.get_Verbose_int()>1){
 		std::cout<< "|---------------------------------- New Event: "<< EventID+1<<"/"<< config.get_NEvents() << " -------------------------------------|\n";
 		std::cout<< "                       Event ID: " <<EventID <<std::endl;
+	}
+	else if(config.get_Verbose_int()==1){
+		std::cout<< "Running event "<< EventID+1<<"/"<< config.get_NEvents() <<", Event ID: " <<EventID <<std::endl;
 	}
 
 	while(!is_event_valid){
@@ -187,7 +190,7 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 		A2->shift_nucleus_by_impact(b2[0],b2[1]);
 
 		#if OPTICAL==1
-		if(config.get_Verbose()){std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;}
+		if(config.get_Verbose_int()>1){std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;}
 		is_event_valid=true;
 		for (int ix = 0; ix < config.get_NX(); ix++) {
 			for (int iy = 0; iy < config.get_NY(); iy++) {
@@ -208,7 +211,7 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 
 		is_event_valid = (A1->get_number_of_participants()>0) && (A2->get_number_of_participants()>0);
 		if(is_event_valid){
-			if(config.get_Verbose()){
+			if(config.get_Verbose_int()> 1){
 				std::cout<< "    Running for impact parameter ( bx = " << b1[0]-b2[0] << " , by = " << b1[1]-b2[1] << ")"<<std::endl ;
 				std::cout<< "    Number of Participants: " <<A1->get_number_of_participants() + A2->get_number_of_participants() <<  "\n";
 				std::cout<< "    Number of Collisions: " <<A1->get_NColl()+A2->get_NColl() <<  "\n";
@@ -222,7 +225,7 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 
 			if (config.is_format("Nuclei") ){print_nucleon_pos(A1,A2,EventID);}
 
-			if(config.get_Verbose()){std::cout<<"    Nucleon Positions written out\n";}
+			if(config.get_Verbose_int()>1){std::cout<<"    Nucleon Positions written out\n";}
             if (config.is_thick_fluct()){
               A1->Thickness_fluct();
               A2->Thickness_fluct();
@@ -241,7 +244,9 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 			//Print weights for the NLEFT cases.
 			if(config.get_weight(1) || config.get_weight(2)){print_weights(A1,A2,EventID);}
 
-			MakeGlobalQuantities();
+			if(config.is_boost_invariant() ) {MakeGlobalQuantities_Midrapidity();}
+			else{MakeGlobalQuantities();}
+			
 			bool is_charge_output= config.is_format("EMoments") || config.is_format("NMoments") || config.is_format("Charges");
 			if (is_charge_output){
 				if(config.is_boost_invariant() ) {MakeChargeOutputMidrapidity();}
@@ -254,7 +259,7 @@ void Event::NewEvent(int EventID_in, Nucleus *A1, Nucleus *A2){
 		#endif
 	}
 
-	if(config.get_Verbose()){
+	if(config.get_Verbose_int()>1){
 		std::cout<<"    Thickness Functions computed!\n";
 		std::cout<< "\n|------------------------------------- End Event ----------------------------------------|\n";
 	}
@@ -298,6 +303,14 @@ void Event::MakeEventByEvent(){
 	// RemoveBlock();
 }
 
+double Event::uni_ev_rn(){
+	static std::uniform_real_distribution<double> dist(0.0, 1.0);
+	return dist(engine);  // uses global engine
+}
+int Event::uni_ev_int(){
+	static std::uniform_int_distribution<long> dist(0, 0x7FFFFFFF); // 2^31-1
+	return dist(engine);  // uses global engine
+}
 
 void Event::get_impact_from_value(double AbsB, double ThetaB){
 	b1[0] =  AbsB*cos(ThetaB)/2.;
@@ -379,7 +392,7 @@ void Event::Initialize_output(){
 		dirname_t << config.get_out_path()<<"/"<< config.get_run_name();
 		std::string dirpath = dirname_t.str();
 		OUTPATH = dirpath;
-		if(config.get_Verbose()){std::cout<< OUTPATH<< std::endl;}
+		if(config.get_Verbose_int()>0){std::cout<< "[Event]: Output Path = "<< OUTPATH<< std::endl;}
 		ev0=0;
 		if ( !(fs::create_directories(dirpath))){
 			std::cerr<< "[ Warning::Event ]: Output directory ("<< OUTPATH<< ") already exists!"<< std::endl ;
@@ -412,7 +425,7 @@ void Event::Initialize_output(){
 		dirname << config.get_out_path()<<"/"<< "Run"<< dircount-1;
 		ev0=0; //set the initial event to 0
 		OUTPATH = dirname.str();
-		if(config.get_Verbose()){std::cout<< OUTPATH<< std::endl;}
+		if(config.get_Verbose_int()>0){std::cout<< OUTPATH<< std::endl;}
 		
 	}
 	fs::create_directories(OUTPATH);
@@ -490,6 +503,10 @@ void Event::MakeGlobalQuantities(){
 	std::vector<double> eqtau0_2o3_midrap(config.get_NETA(),0.0);
 	std::vector<double> etottau0_2o3_midrap(config.get_NETA(),0.0);
 
+	std::vector<double> egtau0_4o3_midrap(config.get_NETA(),0.0);
+	std::vector<double> eqtau0_4o3_midrap(config.get_NETA(),0.0);
+	std::vector<double> etottau0_4o3_midrap(config.get_NETA(),0.0);
+
 	int izero = (int) lround( -config.get_ETAMIN()/config.get_dETA() );
 	if(izero < 0){izero = 0;}
 	if(izero > config.get_NETA()-1){izero = config.get_NETA()-1;}
@@ -506,7 +523,7 @@ void Event::MakeGlobalQuantities(){
  	x_cm_global=0.;
 	y_cm_global=0.;
 
-	if(config.get_Verbose()){std::cout<< "\n Making global observables and observables for Event " << EventID <<std::endl;}
+	if(config.get_Verbose_int()>1){std::cout<< "\n Making global observables and observables for Event " << EventID <<std::endl;}
 
 	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
 		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
@@ -522,7 +539,7 @@ void Event::MakeGlobalQuantities(){
 				t2n_t=T2n(ix,iy);
 				t1_t = t1p_t+t1n_t;
 				t2_t = t2p_t+t2n_t;
-
+				
 				eg_t=ChargeMaker->gluon_energy(eta_t, t1_t, t2_t) * config.get_KFactor() ;
 				eq_t=ChargeMaker->quark_energy(eta_t, t1_t, t2_t) ;
 				nu_t=ChargeMaker->u_density(eta_t, t1p_t, t1n_t, t2p_t, t2n_t) ;
@@ -557,11 +574,14 @@ void Event::MakeGlobalQuantities(){
 				eqtau0_2o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eq_t,2/3.);
 				etottau0_2o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow( gen_pars::fmm2_to_GeV2*(eg_t+eq_t),2/3.);
 
+				egtau0_4o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eg_t,4/3.);//cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 2./3.);
+				eqtau0_4o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eq_t,4/3.);
+				etottau0_4o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow( gen_pars::fmm2_to_GeV2*(eg_t+eq_t),4/3.);
 
 			}
 		}
 
-		if(dEdeta[ieta]==0){
+		if(dEdeta[ieta]<1e-10){
 			x_cm[ieta]=0;
 			y_cm[ieta]=0;
 		}
@@ -579,13 +599,13 @@ void Event::MakeGlobalQuantities(){
 		total_d_event += config.get_dETA() * dnddeta[ieta];
 		total_s_event += config.get_dETA() * dnsdeta[ieta];
 
-		if(config.get_Verbose()){
+		if(config.get_Verbose_int()==3){
 			double percentage_done=double(ieta)/double(config.get_NETA());
 			printProgress(percentage_done);
 		}
 	}
 
-	if(config.get_Verbose()){printProgress(1);}
+	if(config.get_Verbose_int()==3){printProgress(1);}
 
 	total_energy_event=total_energy_event_q+total_energy_event_g;
 
@@ -614,6 +634,10 @@ void Event::MakeGlobalQuantities(){
 		h5out->attr("global/Int(eqtau)2/3", eqtau0_2o3_midrap[izero]);
 		h5out->attr("global/Int(egtau+eqtau)2/3", etottau0_2o3_midrap[izero]);
 
+		h5out->attr("global/Int(egtau)4/3", egtau0_4o3_midrap[izero]);
+		h5out->attr("global/Int(eqtau)4/3", eqtau0_4o3_midrap[izero]);
+		h5out->attr("global/Int(egtau+eqtau)4/3", etottau0_4o3_midrap[izero]);
+
 		h5out->attr("global/N_u", total_u_event);
 		h5out->attr("global/N_d", total_d_event);
 		h5out->attr("global/N_s", total_s_event);
@@ -639,43 +663,244 @@ void Event::MakeGlobalQuantities(){
 	std::ostringstream global_name;
 	global_name << OUTPATH <<"/Global.dat" ;
 	global_f.open(global_name.str(), std::ios_base::app);
-	global_f<<  "E_g\t" << total_energy_event_g<<std::endl;
-	global_f<<  "E_q\t" << total_energy_event_q<<std::endl;
-	global_f<<  "E_tot\t" << total_energy_event<<std::endl;
+	global_f<< "\t" << total_energy_event_g;
+	global_f<< "\t" << total_energy_event_q ;
+	global_f<< "\t" << total_energy_event;
 
-	global_f<<  "dEg_deta\t" << dEgdeta[izero]<<std::endl;
-	global_f<<  "dEq_deta\t" << dEqdeta[izero]<<std::endl;
-	global_f<<  "dE_deta\t" << dEdeta[izero]<<std::endl;
+	global_f<< "\t" << dEgdeta[izero];
+	global_f<< "\t" << dEqdeta[izero];
+	global_f<<  "\t" << dEdeta[izero];
 
-	global_f<<  "Int(egtau)2/3\t" << egtau0_2o3_midrap[izero] <<std::endl;
-	global_f<<  "Int(eqtau)2/3\t" << eqtau0_2o3_midrap[izero]<<std::endl;
-	global_f<<  "Int(egtau+eqtau)2/3\t" << etottau0_2o3_midrap[izero]<<std::endl;
+	global_f<<  "\t" << egtau0_2o3_midrap[izero] ;
+	global_f<<  "\t" << eqtau0_2o3_midrap[izero];
+	global_f<<  "\t" << etottau0_2o3_midrap[izero];
 
-	global_f<<  "N_u\t" << total_u_event<<std::endl;
-	global_f<<  "N_d\t" << total_d_event<<std::endl;
-	global_f<<  "N_s\t" << total_s_event<<std::endl;
+	global_f<<  "\t" << egtau0_4o3_midrap[izero];
+	global_f<<  "\t" << eqtau0_4o3_midrap[izero];
+	global_f<<  "\t" << etottau0_4o3_midrap[izero];
 
-	global_f<<  "dNu_deta(eta=0)\t" << dnudeta[izero]<<std::endl;
-	global_f<<  "dNd_deta(eta=0)\t" << dnddeta[izero]<<std::endl;
-	global_f<<  "dNs_deta(eta=0)\t" << dnsdeta[izero]<<std::endl;
+	global_f<<  "\t" << total_u_event;
+	global_f<<  "\t" << total_d_event;
+	global_f<<  "\t" << total_s_event;
 
-	global_f<<  "Q\t" << total_q_event<<std::endl;
-	global_f<<  "B\t" << total_B_event<<std::endl;
+	global_f<<  "\t" << dnudeta[izero];
+	global_f<<  "\t" << dnddeta[izero];
+	global_f<<  "\t" << dnsdeta[izero];
 
-	global_f<<  "dQ_deta(eta=0)\t" << (2*dnudeta[izero]-dnddeta[izero] )/3.<<std::endl;
-	global_f<<  "dB_deta(eta=0)\t" << (dnudeta[izero]+dnddeta[izero] )/3.<<std::endl;
+	global_f<<  "\t" << total_q_event;
+	global_f<<  "\t" << total_B_event;
 
-	global_f<<  "x_cm_global\t" << x_cm_global<<std::endl;
-	global_f<<  "y_cm_global\t" << y_cm_global<<std::endl;
+	global_f<<  "\t" << (2*dnudeta[izero]-dnddeta[izero] )/3.;
+	global_f<<  "\t" << (dnudeta[izero]+dnddeta[izero] )/3.;
 
-	global_f<<  "x_cm_mid\t" << x_cm[izero]<<std::endl;
-	global_f<<  "y_cm_mid\t" << y_cm[izero]<<std::endl;
-	global_f<<"# End Event "<< EventID << std::endl;
+	global_f<<  "\t" << x_cm_global;
+	global_f<<  "\t" << y_cm_global;
+
+	global_f<<  "\t" << x_cm[izero];
+	global_f<<  "\t" << y_cm[izero];
+	global_f << std::endl;
+	
 	global_f.close();
 	}
 
 
-	if(config.get_Verbose()){
+	if(config.get_Verbose_int()>1){
+		std::cout << "\n\n    E_g = " << total_energy_event_g << "\tE_q = " << total_energy_event_q << "\tE_tot = " << total_energy_event<<std::endl ;
+		std::cout<<  "    dE_deta = " << dEdeta[izero]<<  "\t with \tdEg_deta = " << dEgdeta[izero]<<  "    and    dEq_deta = " << dEqdeta[izero]<<std::endl;
+		std::cout << "    N_u = " << total_u_event<< "\tN_d = " << total_d_event << "\tN_s = " << total_s_event <<std::endl ;
+		std::cout<<  "    dN_i_deta(eta=0)     u: " << dnudeta[izero];
+		std::cout<<  "\t d: " << dnddeta[izero]<< "\t s: " << dnsdeta[izero]<<std::endl;
+		std::cout << "    Q = " << total_q_event<< "\tB = " << total_B_event <<std::endl ;
+		std::cout << "\nGlobal CoM coordinates:  ( x = " << x_cm_global << " ,y = " << y_cm_global<< ")"<<std::endl ;
+	}
+
+	
+
+}
+
+void Event::MakeGlobalQuantities_Midrapidity(){
+
+	double eg_t,eq_t,nu_t,nd_t,ns_t;
+	double t1p_t,t1n_t,t2p_t,t2n_t;
+	double t1_t,t2_t;
+
+	double total_energy_event_q=0;
+	double total_energy_event_g=0;
+
+	double total_u_event=0;
+	double total_d_event=0;
+	double total_s_event=0;
+	double total_energy_event,total_q_event,total_B_event;
+
+	x_cm.assign(1,0.0);
+	y_cm.assign(1,0.0);
+	std::vector<double> x_cm_unnorm(1,0.0);
+	std::vector<double> y_cm_unnorm(1,0.0);
+
+	std::vector<double> egtau0_2o3_midrap(1,0.0);
+	std::vector<double> eqtau0_2o3_midrap(1,0.0);
+	std::vector<double> etottau0_2o3_midrap(1,0.0);
+
+	std::vector<double> egtau0_4o3_midrap(1,0.0);
+	std::vector<double> eqtau0_4o3_midrap(1,0.0);
+	std::vector<double> etottau0_4o3_midrap(1,0.0);
+
+	int izero = 0;
+
+	dEdeta.assign(1,0.0);
+	dEgdeta.assign(1,0.0);
+	dEqdeta.assign(1,0.0);
+	dnudeta.assign(1,0.0);
+	dnddeta.assign(1,0.0);
+	dnsdeta.assign(1,0.0);
+
+	double x_cm_global_unnorm=0.;
+	double y_cm_global_unnorm=0.;
+ 	x_cm_global=0.;
+	y_cm_global=0.;
+
+	if(config.get_Verbose_int()>1){std::cout<< "\n Making global observables and observables for Event " << EventID <<std::endl;}
+
+	double eta_t = 0.0;
+	for (int ix = 0; ix < config.get_NX(); ix++) {
+		for (int iy = 0; iy < config.get_NY(); iy++) {
+
+			double x_t= get_x(ix);
+			double y_t= get_y(iy);
+
+			t1p_t=T1p(ix,iy);
+			t1n_t=T1n(ix,iy);
+			t2p_t=T2p(ix,iy);
+			t2n_t=T2n(ix,iy);
+			t1_t = t1p_t+t1n_t;
+			t2_t = t2p_t+t2n_t;
+			
+			eg_t=ChargeMaker->gluon_energy(eta_t, t1_t, t2_t) * config.get_KFactor() ;
+			eq_t=ChargeMaker->quark_energy(eta_t, t1_t, t2_t) ;
+			nu_t=ChargeMaker->u_density(eta_t, t1p_t, t1n_t, t2p_t, t2n_t) ;
+			nd_t=ChargeMaker->d_density(eta_t, t1p_t, t1n_t, t2p_t, t2n_t) ;
+			ns_t=ChargeMaker->s_density(eta_t, t1_t, t2_t) ;
+
+			if(config.print_avg_event()>0)
+			{
+				EgAvg (0, ix, iy)+=eg_t/config.get_NEvents();
+				EqAvg (0, ix, iy)+=eq_t/config.get_NEvents();
+				nuAvg (0, ix, iy)+=nu_t/config.get_NEvents();
+				ndAvg (0, ix, iy)+=nd_t/config.get_NEvents();
+				nsAvg (0, ix, iy)+=ns_t/config.get_NEvents();
+			}
+
+			x_cm_unnorm[0] += cell_trans_volume * x_t * (eg_t+eq_t);
+			y_cm_unnorm[0] += cell_trans_volume * y_t * (eg_t+eq_t);
+
+			dEgdeta[0]+= cell_trans_volume*(eg_t);
+			dEqdeta[0]+= cell_trans_volume*(eq_t);
+			dEdeta[0]+= cell_trans_volume*(eg_t+eq_t);
+
+
+			dnudeta[0]+= cell_trans_volume*nu_t;
+			dnddeta[0]+= cell_trans_volume*nd_t;
+			dnsdeta[0]+= cell_trans_volume*ns_t;
+
+			total_energy_event_g +=  cell_trans_volume * eg_t;
+			total_energy_event_q +=  cell_trans_volume * eq_t;
+
+			egtau0_2o3_midrap[0] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eg_t,2/3.);//cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 2./3.);
+			eqtau0_2o3_midrap[0] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eq_t,2/3.);
+			etottau0_2o3_midrap[0] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow( gen_pars::fmm2_to_GeV2*(eg_t+eq_t),2/3.);
+
+			egtau0_4o3_midrap[0] += cell_trans_volume * pow(gen_pars::GeV2_to_fmm2,2.) * pow(gen_pars::fmm2_to_GeV2*eg_t,4/3.);//cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 4./3.);
+			eqtau0_4o3_midrap[0] += cell_trans_volume * pow(gen_pars::GeV2_to_fmm2,2.) * pow(gen_pars::fmm2_to_GeV2*eq_t,4/3.);
+			etottau0_4o3_midrap[0] += cell_trans_volume * pow(gen_pars::GeV2_to_fmm2,2.) * pow( gen_pars::fmm2_to_GeV2*(eg_t+eq_t),4/3.);
+
+
+			if(config.get_Verbose_int()==3){
+				double percentage_done=double(ix)/double(config.get_NX());
+				printProgress(percentage_done);
+			}
+		}
+	}
+
+	if(dEdeta[0]==0){
+		x_cm[0]=0;
+		y_cm[0]=0;
+	}
+	else{
+		x_cm[0] = x_cm_unnorm[0]/dEdeta[0];
+		y_cm[0] = y_cm_unnorm[0]/dEdeta[0];
+	}
+
+
+
+	x_cm_global_unnorm = x_cm_unnorm[0] ;
+	y_cm_global_unnorm = y_cm_unnorm[0] ;
+
+	total_u_event = dnudeta[0];
+	total_d_event = dnddeta[0];
+	total_s_event = dnsdeta[0];
+
+
+	if(config.get_Verbose_int()==3){printProgress(1);}
+
+	total_energy_event=total_energy_event_q+total_energy_event_g;
+
+	if(total_energy_event==0){
+		x_cm_global=0;
+		y_cm_global=0;
+	}
+	else{
+		x_cm_global=x_cm_global_unnorm/total_energy_event;
+		y_cm_global=y_cm_global_unnorm/total_energy_event;
+	}
+
+	total_q_event= (2*total_u_event-total_d_event)/3;
+	total_B_event= (total_u_event+total_d_event)/3;
+
+	std::ofstream global_f;
+	std::ostringstream global_name;
+	global_name << OUTPATH <<"/Global.dat" ;
+	global_f.open(global_name.str(), std::ios_base::app);
+	///////// Cheaper implementation!
+	global_f<< "\t" << total_energy_event_g;
+	global_f<< "\t" << total_energy_event_q ;
+	global_f<< "\t" << total_energy_event;
+
+	global_f<< "\t" << dEgdeta[izero];
+	global_f<< "\t" << dEqdeta[izero];
+	global_f<<  "\t" << dEdeta[izero];
+
+	global_f<<  "\t" << egtau0_2o3_midrap[izero] ;
+	global_f<<  "\t" << eqtau0_2o3_midrap[izero];
+	global_f<<  "\t" << etottau0_2o3_midrap[izero];
+
+	global_f<<  "\t" << egtau0_4o3_midrap[izero];
+	global_f<<  "\t" << eqtau0_4o3_midrap[izero];
+	global_f<<  "\t" << etottau0_4o3_midrap[izero];
+
+	global_f<<  "\t" << total_u_event;
+	global_f<<  "\t" << total_d_event;
+	global_f<<  "\t" << total_s_event;
+
+	global_f<<  "\t" << dnudeta[izero];
+	global_f<<  "\t" << dnddeta[izero];
+	global_f<<  "\t" << dnsdeta[izero];
+
+	global_f<<  "\t" << total_q_event;
+	global_f<<  "\t" << total_B_event;
+
+	global_f<<  "\t" << (2*dnudeta[izero]-dnddeta[izero] )/3.;
+	global_f<<  "\t" << (dnudeta[izero]+dnddeta[izero] )/3.;
+
+	global_f<<  "\t" << x_cm_global;
+	global_f<<  "\t" << y_cm_global;
+
+	global_f<<  "\t" << x_cm[izero];
+	global_f<<  "\t" << y_cm[izero];
+	global_f << std::endl;
+	global_f.close();
+
+
+	if(config.get_Verbose_int()>1){
 		std::cout << "\n\n    E_g = " << total_energy_event_g << "\tE_q = " << total_energy_event_q << "\tE_tot = " << total_energy_event<<std::endl ;
 		std::cout<<  "    dE_deta = " << dEdeta[izero]<<  "\t with \tdEg_deta = " << dEgdeta[izero]<<  "    and    dEq_deta = " << dEqdeta[izero]<<std::endl;
 		std::cout << "    N_u = " << total_u_event<< "\tN_d = " << total_d_event << "\tN_s = " << total_s_event <<std::endl ;
@@ -740,10 +965,11 @@ void Event::MakeChargeOutput(){
 	double t1_t,t2_t;
 
 
-	if(config.get_Verbose()){std::cout<< "\nWriting out charges and moments for Event " << EventID <<std::endl;}
+	if(config.get_Verbose_int()>1){std::cout<< "\nWriting out charges and moments for Event " << EventID <<std::endl;}
 
 	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
-		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
+	
+		double eta_t= ieta*config.get_dETA() + config.get_ETAMIN();
 
 		double lattice_sum_dint23dy = 0.;
 		double lattice_sum_dint43dy = 0.;
@@ -770,8 +996,8 @@ void Event::MakeChargeOutput(){
 		for (int ix = 0; ix < config.get_NX(); ix++) {
 			for (int iy = 0; iy < config.get_NY(); iy++) {
 
-				double x_t= get_x(ix)-x_cm_global;
-				double y_t= get_y(iy)-y_cm_global;
+				double x_t= get_x(ix);//-x_cm_global;
+				double y_t= get_y(iy);//-y_cm_global;
 
 				t1p_t=T1p(ix,iy);
 				t1n_t=T1n(ix,iy);
@@ -888,7 +1114,7 @@ void Event::MakeChargeOutput(){
 		}
 		}
 
-		if(config.get_Verbose()){
+		if(config.get_Verbose_int()==3){
 			double percentage_done=double(ieta)/double(config.get_NETA());
 			printProgress(percentage_done);
 		}
@@ -917,7 +1143,7 @@ void Event::MakeChargeOutput(){
 	if(config.is_format("Charges")){charges_f.close();}
 	}
 
-	if(config.get_Verbose()){printProgress(1);}
+	if(config.get_Verbose_int()==3){printProgress(1);}
 
 }
 
@@ -965,7 +1191,7 @@ void Event::MakeChargeOutputMidrapidity(){
 	double eta_t =0.0;
 
 
-	if(config.get_Verbose()){std::cout<< "\nWriting out -midrapidity- charges and moments for Event " << EventID <<std::endl;}
+	if(config.get_Verbose_int()>1){std::cout<< "\nWriting out -midrapidity- charges and moments for Event " << EventID <<std::endl;}
 	double lattice_sum_dint23dy = 0.;
 	double lattice_sum_dint43dy = 0.;
 
@@ -1000,7 +1226,6 @@ void Event::MakeChargeOutputMidrapidity(){
 			t2n_t=T2n(ix,iy);
 			t1_t = t1p_t+t1n_t;
 			t2_t = t2p_t+t2n_t;
-
 
 			eg_t=ChargeMaker->gluon_energy(eta_t, t1_t, t2_t) * config.get_KFactor()  ;
 			eq_t=ChargeMaker->quark_energy(eta_t, t1_t, t2_t) ;
@@ -1076,7 +1301,7 @@ void Event::MakeChargeOutputMidrapidity(){
 
 	if(config.is_format("Charges")){charges_f.close();}
 
-	if(config.get_Verbose()){printProgress(1);}
+	if(config.get_Verbose_int()==3){printProgress(1);}
 
 }
 
@@ -1239,7 +1464,7 @@ double Event::ComputeInteractionProbability(double CollisionOverlap){
 
 			if(!is_sigma_in_range(sigma_inelastic/sigma0)){
 				// WARNING MESSAGE //
-				if(config.get_Verbose() && is_sigma_output ){
+				if(config.get_Verbose_int()>0 && is_sigma_output ){
 					std::cerr << std::endl;
 					std::cerr << "[[ WARNING! ]] -- Solution for SIGMA(SIGMA_INELASTIC) not trusted in the specified range! Re-check assumptions and values! " << std::endl;is_sigma_output=false;
 					std::cerr << std::endl;
@@ -1247,10 +1472,8 @@ double Event::ComputeInteractionProbability(double CollisionOverlap){
 			}
 		}
 
-		if(config.get_Verbose() && is_sigma_output ){
-			std::cerr << std::endl;
-			std::cerr << "#  SIGMA_INEL=" << sigma_inelastic * fm2_to_mb << " mb,  SIGMA_NN=" << sigmaNN * fm2_to_mb << " mb,     CENTER OF MASS ENERGY " << config.get_collEnergy() << " GEV" << std::endl;is_sigma_output=false;
-			std::cerr << std::endl;
+		if(config.get_Verbose_int() >0 && is_sigma_output ){
+			std::cerr << "[Event]: SIGMA_INEL=" << sigma_inelastic * fm2_to_mb << " mb,  SIGMA_NN=" << sigmaNN * fm2_to_mb << " mb,     CENTER OF MASS ENERGY " << config.get_collEnergy() << " GEV" << std::endl;is_sigma_output=false;
 		}
     // COMPUTE INTERACTION PROBABILITY //
     return 1.0-exp(-sigmaNN*CollisionOverlap);
@@ -1274,7 +1497,7 @@ bool Event::check_interaction_status(Nucleus *N1,int ind1,Nucleus *N2,int ind2){
 		//and the interaction probability coming from the overlap
 		double NNInteractionProbability=ComputeInteractionProbability(NNOverlap);
 		// Sampling to see if interaction happens
-		is_interacting=uni_nu_rn()<NNInteractionProbability;
+		is_interacting=uni_ev_rn()<NNInteractionProbability;
 	}
 	return is_interacting;
 }
@@ -1354,17 +1577,37 @@ void Event::print_glauber_data_to_file(Nucleus * N1,Nucleus * N2){
 	std::ostringstream global_name;
 	global_name << OUTPATH <<"/Global.dat" ;
 	global_f.open(global_name.str(), std::ios_base::app);
-	global_f<<"# Start Event "<< EventID << std::endl;
+	if(EventID==0){
+		global_f<<  "Event\tN_part_1\tN_part_2\tN_coll_1\tN_coll_2\tbx\tby";
+		global_f<<  "E_g\tE_q\tE_tot\t";
+		global_f<<  "dEg_deta\tdEq_deta\tdE_deta\t";
+		global_f<<  "Int(egtau)2/3\tInt(eqtau)2/3\tInt(egtau+eqtau)2/3\t";
+		global_f<<  "Int(egtau)4/3\tInt(eqtau)4/3\tInt(egtau+eqtau)4/3\t";
+		global_f<<  "N_u\tN_d\tN_s\t";
+		global_f<<  "dNu_deta(eta=0)\tdNd_deta(eta=0)\tdNs_deta(eta=0)\t";
+		global_f<<  "Q\tB\t";
+		global_f<<  "dQ_deta(eta=0)\tdB_deta(eta=0)\t";
+		global_f<<  "x_cm_global\ty_cm_global\t";
+		global_f<<  "x_cm_mid\ty_cm_mid\t"<<std::endl;
+	}	
+	global_f<<  EventID; 
+	global_f<<  "\t" << N1->get_number_of_participants();
+	global_f<<  "\t" << N2->get_number_of_participants();
 
-	global_f<<  "N_part_1\t"<< N1->get_number_of_participants() << std::endl;
-	global_f<<  "N_part_2\t"<< N2->get_number_of_participants() << std::endl;
+	global_f<<  "\t" << N1->get_NColl();
+	global_f<<  "\t" << N2->get_NColl();
 
-	global_f<<  "N_coll_1\t"<< N1->get_NColl() << std::endl;
-	global_f<<  "N_coll_2\t"<< N2->get_NColl() << std::endl;
+	global_f<<  "\t"<< abs(b1[0]-b2[0]);
+	global_f<<  "\t"<< abs(b1[1]-b2[1]);
 
-	global_f<<  "bx\t"<< abs(b1[0]-b2[0]) << std::endl;
-	global_f<<  "by\t"<< abs(b1[1]-b2[1])  << std::endl;
+	// global_f<<  "N_part_1\t"<< N1->get_number_of_participants() << std::endl;
+	// global_f<<  "N_part_2\t"<< N2->get_number_of_participants() << std::endl;
 
+	// global_f<<  "N_coll_1\t"<< N1->get_NColl() << std::endl;
+	// global_f<<  "N_coll_2\t"<< N2->get_NColl() << std::endl;
+
+	// global_f<<  "bx\t"<< abs(b1[0]-b2[0]) << std::endl;
+	// global_f<<  "by\t"<< abs(b1[1]-b2[1])  << std::endl;
 
 	global_f.close();
 }
@@ -1445,7 +1688,7 @@ void Event::MakeGlobalQuantities_AverageEvent(){
  	x_cm_global=0.;
 	y_cm_global=0.;
 
-	if(config.get_Verbose()){std::cout<< "\n Making global observables and observables for Average Event "<<std::endl;}
+	if(config.get_Verbose_int()>1){std::cout<< "\n Making global observables and observables for Average Event "<<std::endl;}
 
 	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
 		// double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
@@ -1503,13 +1746,13 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 		total_d_event += config.get_dETA() * dnddeta[ieta];
 		total_s_event += config.get_dETA() * dnsdeta[ieta];
 
-		if(config.get_Verbose()){
+		if(config.get_Verbose_int()==3){
 			double percentage_done=double(ieta)/double(config.get_NETA());
 			printProgress(percentage_done);
 		}
 	}
 
-	if(config.get_Verbose()){printProgress(1);}
+	if(config.get_Verbose_int()==3){printProgress(1);}
 
 	total_energy_event=total_energy_event_q+total_energy_event_g;
 
@@ -1558,7 +1801,7 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 	global_f<<  "y_cm_mid\t" << y_cm[izero]<<std::endl;
 
 
-	if(config.get_Verbose()){
+	if(config.get_Verbose_int()>1){
 		std::cout << "\n\n    E_g = " << total_energy_event_g << "\tE_q = " << total_energy_event_q << "\tE_tot = " << total_energy_event<<std::endl ;
 		std::cout<<  "    dE_deta = " << dEdeta[izero]<<  "\t with \tdEg_deta = " << dEgdeta[izero]<<  "    and    dEq_deta = " << dEqdeta[izero]<<std::endl;
 		std::cout << "    N_u = " << total_u_event<< "\tN_d = " << total_d_event << "\tN_s = " << total_s_event <<std::endl ;
@@ -1600,7 +1843,7 @@ void Event::MakeChargeOutput_AverageEvent(){
 	double eg_t,eq_t,nu_t,nd_t,ns_t;
 
 
-	if(config.get_Verbose()){std::cout<< "\nWriting out charges and moments for Average Event "<<std::endl;}
+	if(config.get_Verbose_int()>1){std::cout<< "\nWriting out charges and moments for Average Event "<<std::endl;}
 
 	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
 		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
@@ -1698,7 +1941,7 @@ void Event::MakeChargeOutput_AverageEvent(){
 			nd_moments_f << std::endl;
 		}
 
-		if(config.get_Verbose()){
+		if(config.get_Verbose_int()==3){
 			double percentage_done=double(ieta)/double(config.get_NETA());
 			printProgress(percentage_done);
 		}
@@ -1712,7 +1955,7 @@ void Event::MakeChargeOutput_AverageEvent(){
 
 	if(config.print_avg_event()>1){charges_f.close();}
 
-	if(config.get_Verbose()){printProgress(1);}
+	if(config.get_Verbose_int()==3){printProgress(1);}
 
 }
 
