@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 #include <gsl/gsl_dht.h>
 #include <gsl/gsl_multifit.h>
 
@@ -138,10 +139,10 @@ Dipole::Dipole(int set,VerboseLevel Verbose){
 	double d2Gfdu2[IPsat_pars::NY*IPsat_pars::NR];
 
 	double Y[IPsat_pars::NY];
-	double rY[IPsat_pars::NY][IPsat_pars::NR];
-	double r[IPsat_pars::NR];
+	[[maybe_unused]] double rY[IPsat_pars::NY][IPsat_pars::NR];
+	[[maybe_unused]] double r[IPsat_pars::NR];
 
-	double uY[IPsat_pars::NY][IPsat_pars::NR];
+	[[maybe_unused]] double uY[IPsat_pars::NY][IPsat_pars::NR];
 	double u[IPsat_pars::NR];
 
 	double y_t,r_t,G_t,Gp_t,Gpp_t,u_t;
@@ -1174,8 +1175,8 @@ void Dipole::get_name_and_value(std::string testline,std::string &name, std::str
   int pos = line_temp.find(":");
   name = line_temp.substr(0,pos);
   value = line_temp.substr(pos+1, line_temp.length()-pos );
-  name.erase(std::remove(name.begin(),name.end(), ' '),name.end());
-  value.erase(std::remove(value.begin(),value.end(), ' '),value.end());
+  name.erase(std::remove_if(name.begin(),name.end(), ::isspace),name.end());
+  value.erase(std::remove_if(value.begin(),value.end(), ::isspace),value.end());
 }
 
 //////////////////////////////

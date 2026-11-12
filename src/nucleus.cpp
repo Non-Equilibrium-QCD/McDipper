@@ -90,6 +90,11 @@ Nucleus::Nucleus(NucStruct NucIn){
    		  for(int n=0;n<A;n++){r[n]=new double[3];}
         }
 
+		if (is_thick_fluct){
+			w=new double*[A];
+			for  (int i=0; i<A; i++){w[i]=new double[Nq];}
+		}
+
     // SET NUCLEON POSITIONS //
     set_nucleon_positions();
 	// ROTATE RANDOMLY (EULER ANGLES)	
