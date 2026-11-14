@@ -1455,7 +1455,11 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 	std::vector<double> eqtau0_2o3_midrap(config.get_NETA(),0.0);
 	std::vector<double> etottau0_2o3_midrap(config.get_NETA(),0.0);
 
-	int izero = int( -config.get_ETAMIN()/config.get_dETA());
+	// In boost-invariant mode only the midrapidity slice (ieta=0) is filled, and observables are per unit rapidity
+	bool boost_inv = config.is_boost_invariant();
+	int neta_avg = boost_inv ? 1 : config.get_NETA();
+	double deta_avg = boost_inv ? 1.0 : config.get_dETA();
+	int izero = boost_inv ? 0 : int( -config.get_ETAMIN()/config.get_dETA());
 
 	dEdeta.assign(config.get_NETA(),0.0);
 	dEgdeta.assign(config.get_NETA(),0.0);
@@ -1471,7 +1475,7 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 
 	if(config.get_Verbose_int()>1){std::cout<< "\n Making global observables and observables for Average Event "<<std::endl;}
 
-	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
+	for (int ieta = 0; ieta < neta_avg; ieta++) {
 		// double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
 		for (int ix = 0; ix < config.get_NX(); ix++) {
 			for (int iy = 0; iy < config.get_NY(); iy++) {
@@ -1498,8 +1502,8 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 				dnddeta[ieta]+= cell_trans_volume*nd_t;
 				dnsdeta[ieta]+= cell_trans_volume*ns_t;
 
-				total_energy_event_g += config.get_dETA() * cell_trans_volume * eg_t;
-				total_energy_event_q += config.get_dETA() * cell_trans_volume * eq_t;
+				total_energy_event_g += deta_avg * cell_trans_volume * eg_t;
+				total_energy_event_q += deta_avg * cell_trans_volume * eq_t;
 
 				egtau0_2o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eg_t,2/3.);//cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 2./3.);
 				eqtau0_2o3_midrap[ieta] += cell_trans_volume * gen_pars::GeV2_to_fmm2 * pow(gen_pars::fmm2_to_GeV2*eq_t,2/3.);
@@ -1520,15 +1524,15 @@ void Event::MakeGlobalQuantities_AverageEvent(){
 
   
 
-		x_cm_global_unnorm += config.get_dETA() *x_cm_unnorm[ieta] ;
-		y_cm_global_unnorm += config.get_dETA() *y_cm_unnorm[ieta] ;
+		x_cm_global_unnorm += deta_avg *x_cm_unnorm[ieta] ;
+		y_cm_global_unnorm += deta_avg *y_cm_unnorm[ieta] ;
 
-		total_u_event += config.get_dETA() * dnudeta[ieta];
-		total_d_event += config.get_dETA() * dnddeta[ieta];
-		total_s_event += config.get_dETA() * dnsdeta[ieta];
+		total_u_event += deta_avg * dnudeta[ieta];
+		total_d_event += deta_avg * dnddeta[ieta];
+		total_s_event += deta_avg * dnsdeta[ieta];
 
 		if(config.get_Verbose_int()==3){
-			double percentage_done=double(ieta)/double(config.get_NETA());
+			double percentage_done=double(ieta)/double(neta_avg);
 			printProgress(percentage_done);
 		}
 	}
@@ -1626,8 +1630,12 @@ void Event::MakeChargeOutput_AverageEvent(){
 
 	if(config.get_Verbose_int()>1){std::cout<< "\nWriting out charges and moments for Average Event "<<std::endl;}
 
-	for (int ieta = 0; ieta < config.get_NETA(); ieta++) {
-		double eta_t = ieta*config.get_dETA() + config.get_ETAMIN();
+	// In boost-invariant mode only the midrapidity slice (ieta=0) is filled
+	bool boost_inv = config.is_boost_invariant();
+	int neta_avg = boost_inv ? 1 : config.get_NETA();
+
+	for (int ieta = 0; ieta < neta_avg; ieta++) {
+		double eta_t = boost_inv ? 0.0 : ieta*config.get_dETA() + config.get_ETAMIN();
 
 		double lattice_sum_dint23dy = 0.;
 
@@ -1723,7 +1731,7 @@ void Event::MakeChargeOutput_AverageEvent(){
 		}
 
 		if(config.get_Verbose_int()==3){
-			double percentage_done=double(ieta)/double(config.get_NETA());
+			double percentage_done=double(ieta)/double(neta_avg);
 			printProgress(percentage_done);
 		}
 	}

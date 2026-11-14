@@ -3,6 +3,8 @@
 /* Copyright (c) 2022 Oscar Garcia-Montero
  * All rights reserved. */
 #include <algorithm>
+#include <vector>
+#include <cmath>
 #include <iostream>
 #include <math.h>
 #include <sstream>
@@ -207,108 +209,146 @@ MVDipole::~MVDipole(){
 	
   }
 
+  // Checks that a grid value read from a BK-EV-NIP table matches the grid implied by the MV config.
+  // The evaluators assume uniform T, Y (and log-r) grids built from config.yaml, so any mismatch scrambles the interpolation.
+  static void check_grid_value(const char * table, const char * var, int idx, double read, double expected){
+	const double relTol = 1e-5;
+	const double absTol = 1e-9;
+	if (std::fabs(read-expected) > absTol + relTol*std::max(std::fabs(read),std::fabs(expected))){
+		std::cerr << "[MVDipole]: Grid mismatch in " << table << ": " << var << "[" << idx << "] = " << read
+		          << " in file, but config.yaml gives " << expected << ". Table and config are inconsistent." << std::endl;
+		exit(1);
+	}
+  }
+
   void MVDipole::initialize_position_space_dipole_interpolators(){
+	// File written by BK-EV-NIP (BK::RunModel) with columns  T  Y  r[fm]  S_F  S_A
+	// and loop order T (outer) -> Y -> r (inner).
 	std::ostringstream Gname;
 	Gname << path<< "/mv_dipoles.dat";
 	FILE *table1 = fopen(Gname.str().c_str(),"r");
+	if(table1==NULL){std::cerr<<"[MVDipole]: Could not open " << Gname.str() << std::endl; exit(1);}
 
-	// double Gf[IPsat_pars::NY][IPsat_pars::NR];
-  	double GAarr[mvconf.getNr()*mvconf.getNT()];
-	double GFarr[mvconf.getNr()*mvconf.getNT()];
+	const int NY = mvconf.getNY();
+	const int NT = mvconf.getNT();
+	const int Nr = mvconf.getNr();
 
+	// Buffers in file order: index (iT*NY + iY)*Nr + ir
+	std::vector<double> SFbuf(static_cast<size_t>(NT)*NY*Nr);
+	std::vector<double> SAbuf(static_cast<size_t>(NT)*NY*Nr);
 
-	double Y[mvconf.getNY()];
-	double r[mvconf.getNr()];
-	double q[mvconf.getNr()];
-	double T[mvconf.getNT()];
-
+	std::vector<double> T(NT), q(Nr);
 
 	double y_t,r_t,SA_t,SF_t,T_t;
 
-	for (int iY=0; iY < mvconf.getNY(); iY++)
-	{
-		for (int iT=0; iT < mvconf.getNT(); iT++)
-		{
-			for (int ir=0; ir < mvconf.getNr(); ir++)
-			{
-				
-				if (fscanf(table1,"%lf %lf %lf %lf %lf", &y_t, &T_t, &r_t, &SF_t, &SA_t) != 5){printf("[MVDipole]: Error reading MV-Dipole table!\n");exit(1);}
-				GAarr[mvconf.getNT()*ir + iT]=SA_t;
-				GFarr[mvconf.getNT()*ir + iT]=SF_t;
-
-				if(ir==0 && iY ==0 ){T[iT]=T_t;}
-				if(ir==0 && iT ==0 ){Y[iY]=y_t;}
-				if(iY==0 && iT ==0 ){
-					r[ir]=r_t;
-					q[ir]=mvconf.getq(r_t);
+	for (int iT=0; iT < NT; iT++){
+		for (int iY=0; iY < NY; iY++){
+			for (int ir=0; ir < Nr; ir++){
+				if (fscanf(table1,"%lf %lf %lf %lf %lf", &T_t, &y_t, &r_t, &SF_t, &SA_t) != 5){
+					std::cerr<<"[MVDipole]: Error reading MV-Dipole table at (iT,iY,ir)=("<<iT<<","<<iY<<","<<ir<<")"<<std::endl;
+					exit(1);
 				}
+				check_grid_value("mv_dipoles.dat","T",iT,T_t,mvconf.T_at(iT));
+				check_grid_value("mv_dipoles.dat","Y",iY,y_t,mvconf.Y_at(iY));
+				check_grid_value("mv_dipoles.dat","r",ir,r_t,mvconf.r_at(ir));
+
+				size_t idx = (static_cast<size_t>(iT)*NY + iY)*Nr + ir;
+				SFbuf[idx]=SF_t;
+				SAbuf[idx]=SA_t;
+
+				if(iY==0 && ir==0){T[iT]=T_t;}
+				if(iT==0 && iY==0){q[ir]=mvconf.getq(r_t);}
+			}
+		}
+	}
+	// The table must end here: trailing data means the config grid is smaller than the table
+	if (fscanf(table1,"%lf", &T_t) == 1){
+		std::cerr<<"[MVDipole]: mv_dipoles.dat has more entries than NT*NY*Nr = "<<NT*NY*Nr<<" from config.yaml"<<std::endl;
+		exit(1);
+	}
+	fclose(table1);
+
+	// One (T, q) spline per Y slice. gsl_spline2d layout: z[j*xsize + i] with x=T (i), y=q (j)
+	std::vector<double> GAarr(static_cast<size_t>(NT)*Nr);
+	std::vector<double> GFarr(static_cast<size_t>(NT)*Nr);
+
+	for (int iY=0; iY < NY; iY++){
+		for (int iT=0; iT < NT; iT++){
+			for (int ir=0; ir < Nr; ir++){
+				size_t idx = (static_cast<size_t>(iT)*NY + iY)*Nr + ir;
+				GAarr[NT*ir + iT]=SAbuf[idx];
+				GFarr[NT*ir + iT]=SFbuf[idx];
 			}
 		}
 		const gsl_interp2d_type * TA= gsl_interp2d_bicubic;
-		SA_spl[iY] = gsl_spline2d_alloc(TA,mvconf.getNT(), mvconf.getNr());
+		SA_spl[iY] = gsl_spline2d_alloc(TA,NT, Nr);
 		xaccSA[iY] = gsl_interp_accel_alloc();
 		yaccSA[iY] = gsl_interp_accel_alloc();
-		gsl_spline2d_init(SA_spl[iY],  T, q, GAarr, mvconf.getNT(), mvconf.getNr());
+		gsl_spline2d_init(SA_spl[iY],  T.data(), q.data(), GAarr.data(), NT, Nr);
 
 		const gsl_interp2d_type * TF = gsl_interp2d_bicubic;
-		SF_spl[iY] = gsl_spline2d_alloc(TF,mvconf.getNT(), mvconf.getNr());
+		SF_spl[iY] = gsl_spline2d_alloc(TF,NT, Nr);
 		xaccSF[iY] = gsl_interp_accel_alloc();
 		yaccSF[iY] = gsl_interp_accel_alloc();
-		gsl_spline2d_init(SF_spl[iY], T,q, GFarr, mvconf.getNT(), mvconf.getNr());
+		gsl_spline2d_init(SF_spl[iY], T.data(), q.data(), GFarr.data(), NT, Nr);
 	}
 
-	fclose(table1);
 	if(DipVerbose>VerboseLevel::None){std::cerr<<"[MVDipole]: Dipole interpolator succesfully created! "<<std::endl;}
 
   }
 
   void MVDipole::initialize_Qs2_interpolators(){
+	// File written by BK-EV-NIP with columns  T  Y  Qs2_F[GeV^2]  Qs2_A[GeV^2]
+	// and loop order T (outer) -> Y (inner).
 	std::ostringstream Qname;
 	Qname << path<< "/mv_Q2.dat";
 	FILE *table1 = fopen(Qname.str().c_str(),"r");
+	if(table1==NULL){std::cerr<<"[MVDipole]: Could not open " << Qname.str() << std::endl; exit(1);}
 
-	// double Gf[IPsat_pars::NY][IPsat_pars::NR];
-  	double QA2arr[mvconf.getNY()*mvconf.getNT()];
-	double QF2arr[mvconf.getNY()*mvconf.getNT()];
+	const int NY = mvconf.getNY();
+	const int NT = mvconf.getNT();
 
+	// gsl_spline2d layout: z[j*xsize + i] with x=Y (i), y=T (j)
+	std::vector<double> QA2arr(static_cast<size_t>(NY)*NT);
+	std::vector<double> QF2arr(static_cast<size_t>(NY)*NT);
 
-	double Y[mvconf.getNY()];
-	double T[mvconf.getNT()];
-
+	std::vector<double> Y(NY), T(NT);
 
 	double y_t,QA2_t,QF2_t,T_t;
 
-	for (int iY=0; iY < mvconf.getNY(); iY++)
-	{
-		for (int iT=0; iT < mvconf.getNT(); iT++)
-		{
-			// 	if (fscanf(table1,"%lf %lf %lf %lf %lf", &y_t, &r_t, &G_t, &Gp_t, &Gpp_t) != 5){printf("Error reading table 1!\n");exit(1);}
-				// Gf[IPsat_pars::NY*ir+iY] = G_t;
-			if (fscanf(table1,"%lf %lf %lf %lf", &y_t, &T_t, &QF2_t, &QA2_t) != 4){printf("[MVDipole]: Error reading MV-Q2 table!\n");exit(1);}
-			QA2arr[mvconf.getNY()*iT + iY]=QA2_t;
-			QF2arr[mvconf.getNY()*iT + iY]=QF2_t;
-			
-			if(iY ==0 ){T[iT]=T_t;}
-			if(iT ==0 ){Y[iY]=y_t;}
+	for (int iT=0; iT < NT; iT++){
+		for (int iY=0; iY < NY; iY++){
+			if (fscanf(table1,"%lf %lf %lf %lf", &T_t, &y_t, &QF2_t, &QA2_t) != 4){
+				std::cerr<<"[MVDipole]: Error reading MV-Q2 table at (iT,iY)=("<<iT<<","<<iY<<")"<<std::endl;
+				exit(1);
+			}
+			check_grid_value("mv_Q2.dat","T",iT,T_t,mvconf.T_at(iT));
+			check_grid_value("mv_Q2.dat","Y",iY,y_t,mvconf.Y_at(iY));
+
+			QA2arr[NY*iT + iY]=QA2_t;
+			QF2arr[NY*iT + iY]=QF2_t;
+
+			if(iY==0){T[iT]=T_t;}
+			if(iT==0){Y[iY]=y_t;}
 		}
+	}
+	if (fscanf(table1,"%lf", &T_t) == 1){
+		std::cerr<<"[MVDipole]: mv_Q2.dat has more entries than NT*NY = "<<NT*NY<<" from config.yaml"<<std::endl;
+		exit(1);
 	}
 	fclose(table1);
 
-	// Now we get interpolate the array
 	const gsl_interp2d_type *TQA= gsl_interp2d_bicubic;
-	Q2A_spl = gsl_spline2d_alloc(TQA, mvconf.getNY(),mvconf.getNT());
+	Q2A_spl = gsl_spline2d_alloc(TQA, NY, NT);
 	xaccQ2A = gsl_interp_accel_alloc();
 	yaccQ2A = gsl_interp_accel_alloc();
-	gsl_spline2d_init(Q2A_spl, Y, T, QA2arr, mvconf.getNY(),mvconf.getNT());
-
-	// std::cout<< "Adjoint ready" << std::endl;
+	gsl_spline2d_init(Q2A_spl, Y.data(), T.data(), QA2arr.data(), NY, NT);
 
 	const gsl_interp2d_type *TQF= gsl_interp2d_bicubic;
-	Q2F_spl = gsl_spline2d_alloc(TQF,  mvconf.getNY(),mvconf.getNT());
+	Q2F_spl = gsl_spline2d_alloc(TQF, NY, NT);
 	xaccQ2F = gsl_interp_accel_alloc();
 	yaccQ2F = gsl_interp_accel_alloc();
-	gsl_spline2d_init(Q2F_spl, Y, T, QF2arr,  mvconf.getNY(),mvconf.getNT());
-	// std::cout<< "Fundamental ready" << std: :endl;
+	gsl_spline2d_init(Q2F_spl, Y.data(), T.data(), QF2arr.data(), NY, NT);
 
 	if(DipVerbose>VerboseLevel::None){std::cerr<<"[MVDipole]: Qs2 interpolator succesfully created. "<<std::endl;}
 }
@@ -848,6 +888,7 @@ bool MVDipole::import_dipole(){
 
 	// THIS NEEDS 
 	FILE *table = fopen(tablename.str().c_str(),"r");
+	if(table==NULL){std::cerr<<"[MVDipole]: Could not open " << tablename.str() << std::endl; exit(1);}
 	double T_t,y_t,u_t,DipA_t,DipF_t;
 	for (int iY = 0; iY < NYTot; iY++) {
 		for (int iT = 0; iT < mvconf.getNT(); iT++) {		
