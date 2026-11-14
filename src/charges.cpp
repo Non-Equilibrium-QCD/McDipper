@@ -5,9 +5,12 @@
  #include <sstream>
  #include <sys/stat.h>
  #include <filesystem>
+ #include <vector>
 
 
 #include "include/charges.h"
+#include "include/model_gbw.h"
+#include "include/table_io.h"
 
 namespace fs = std::filesystem;
 
@@ -15,7 +18,16 @@ Charges::Charges(){}
 Charges::Charges(Config ConfInput){
   config=Config(ConfInput);
 
-  NETA=config.get_NETA();
+  // Thickness is never split across jobs, so this can be demanded up front. It
+  // also keeps NT=1 from reaching set_dT, where the spacing would come out inf.
+  // The matching requirement on NETA lives in MakeGrid instead, so that a table
+  // can still be built one rapidity slice at a time.
+  if(config.get_NT() < 4){
+    std::cerr<<"\n[ Charges::FATAL ] the tables are interpolated bicubically in"
+             <<" thickness and need at least 4 nodes there; this run asks for NT="
+             <<config.get_NT()<<".\n  Raise 'Thickness: NT'.\n"<<std::endl;
+    exit(EXIT_FAILURE);
+  }
 
   check_for_tabs_folders();
   bool is_imported=import_charges(); // Import charges from computed table.
@@ -25,6 +37,16 @@ Charges::Charges(Config ConfInput){
 
   if(!is_imported){
     call_models(); // Calls the models if there are no matching set of tables
+    if(config.is_table_only()){
+      std::cout<<"[ Charges ] Tables written to "<<path_to_set
+               <<". 'Output: TableOnly' is set, so they are not read back and no"
+               <<" events are generated.\n"
+               <<"            Merge the slices, then run with TableOnly off."
+               <<std::endl;
+      // Not just a return: the caller would carry on into event generation with
+      // a Charges whose splines were never allocated. The job's work is done.
+      exit(EXIT_SUCCESS);
+    }
     is_imported=import_charges();// Imports the newly constructed tables
     if(is_imported){initialized = true;}
   }
@@ -72,7 +94,23 @@ Charges::~Charges(){
 
 void Charges::MakeGrid(){
 
+  // Everything sized here describes the tables, so it comes from the config
+  // they were built with, never from the config of this run.
   NX=config_set.get_NT();NY=config_set.get_NT();
+  NETA=config_set.get_NETA();
+  // Same requirement as in the constructor, applied to the tables actually
+  // found on disk: with the coverage check they need not share the run's grid.
+  if(NETA < 4 || NX < 4){
+    std::cerr<<"\n[ Charges::FATAL ] tables in "<<path_to_set<<" were built with"
+             <<" NETA="<<NETA<<" and NT="<<NX
+             <<", below the 4 nodes bicubic interpolation needs.\n"
+             <<"  If these are one slice of a table being built across jobs, that"
+             <<" job should set 'Output: TableOnly: True', which stops\n"
+             <<"  before this point. Otherwise delete that directory so the tables"
+             <<" are rebuilt on a usable grid.\n"<<std::endl;
+    exit(EXIT_FAILURE);
+  }
+  eta_tab.assign(NETA,0.0);
   e_g_spl = new gsl_spline2d*[NETA] ;
 
   xaccEG = new gsl_interp_accel*[NETA] ;
@@ -192,6 +230,20 @@ bool Charges::check_config(){
   is_config = is_config && config.compare_Thickness_parameters(set_conf, double_tolerance);
   std::cerr << "PATHS = " << config.get_modelPath() << "\t" << set_conf->get_modelPath()<<std::endl;
   if(is_config){config_set = Config(path_to_config.str());}
+  if(is_config && config.get_Verbose_int()>0){
+    std::cout<<"[ Charges ] Tables tabulated on T in ["
+             <<config_set.get_TMin()<<","<<config_set.get_TMax()<<"] with NT="
+             <<config_set.get_NT()<<" (dT="
+             <<(config_set.get_TMax()-config_set.get_TMin())/(config_set.get_NT()-1.)
+             <<"); this run asks for ["<<config.get_TMin()<<","<<config.get_TMax()
+             <<"] with NT="<<config.get_NT()<<".\n"
+             <<"            Tables tabulated on eta in ["<<config_set.get_ETAMIN()
+             <<","<<config_set.get_ETAMAX()<<"] with NETA="<<config_set.get_NETA()
+             <<"; this run asks for ["<<config.get_ETAMIN()<<","<<config.get_ETAMAX()
+             <<"] with NETA="<<config.get_NETA()<<".\n"
+             <<"            Values between tabulated nodes are interpolated, so a"
+             <<" finer run grid does not add resolution."<<std::endl;
+  }
   return is_config;
 }
 
@@ -256,21 +308,25 @@ bool Charges::read_in_energy_gluons(){
   std::ostringstream tablename;
   tablename << path_to_set <<"/"<< gluon_energy_table_name ;
 
-  FILE *table = fopen(tablename.str().c_str(),"r");
+  FILE *table = TableIO::open_or_exit(tablename.str());
+  const long expected_rows = long(NETA)*long(NX)*long(NY);
+  long row = 0;
   double y_t,T1_t,T2_t,edensG_t;
 
-  double T1Grid[NX*NY];
-  double T2Grid[NX*NY];
-  double T1array[NX];
-  double T2array[NY];
-  double etau0_g[NX*NY];
+  std::vector<double> T1Grid(NX*NY);
+  std::vector<double> T2Grid(NX*NY);
+  std::vector<double> T1array(NX);
+  std::vector<double> T2array(NY);
+  std::vector<double> etau0_g(NX*NY);
   for (int iY=0; iY < NETA; iY++)
   {
     for (int i1=0; i1 < NX; i1++)
     {
       for (int i2=0; i2 < NY; i2++)
       {
-        if (fscanf(table,"%lf %lf %lf %lf", &y_t,&T1_t,&T2_t,&edensG_t) != 4){printf("Error reading distribution table!\n");exit(1);}
+        if (fscanf(table,"%lf %lf %lf %lf", &y_t,&T1_t,&T2_t,&edensG_t) != 4){TableIO::short_table(tablename.str(),row,expected_rows);}
+        row++;
+        if(i1==0 && i2==0){eta_tab[iY]=y_t;}
         T1Grid[NX*i2+i1]=T1_t;
         T2Grid[NX*i2+i1]=T2_t;
         etau0_g[NX*i2+i1]=edensG_t;
@@ -279,14 +335,19 @@ bool Charges::read_in_energy_gluons(){
     for (int i1 = 0; i1 < NX; i1++) {T1array[i1]=T1Grid[i1]; }
     for (int i2 = 0; i2 < NY; i2++) {T2array[i2]=T2Grid[NX*i2]; }
 
-    int nx = sizeof(T1array) / sizeof(T1array[0]);
-    int ny = sizeof(T2array) / sizeof(T2array[0]);
-    const gsl_interp2d_type *T= gsl_interp2d_bilinear;
+    int nx = NX;
+    int ny = NY;
+    // Bicubic, not bilinear: hydrodynamics is driven by de/dr, which is
+    // de/dT1 * dT1/dr + de/dT2 * dT2/dr, so the T1 and T2 derivatives of this
+    // table are the radial gradient. Bilinear is only C0, which puts a step in
+    // that gradient at every tabulated thickness.
+    const gsl_interp2d_type *T= gsl_interp2d_bicubic;
     e_g_spl[iY] = gsl_spline2d_alloc(T, nx, ny);
     xaccEG[iY] = gsl_interp_accel_alloc();
     yaccEG[iY] = gsl_interp_accel_alloc();
-    gsl_spline2d_init(e_g_spl[iY], T1array, T2array, &etau0_g[0], nx, ny);
+    gsl_spline2d_init(e_g_spl[iY], T1array.data(), T2array.data(), etau0_g.data(), nx, ny);
   }
+  TableIO::assert_at_end(table,tablename.str(),expected_rows);
   fclose(table);
   // test_f.close();
   return is_read;
@@ -299,21 +360,21 @@ bool Charges::read_in_nK_quark(int k, QuarkID qid){
   std::ostringstream tablename;
   tablename << path_to_set <<"/"<< get_quark_construction_file(k,qid) ;
 
-  FILE *table = fopen(tablename.str().c_str(),"r");
+  FILE *table = TableIO::open_or_exit(tablename.str());
+  const long expected_rows = long(NETA)*long(NX);
+  long row = 0;
   double y_t,T_t,nk_12_q,nk_21_q,nk_12_qbar,nk_21_qbar;
 
-  double Yarray[NETA];
-  double Tarray[NX];
-
-
-
-  double Nk_t[NQComp][NX*NETA];
+  std::vector<double> Yarray(NETA);
+  std::vector<double> Tarray(NX);
+  std::vector<std::vector<double>> Nk_t(NQComp, std::vector<double>(NX*NETA));
 
   for (int iY=0; iY < NETA; iY++)
   {
     for (int i1=0; i1 < NX; i1++)
     {
-        if (fscanf(table,"%lf %lf %lf %lf %lf %lf", &y_t,&T_t,&nk_12_q,&nk_12_qbar,&nk_21_q,&nk_21_qbar) != 6){printf("Error reading distribution table!\n");exit(1);}
+        if (fscanf(table,"%lf %lf %lf %lf %lf %lf", &y_t,&T_t,&nk_12_q,&nk_12_qbar,&nk_21_q,&nk_21_qbar) != 6){TableIO::short_table(tablename.str(),row,expected_rows);}
+        row++;
         if(iY==0){Tarray[i1]=T_t;};
         if(i1==0){Yarray[iY]=y_t;};
 
@@ -323,40 +384,45 @@ bool Charges::read_in_nK_quark(int k, QuarkID qid){
         Nk_t[3][NETA*i1+iY]=nk_21_qbar;
     }
   }
+  TableIO::assert_at_end(table,tablename.str(),expected_rows);
   fclose(table);
 
-  int neta = sizeof(Yarray) / sizeof(Yarray[0]);
-  int nx = sizeof(Tarray) / sizeof(Tarray[0]);
+  int neta = NETA;
+  int nx = NX;
 
   for (int ik = 0; ik < NQComp; ik++) {
-    const gsl_interp2d_type *T= gsl_interp2d_bilinear;
+    // Bicubic for the same reason as the gluon table: this spline's two
+    // coordinates are eta and thickness, and bilinear interpolation would put a
+    // step in both the longitudinal and the radial derivative of the quark
+    // densities at every node. These tables dominate the conserved charges.
+    const gsl_interp2d_type *T= gsl_interp2d_bicubic;
     if(k==0){
       if(qid==QuarkID::u){
         N0u_spl[ik] = gsl_spline2d_alloc(T, neta, nx);
         xaccN0u[ik] = gsl_interp_accel_alloc();yaccN0u[ik] = gsl_interp_accel_alloc();
-        gsl_spline2d_init(N0u_spl[ik], Yarray, Tarray, &Nk_t[ik][0],neta, nx);
+        gsl_spline2d_init(N0u_spl[ik], Yarray.data(), Tarray.data(), Nk_t[ik].data(),neta, nx);
       }else if(qid==QuarkID::d){
         N0d_spl[ik] = gsl_spline2d_alloc(T, neta, nx);
         xaccN0d[ik] = gsl_interp_accel_alloc();yaccN0d[ik] = gsl_interp_accel_alloc();
-        gsl_spline2d_init(N0d_spl[ik], Yarray, Tarray, &Nk_t[ik][0],neta, nx);
+        gsl_spline2d_init(N0d_spl[ik], Yarray.data(), Tarray.data(), Nk_t[ik].data(),neta, nx);
       }else if(qid==QuarkID::s){
         N0s_spl[ik] = gsl_spline2d_alloc(T, neta, nx);
         xaccN0s[ik] = gsl_interp_accel_alloc();yaccN0s[ik] = gsl_interp_accel_alloc();
-        gsl_spline2d_init(N0s_spl[ik], Yarray, Tarray, &Nk_t[ik][0],neta, nx);
+        gsl_spline2d_init(N0s_spl[ik], Yarray.data(), Tarray.data(), Nk_t[ik].data(),neta, nx);
       }
     }else if(k==1){
       if(qid==QuarkID::u){
         N1u_spl[ik] = gsl_spline2d_alloc(T, neta, nx);
         xaccN1u[ik] = gsl_interp_accel_alloc();yaccN1u[ik] = gsl_interp_accel_alloc();
-        gsl_spline2d_init(N1u_spl[ik], Yarray, Tarray, &Nk_t[ik][0],neta, nx);
+        gsl_spline2d_init(N1u_spl[ik], Yarray.data(), Tarray.data(), Nk_t[ik].data(),neta, nx);
       }else if(qid==QuarkID::d){
         N1d_spl[ik] = gsl_spline2d_alloc(T, neta, nx);
         xaccN1d[ik] = gsl_interp_accel_alloc();yaccN1d[ik] = gsl_interp_accel_alloc();
-        gsl_spline2d_init(N1d_spl[ik], Yarray, Tarray, &Nk_t[ik][0],neta, nx);
+        gsl_spline2d_init(N1d_spl[ik], Yarray.data(), Tarray.data(), Nk_t[ik].data(),neta, nx);
       }else if(qid==QuarkID::s){
         N1s_spl[ik] = gsl_spline2d_alloc(T, neta, nx);
         xaccN1s[ik] = gsl_interp_accel_alloc();yaccN1s[ik] = gsl_interp_accel_alloc();
-        gsl_spline2d_init(N1s_spl[ik], Yarray, Tarray, &Nk_t[ik][0],neta, nx);
+        gsl_spline2d_init(N1s_spl[ik], Yarray.data(), Tarray.data(), Nk_t[ik].data(),neta, nx);
       }
     }
 
@@ -370,505 +436,198 @@ bool Charges::read_in_nK_quark(int k, QuarkID qid){
 ////// Evaluate
 
 
-double Charges::gluon_energy(double eta_p, double T1, double T2){
-  double eta= eta_p;
-  
-  if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
-  if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
-  if ( T1 == 0.0 ){return 0.0;}
-  if ( T2 == 0.0 ){return 0.0;}
-  if ( T1 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Gluon Energy: Accessed T(1)="<< T1 << " larger than range. Increase T range to avoid missing nuclear matter.";
-      set_T_warning_off();
-    }
-    return 0.0;
+void Charges::assert_T_in_range(double T, int which, const char * caller){
+  // Below the table range the charges are extrapolated linearly (see lowT),
+  // so only a negative thickness is an error.
+  if( T < 0.0 ){
+    std::cerr<<"\n[ Charges::FATAL ] "<<caller<<": thickness T"<<which<<" = "<<T
+             <<" is negative, which points to a bug upstream.\n"<<std::endl;
+    exit(EXIT_FAILURE);
   }
-  if ( T2 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Gluon Energy: Accessed T(2)="<< T2 << " larger than range. Increase T range to avoid missing nuclear matter.";
-      set_T_warning_off();
-    }
-    return 0.0;
+  if( T > config_set.get_TMax() ){
+    std::cerr<<"\n[ Charges::FATAL ] "<<caller<<": thickness T"<<which<<" = "<<T
+             <<" exceeds the tabulated TMax = "<<config_set.get_TMax()<<".\n"
+             <<"  Returning zero here would silently blank out the densest cells of the event.\n"
+             <<"  Raise 'Thickness: TMax' above "<<T<<" (leave margin) and regenerate the tables.\n"
+             <<std::endl;
+    exit(EXIT_FAILURE);
   }
-  if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-    // if(eta < config.get_ETAMIN()){eta = eta_p+safe_limit;}
-    // else if(eta > config.get_ETAMAX()){eta = eta_p-safe_limit;}
-    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-      if(eta_warning){
-      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Gluon Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
-      set_eta_warning_off();
-      exit(2);
-      }
-    } 
-  }
-  // std::clamp(iETA, 0, NETA - 2);
-  // else if ( eta == config.get_ETAMIN() ){return gsl_spline2d_eval(e_g_spl[0],T1,T2,xaccEG[0], yaccEG[0]);}
-  // else if ( eta == config.get_ETAMAX() ){return gsl_spline2d_eval(e_g_spl[config.get_NETA()-1],T1,T2,xaccEG[config.get_NETA()-1], yaccEG[config.get_NETA()-1]);}
-  
+}
 
-  // Low-T extrapolations
-  if ( T1 <= safe_Tmin ){
-    if(T2 > safe_Tmin){
-      return (T1/safe_Tmin)*gluon_energy(eta, safe_Tmin, T2);
-    }
-    else if( T2 <= safe_Tmin ){
-      return (T1/safe_Tmin)*(T2/safe_Tmin)*gluon_energy(eta, safe_Tmin,  safe_Tmin);
-    }
+void Charges::assert_eta_in_range(double eta, const char * caller){
+  // Checked against the tabulated range, which is what bounds validity; the
+  // run's own range may differ.
+  if( eta < config_set.get_ETAMIN() || eta > config_set.get_ETAMAX() ){
+    std::cerr<<"\n[ Charges::FATAL ] "<<caller<<": eta = "<<eta
+             <<" is outside the tabulated range ["<<config_set.get_ETAMIN()
+             <<", "<<config_set.get_ETAMAX()<<"].\n"
+             <<"  Widen 'Grid: ETA_RANGE' and regenerate the tables.\n"<<std::endl;
+    exit(EXIT_FAILURE);
   }
-  else if ( T2 <= safe_Tmin ){
-    if(T1>safe_Tmin){
-      return (T2/safe_Tmin)*gluon_energy(eta, T1, safe_Tmin);
-    }
-    else if( T1 <= safe_Tmin ){
-      return (T1/safe_Tmin)*(T2/safe_Tmin)*gluon_energy(eta, safe_Tmin,  safe_Tmin);
-    }
-  }
-  // high rapidity catch 
-  else{
+}
+
+// Linear extrapolation to T=0 below safe_Tmin: the table is read at safe_Tmin
+// and scaled by T/safe_Tmin.
+static inline double lowT(double T, double Tsafe, double &scale){
+  if(T < Tsafe){ scale = T/Tsafe; return Tsafe; }
+  scale = 1.0; return T;
+}
+
+double Charges::gluon_energy(double eta, double T1, double T2){
+  assert_T_in_range(T1, 1, "gluon_energy");
+  assert_T_in_range(T2, 2, "gluon_energy");
+  assert_eta_in_range(eta, "gluon_energy");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
+
+  {
     int iETA;
     double ETA1,ETA2;
     double tmp1,tmp2;
 
-    iETA = (int) ( (eta - config.get_ETAMIN() )/ config.get_dETA() );
-    iETA = std::clamp(iETA, 0, config.get_NETA() - 2);
-    
-    ETA1= iETA * config.get_dETA() + config.get_ETAMIN() ;
-    ETA2= (iETA+1) * config.get_dETA() + config.get_ETAMIN() ;
+    // Locate the tabulated interval by searching the table's own rapidity
+    // nodes, so the run's eta grid does not have to match the table's.
+    {
+      int lo=0, hi=NETA-1;
+      if(eta <= eta_tab[0]){ iETA = 0; }
+      else if(eta >= eta_tab[NETA-1]){ iETA = NETA-2; }
+      else{
+        while(hi-lo > 1){ int mid=(lo+hi)/2; if(eta_tab[mid] <= eta){lo=mid;} else {hi=mid;} }
+        iETA = lo;
+      }
+    }
+    ETA1 = eta_tab[iETA];
+    ETA2 = eta_tab[iETA+1];
 
-    tmp1 = gsl_spline2d_eval(e_g_spl[iETA],T1,T2,xaccEG[iETA], yaccEG[iETA]);
-    tmp2 = gsl_spline2d_eval(e_g_spl[iETA+1],T1,T2,xaccEG[iETA+1], yaccEG[iETA+1]);
+    double s = (eta-ETA1)/(ETA2-ETA1);
+    tmp1 = gsl_spline2d_eval(e_g_spl[iETA],T1c,T2c,xaccEG[iETA], yaccEG[iETA]);
+    tmp2 = gsl_spline2d_eval(e_g_spl[iETA+1],T1c,T2c,xaccEG[iETA+1], yaccEG[iETA+1]);
 
-    return ( tmp1 + (tmp2-tmp1) * (eta-ETA1)/(ETA2-ETA1) ) ; //Linear interp in ETA
+    // Catmull-Rom in eta: the gluon table is one 2D spline per rapidity slice,
+    // so this direction is interpolated by hand. Linear interpolation would put
+    // a step in the eta derivative at every node. The end cells fall back to
+    // linear.
+    if(iETA >= 1 && iETA+2 <= NETA-1){
+      double f0 = gsl_spline2d_eval(e_g_spl[iETA-1],T1c,T2c,xaccEG[iETA-1], yaccEG[iETA-1]);
+      double f3 = gsl_spline2d_eval(e_g_spl[iETA+2],T1c,T2c,xaccEG[iETA+2], yaccEG[iETA+2]);
+      return s1*s2*0.5*( 2.0*tmp1
+                 + (-f0 + tmp2)*s
+                 + (2.0*f0 - 5.0*tmp1 + 4.0*tmp2 - f3)*s*s
+                 + (-f0 + 3.0*tmp1 - 3.0*tmp2 + f3)*s*s*s );
+    }
+    return s1*s2*( tmp1 + (tmp2-tmp1) * s ) ;
   }
 }
 
-double Charges::quark_energy(double eta_p, double T1, double T2){
-   // High rapidity Catch
-   double eta = eta_p;
-   if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
-    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
-    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
+double Charges::quark_energy(double eta, double T1, double T2){
+  assert_T_in_range(T1, 1, "quark_energy");
+  assert_T_in_range(T2, 2, "quark_energy");
+  assert_eta_in_range(eta, "quark_energy");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
+  {
 
-    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-      if(eta_warning){
-      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Quark Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
-      set_eta_warning_off();
-      exit(2);
-      }
-    } 
-  }
-   // High rapidity Catch
-  bool condition = eta > config.get_ETAMIN() || eta < config.get_ETAMAX();
-  if ( condition ){
-    if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
-    if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
-    if ( T1 == 0.0 ){return 0.0;}
-    if ( T2 == 0.0 ){return 0.0;}
-    if ( T1 > config_set.get_TMax() ){
-      if(T_warning){
-        std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
-        set_eta_warning_off();
-      }
-      return 0.0;
-    }
-    if ( T2 > config_set.get_TMax() ){
-      if(T_warning){
-        std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
-        set_eta_warning_off();
-      }
-      return 0.0;
-    }
-    if ( T1 <= safe_Tmin ){
-      if ( T2> safe_Tmin ){
-        return (T1/safe_Tmin)*quark_energy(eta,safe_Tmin,T2);
-      }
-      else if ( T2 <= safe_Tmin ){
-        return (T1/safe_Tmin)*(T2/safe_Tmin)*quark_energy(eta,safe_Tmin,safe_Tmin);
-      }
-    }
-    else if ( T2 <= safe_Tmin ){
-      if ( T1> safe_Tmin ){
-        return (T2/safe_Tmin)*quark_energy(eta,T1,safe_Tmin);
-      }
-      else if ( T1 <= safe_Tmin ){
-        return (T1/safe_Tmin)*(T2/safe_Tmin)*quark_energy(eta,safe_Tmin,safe_Tmin);
-      }
-    }
-    else{
+    double TEMP=0;
+    // U QUARK
+    TEMP += T1*s2*gsl_spline2d_eval(N1u_spl[0],eta,T2c,xaccN1u[0], yaccN1u[0]); // 12 u
+    TEMP += T1*s2*gsl_spline2d_eval(N1u_spl[1],eta,T2c,xaccN1u[1], yaccN1u[1]); // 12 ubar
+    TEMP += T2*s1*gsl_spline2d_eval(N1u_spl[2],eta,T1c,xaccN1u[2], yaccN1u[2]); // 21 u
+    TEMP += T2*s1*gsl_spline2d_eval(N1u_spl[3],eta,T1c,xaccN1u[3], yaccN1u[3]); // 21 ubar
+    // D QUARK
+    TEMP += T1*s2*gsl_spline2d_eval(N1d_spl[0],eta,T2c,xaccN1d[0], yaccN1d[0]); // 12 d
+    TEMP += T1*s2*gsl_spline2d_eval(N1d_spl[1],eta,T2c,xaccN1d[1], yaccN1d[1]); // 12 dbar
+    TEMP += T2*s1*gsl_spline2d_eval(N1d_spl[2],eta,T1c,xaccN1d[2], yaccN1d[2]); // 21 d
+    TEMP += T2*s1*gsl_spline2d_eval(N1d_spl[3],eta,T1c,xaccN1d[3], yaccN1d[3]); // 21 dbar
+    // S QUARK
+    TEMP += T1*s2*gsl_spline2d_eval(N1s_spl[0],eta,T2c,xaccN1s[0], yaccN1s[0]); // 12 s
+    TEMP += T1*s2*gsl_spline2d_eval(N1s_spl[1],eta,T2c,xaccN1s[1], yaccN1s[1]); // 12 sbar
+    TEMP += T2*s1*gsl_spline2d_eval(N1s_spl[2],eta,T1c,xaccN1s[2], yaccN1s[2]); // 21 s
+    TEMP += T2*s1*gsl_spline2d_eval(N1s_spl[3],eta,T1c,xaccN1s[3], yaccN1s[3]); // 21 sbar
 
-      double TEMP=0;
-      // U QUARK
-      TEMP += T1*gsl_spline2d_eval(N1u_spl[0],eta,T2,xaccN1u[0], yaccN1u[0]); // 12 u
-      TEMP += T1*gsl_spline2d_eval(N1u_spl[1],eta,T2,xaccN1u[1], yaccN1u[1]); // 12 ubar
-      TEMP += T2*gsl_spline2d_eval(N1u_spl[2],eta,T1,xaccN1u[2], yaccN1u[2]); // 21 u
-      TEMP += T2*gsl_spline2d_eval(N1u_spl[3],eta,T1,xaccN1u[3], yaccN1u[3]); // 21 ubar
-      // D QUARK
-      TEMP += T1*gsl_spline2d_eval(N1d_spl[0],eta,T2,xaccN1d[0], yaccN1d[0]); // 12 d
-      TEMP += T1*gsl_spline2d_eval(N1d_spl[1],eta,T2,xaccN1d[1], yaccN1d[1]); // 12 dbar
-      TEMP += T2*gsl_spline2d_eval(N1d_spl[2],eta,T1,xaccN1d[2], yaccN1d[2]); // 21 d
-      TEMP += T2*gsl_spline2d_eval(N1d_spl[3],eta,T1,xaccN1d[3], yaccN1d[3]); // 21 dbar
-      // S QUARK
-      TEMP += T1*gsl_spline2d_eval(N1s_spl[0],eta,T2,xaccN1s[0], yaccN1s[0]); // 12 s
-      TEMP += T1*gsl_spline2d_eval(N1s_spl[1],eta,T2,xaccN1s[1], yaccN1s[1]); // 12 sbar
-      TEMP += T2*gsl_spline2d_eval(N1s_spl[2],eta,T1,xaccN1s[2], yaccN1s[2]); // 21 s
-      TEMP += T2*gsl_spline2d_eval(N1s_spl[3],eta,T1,xaccN1s[3], yaccN1s[3]); // 21 sbar
-
-      return TEMP ;
-    }
+    return TEMP ;
   }
 }
 
-double Charges::u_density(double eta_p, double T1p,double T1n, double T2p, double T2n){
+double Charges::u_density(double eta, double T1p,double T1n, double T2p, double T2n){
   // TO conserve charges, we apply isospin symmetry
   // meaning ->  p:u -> n:d. Therefore, for the u density
   // n_u = n_u(Tp)+n_d(Tn)
   double T1 = T1p + T1n;
   double T2 = T2p + T2n;
-  if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
-  if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
-  if ( T1 == 0.0 ){return 0.0;}
-  if ( T2 == 0.0 ){return 0.0;}
 
-  if ( T1 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
-      set_eta_warning_off();
-    }
-    return 0.0;
-  }
-  if ( T2 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
-      set_eta_warning_off();
-    }
-    return 0.0;
-  }
-  // High rapidity Catch
-  double eta = eta_p;
-  if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
-    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
-    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
-
-    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-      if(eta_warning){
-      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Quark Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
-      set_eta_warning_off();
-      exit(2);
-      }
-    } 
-  }
-
-  if ( T1 <= safe_Tmin ){
-    if ( T2 > safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - p
-      TEMP += T1p*gsl_spline2d_eval(N0u_spl[0],eta,T2,xaccN0u[0], yaccN0u[0]); // 12 u
-      TEMP -= T1p*gsl_spline2d_eval(N0u_spl[1],eta,T2,xaccN0u[1], yaccN0u[1]); // 12 ubar
-      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
-      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
-
-      // D QUARK - n
-      TEMP += T1n*gsl_spline2d_eval(N0d_spl[0],eta,T2,xaccN0d[0], yaccN0d[0]); // 12 u
-      TEMP -= T1n*gsl_spline2d_eval(N0d_spl[1],eta,T2,xaccN0d[1], yaccN0d[1]); // 12 ubar
-      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
-      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
-
-      return TEMP ;
-    }
-    else if ( T2 <= safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - p
-      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
-      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
-      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
-      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
-
-      // D QUARK - n
-      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
-      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
-      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
-      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
-
-      return TEMP ;    
-    }
-  }
-  else if ( T2 <= safe_Tmin ){
-    if ( T1 > safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - p
-      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
-      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
-      TEMP += T2p*gsl_spline2d_eval(N0u_spl[2],eta,T1,xaccN0u[2], yaccN0u[2]); // 21 u
-      TEMP -= T2p*gsl_spline2d_eval(N0u_spl[3],eta,T1,xaccN0u[3], yaccN0u[3]); // 21 ubar
-
-      // D QUARK - n
-      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
-      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
-      TEMP += T2n*gsl_spline2d_eval(N0d_spl[2],eta,T1,xaccN0d[2], yaccN0d[2]); // 21 u
-      TEMP -= T2n*gsl_spline2d_eval(N0d_spl[3],eta,T1,xaccN0d[3], yaccN0d[3]); // 21 ubar
-
-      return TEMP ;
-    }
-    else if ( T1 <= safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - p
-      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
-      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
-      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
-      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
-
-      // D QUARK - n
-      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
-      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
-      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
-      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
-
-      return TEMP ;   
-    }
-  }
-  else{
+  assert_T_in_range(T1, 1, "u_density");
+  assert_T_in_range(T2, 2, "u_density");
+  assert_eta_in_range(eta, "u_density");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
+  {
 
     double TEMP=0;
     // U QUARK - p
-    TEMP += T1p*gsl_spline2d_eval(N0u_spl[0],eta,T2,xaccN0u[0], yaccN0u[0]); // 12 u
-    TEMP -= T1p*gsl_spline2d_eval(N0u_spl[1],eta,T2,xaccN0u[1], yaccN0u[1]); // 12 ubar
-    TEMP += T2p*gsl_spline2d_eval(N0u_spl[2],eta,T1,xaccN0u[2], yaccN0u[2]); // 21 u
-    TEMP -= T2p*gsl_spline2d_eval(N0u_spl[3],eta,T1,xaccN0u[3], yaccN0u[3]); // 21 ubar
+    TEMP += T1p*s2*gsl_spline2d_eval(N0u_spl[0],eta,T2c,xaccN0u[0], yaccN0u[0]); // 12 u
+    TEMP -= T1p*s2*gsl_spline2d_eval(N0u_spl[1],eta,T2c,xaccN0u[1], yaccN0u[1]); // 12 ubar
+    TEMP += T2p*s1*gsl_spline2d_eval(N0u_spl[2],eta,T1c,xaccN0u[2], yaccN0u[2]); // 21 u
+    TEMP -= T2p*s1*gsl_spline2d_eval(N0u_spl[3],eta,T1c,xaccN0u[3], yaccN0u[3]); // 21 ubar
 
     // D QUARK - n
-    TEMP += T1n*gsl_spline2d_eval(N0d_spl[0],eta,T2,xaccN0d[0], yaccN0d[0]); // 12 u
-    TEMP -= T1n*gsl_spline2d_eval(N0d_spl[1],eta,T2,xaccN0d[1], yaccN0d[1]); // 12 ubar
-    TEMP += T2n*gsl_spline2d_eval(N0d_spl[2],eta,T1,xaccN0d[2], yaccN0d[2]); // 21 u
-    TEMP -= T2n*gsl_spline2d_eval(N0d_spl[3],eta,T1,xaccN0d[3], yaccN0d[3]); // 21 ubar
+    TEMP += T1n*s2*gsl_spline2d_eval(N0d_spl[0],eta,T2c,xaccN0d[0], yaccN0d[0]); // 12 u
+    TEMP -= T1n*s2*gsl_spline2d_eval(N0d_spl[1],eta,T2c,xaccN0d[1], yaccN0d[1]); // 12 ubar
+    TEMP += T2n*s1*gsl_spline2d_eval(N0d_spl[2],eta,T1c,xaccN0d[2], yaccN0d[2]); // 21 u
+    TEMP -= T2n*s1*gsl_spline2d_eval(N0d_spl[3],eta,T1c,xaccN0d[3], yaccN0d[3]); // 21 ubar
 
     return TEMP ;
   }
 }
 
-double Charges::d_density(double eta_p, double T1p,double T1n, double T2p, double T2n){
+double Charges::d_density(double eta, double T1p,double T1n, double T2p, double T2n){
   // TO conserve charges, we apply isospin symmetry
   // meaning ->  p:d -> n:u. Therefore, for the d density
   // n_d = n_d(Tp)+n_u(Tn)
   double T1 = T1p + T1n;
   double T2 = T2p + T2n;
-  if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
-  if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
-  if ( T1 == 0.0 ){return 0.0;}
-  if ( T2 == 0.0 ){return 0.0;}
 
-  if ( T1 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
-      set_eta_warning_off();
-    }
-    return 0.0;
-  }
-  if ( T2 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
-      set_eta_warning_off();
-    }
-    return 0.0;
-  }
-  double eta = eta_p;
-   if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
-    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
-    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
-
-    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-      if(eta_warning){
-      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Quark Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
-      set_eta_warning_off();
-      exit(2);
-      }
-    } 
-  }
-  
-  if ( T1 <= safe_Tmin ){
-    if ( T2 > safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - n
-      TEMP += T1n*gsl_spline2d_eval(N0u_spl[0],eta,T2,xaccN0u[0], yaccN0u[0]); // 12 u
-      TEMP -= T1n*gsl_spline2d_eval(N0u_spl[1],eta,T2,xaccN0u[1], yaccN0u[1]); // 12 ubar
-      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
-      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
-
-      // D QUARK - p
-      TEMP += T1p*gsl_spline2d_eval(N0d_spl[0],eta,T2,xaccN0d[0], yaccN0d[0]); // 12 u
-      TEMP -= T1p*gsl_spline2d_eval(N0d_spl[1],eta,T2,xaccN0d[1], yaccN0d[1]); // 12 ubar
-      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
-      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
-
-      return TEMP ;
-    }
-    else if ( T2 <= safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - n
-      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
-      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
-      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
-      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
-
-      // D QUARK - p
-      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
-      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
-      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
-      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
-
-      return TEMP ;    
-    }
-  }
-  else if ( T2 <= safe_Tmin ){
-    if ( T1 > safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - n
-      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
-      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
-      TEMP += T2n*gsl_spline2d_eval(N0u_spl[2],eta,T1,xaccN0u[2], yaccN0u[2]); // 21 u
-      TEMP -= T2n*gsl_spline2d_eval(N0u_spl[3],eta,T1,xaccN0u[3], yaccN0u[3]); // 21 ubar
-
-      // D QUARK - p
-      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
-      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
-      TEMP += T2p*gsl_spline2d_eval(N0d_spl[2],eta,T1,xaccN0d[2], yaccN0d[2]); // 21 u
-      TEMP -= T2p*gsl_spline2d_eval(N0d_spl[3],eta,T1,xaccN0d[3], yaccN0d[3]); // 21 ubar
-
-      return TEMP ;
-    }
-    else if ( T1 <= safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - n
-      TEMP += T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[0],eta,tmin,xaccN0u[0], yaccN0u[0]); // 12 u
-      TEMP -= T1n*(T2/tmin)*gsl_spline2d_eval(N0u_spl[1],eta,tmin,xaccN0u[1], yaccN0u[1]); // 12 ubar
-      TEMP += T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[2],eta,tmin,xaccN0u[2], yaccN0u[2]); // 21 u
-      TEMP -= T2n*(T1/tmin)*gsl_spline2d_eval(N0u_spl[3],eta,tmin,xaccN0u[3], yaccN0u[3]); // 21 ubar
-
-      // D QUARK - p
-      TEMP += T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[0],eta,tmin,xaccN0d[0], yaccN0d[0]); // 12 u
-      TEMP -= T1p*(T2/tmin)*gsl_spline2d_eval(N0d_spl[1],eta,tmin,xaccN0d[1], yaccN0d[1]); // 12 ubar
-      TEMP += T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[2],eta,tmin,xaccN0d[2], yaccN0d[2]); // 21 u
-      TEMP -= T2p*(T1/tmin)*gsl_spline2d_eval(N0d_spl[3],eta,tmin,xaccN0d[3], yaccN0d[3]); // 21 ubar
-
-      return TEMP ;   
-    }
-  }
-  else{
+  assert_T_in_range(T1, 1, "d_density");
+  assert_T_in_range(T2, 2, "d_density");
+  assert_eta_in_range(eta, "d_density");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
+  {
 
     double TEMP=0;
     // U QUARK - n
-    TEMP += T1n*gsl_spline2d_eval(N0u_spl[0],eta,T2,xaccN0u[0], yaccN0u[0]); // 12 u
-    TEMP -= T1n*gsl_spline2d_eval(N0u_spl[1],eta,T2,xaccN0u[1], yaccN0u[1]); // 12 ubar
-    TEMP += T2n*gsl_spline2d_eval(N0u_spl[2],eta,T1,xaccN0u[2], yaccN0u[2]); // 21 u
-    TEMP -= T2n*gsl_spline2d_eval(N0u_spl[3],eta,T1,xaccN0u[3], yaccN0u[3]); // 21 ubar
+    TEMP += T1n*s2*gsl_spline2d_eval(N0u_spl[0],eta,T2c,xaccN0u[0], yaccN0u[0]); // 12 u
+    TEMP -= T1n*s2*gsl_spline2d_eval(N0u_spl[1],eta,T2c,xaccN0u[1], yaccN0u[1]); // 12 ubar
+    TEMP += T2n*s1*gsl_spline2d_eval(N0u_spl[2],eta,T1c,xaccN0u[2], yaccN0u[2]); // 21 u
+    TEMP -= T2n*s1*gsl_spline2d_eval(N0u_spl[3],eta,T1c,xaccN0u[3], yaccN0u[3]); // 21 ubar
 
     // D QUARK - p
-    TEMP += T1p*gsl_spline2d_eval(N0d_spl[0],eta,T2,xaccN0d[0], yaccN0d[0]); // 12 u
-    TEMP -= T1p*gsl_spline2d_eval(N0d_spl[1],eta,T2,xaccN0d[1], yaccN0d[1]); // 12 ubar
-    TEMP += T2p*gsl_spline2d_eval(N0d_spl[2],eta,T1,xaccN0d[2], yaccN0d[2]); // 21 u
-    TEMP -= T2p*gsl_spline2d_eval(N0d_spl[3],eta,T1,xaccN0d[3], yaccN0d[3]); // 21 ubar
+    TEMP += T1p*s2*gsl_spline2d_eval(N0d_spl[0],eta,T2c,xaccN0d[0], yaccN0d[0]); // 12 u
+    TEMP -= T1p*s2*gsl_spline2d_eval(N0d_spl[1],eta,T2c,xaccN0d[1], yaccN0d[1]); // 12 ubar
+    TEMP += T2p*s1*gsl_spline2d_eval(N0d_spl[2],eta,T1c,xaccN0d[2], yaccN0d[2]); // 21 u
+    TEMP -= T2p*s1*gsl_spline2d_eval(N0d_spl[3],eta,T1c,xaccN0d[3], yaccN0d[3]); // 21 ubar
 
     return TEMP ;
   }
 }
 
-double Charges::s_density(double eta_p, double T1, double T2){
-  if ( T1 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T1<0!"; exit(0);}
-  if ( T2 < 0.0 ){std::cerr<<"[ Charges::ERROR ] Trying to access T2<0!"; exit(0);}
-  if ( T1 == 0.0 ){return 0.0;}
-  if ( T2 == 0.0 ){return 0.0;}
-
-  if ( T1 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(1) larger than range. Increase T range to avoid missing rapidities.";
-      set_eta_warning_off();
-    }
-    return 0.0;
-  }
-  if ( T2 > config_set.get_TMax() ){
-    if(T_warning){
-      std::cerr<<"[ Charges::Warning ] Accessed T(2) larger than range. Increase T range to avoid missing rapidities.";
-      set_eta_warning_off();
-    }
-    return 0.0;
-  }
-  double eta = eta_p;
-   if ( eta <= config.get_ETAMIN() || eta >= config.get_ETAMAX() ){
-    if(eta <= config.get_ETAMIN()){eta = eta_p+safe_limit;}
-    else if(eta >= config.get_ETAMAX()){eta = eta_p-safe_limit;}
-
-    if ( eta < config.get_ETAMIN() || eta > config.get_ETAMAX() ){
-      if(eta_warning){
-      std::cerr<<std::setprecision(17) << "[ Charges::Warning ] Quark Energy: Accessed eta, "<< eta << ", not in range, [" << config.get_ETAMIN() << ", "<< config.get_ETAMAX()<<"]. Increase eta range to include forward/backward rapidities.";
-      set_eta_warning_off();
-      exit(2);
-      }
-    } 
-  }
-  
-  if ( T1 <= safe_Tmin ){
-    if ( T2 > safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - n
-      TEMP += T1*gsl_spline2d_eval(N0s_spl[0],eta,T2,xaccN0s[0], yaccN0s[0]); // 12 s
-      TEMP -= T1*gsl_spline2d_eval(N0s_spl[1],eta,T2,xaccN0s[1], yaccN0s[1]); // 12 sbar
-      TEMP += T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[2],eta,tmin,xaccN0s[2], yaccN0s[2]); // 21 s
-      TEMP -= T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[3],eta,tmin,xaccN0s[3], yaccN0s[3]); // 21 sbar
-
-      return TEMP ;
-    }
-    else if ( T2 <= safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - n
-      TEMP += T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[0],eta,tmin,xaccN0s[0], yaccN0s[0]); // 12 s
-      TEMP -= T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[1],eta,tmin,xaccN0s[1], yaccN0s[1]); // 12 sbar
-      TEMP += T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[2],eta,tmin,xaccN0s[2], yaccN0s[2]); // 21 s
-      TEMP -= T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[3],eta,tmin,xaccN0s[3], yaccN0s[3]); // 21 sbar
-
-      return TEMP ;    
-    }
-  }
-  else if ( T2 <= safe_Tmin ){
-    if ( T1 > safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - n
-      TEMP += T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[0],eta,tmin,xaccN0s[0], yaccN0s[0]); // 12 s
-      TEMP -= T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[1],eta,tmin,xaccN0s[1], yaccN0s[1]); // 12 sbar
-      TEMP += T2*gsl_spline2d_eval(N0s_spl[2],eta,T1,xaccN0s[2], yaccN0s[2]); // 21 s
-      TEMP -= T2*gsl_spline2d_eval(N0s_spl[3],eta,T1,xaccN0s[3], yaccN0s[3]); // 21 sbar
-
-      return TEMP ;
-    }
-    else if ( T1 <= safe_Tmin ){
-      double TEMP=0;
-      double tmin = safe_Tmin;
-      // U QUARK - n
-      TEMP += T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[0],eta,tmin,xaccN0s[0], yaccN0s[0]); // 12 s
-      TEMP -= T1*(T2/tmin)*gsl_spline2d_eval(N0s_spl[1],eta,tmin,xaccN0s[1], yaccN0s[1]); // 12 sbar
-      TEMP += T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[2],eta,tmin,xaccN0s[2], yaccN0s[2]); // 21 s
-      TEMP -= T2*(T1/tmin)*gsl_spline2d_eval(N0s_spl[3],eta,tmin,xaccN0s[3], yaccN0s[3]); // 21 sbar
-
-      return TEMP ;   
-    }
-  }
-  else{
+double Charges::s_density(double eta, double T1, double T2){
+  assert_T_in_range(T1, 1, "s_density");
+  assert_T_in_range(T2, 2, "s_density");
+  assert_eta_in_range(eta, "s_density");
+  double s1, s2;
+  const double T1c = lowT(T1, safe_Tmin, s1);
+  const double T2c = lowT(T2, safe_Tmin, s2);
+  {
     double TEMP=0;
     // S QUARK
-    TEMP += T1*gsl_spline2d_eval(N0s_spl[0],eta,T2,xaccN0s[0], yaccN0s[0]); // 12 s
-    TEMP -= T1*gsl_spline2d_eval(N0s_spl[1],eta,T2,xaccN0s[1], yaccN0s[1]); // 12 sbar
-    TEMP += T2*gsl_spline2d_eval(N0s_spl[2],eta,T1,xaccN0s[2], yaccN0s[2]); // 21 s
-    TEMP -= T2*gsl_spline2d_eval(N0s_spl[3],eta,T1,xaccN0s[3], yaccN0s[3]); // 21 sbar
+    TEMP += T1*s2*gsl_spline2d_eval(N0s_spl[0],eta,T2c,xaccN0s[0], yaccN0s[0]); // 12 s
+    TEMP -= T1*s2*gsl_spline2d_eval(N0s_spl[1],eta,T2c,xaccN0s[1], yaccN0s[1]); // 12 sbar
+    TEMP += T2*s1*gsl_spline2d_eval(N0s_spl[2],eta,T1c,xaccN0s[2], yaccN0s[2]); // 21 s
+    TEMP -= T2*s1*gsl_spline2d_eval(N0s_spl[3],eta,T1c,xaccN0s[3], yaccN0s[3]); // 21 sbar
 
     return TEMP ;
   }
@@ -937,11 +696,12 @@ void Charges::set_output_tests(){
   dump_charges(2,2);
 
   dump_charges_eta(0);
-  dump_charges_eta(-7);
-  dump_charges_eta(-3);
+  // These force every table to span |eta| >= 7 whatever the run grid is.
+  //dump_charges_eta(-7);
+  //dump_charges_eta(-3);
   dump_charges_eta(-1);
-  dump_charges_eta(3);
-  dump_charges_eta(7);
+  //dump_charges_eta(3);
+  //dump_charges_eta(7);
   dump_charges_eta(1);
   
   if(config.get_Verbose()>VerboseLevel::None){std::cout<< "[ Charges ] Charge test files written out" << std::endl;}

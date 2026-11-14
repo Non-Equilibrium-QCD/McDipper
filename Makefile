@@ -1,9 +1,10 @@
 CXX           = g++
-CXXFLAGS      = -std=c++17 -Wall -fPIC -O3
+CXXFLAGS      = -std=c++17 -Wall -fPIC -O3 -fopenmp
+DEPFLAGS      = -MMD -MP
 LD            = g++
-LDFLAGS       = -O3
+LDFLAGS       = -O3 -fopenmp
 
-LIBS          = -I/usr/local/include -L/usr/local/lib -lgsl -lgslcblas -lcuba -lm `lhapdf-config --cflags --ldflags`#-lcuba -lm
+LIBS          = -I/usr/local/include -L/usr/local/lib -lgsl -lgslcblas -lcuba -lm -lhdf5 `lhapdf-config --cflags --ldflags`
 
 BUILD = $(PWD)/build
 MCDIP = $(PWD)
@@ -12,7 +13,7 @@ vpath %.cpp src
 objdir     = obj
 tabdir     = tabs
 
-SRC        = main.cpp routines.cpp config.cpp config_mv.cpp pdfs_lhapdf.cpp nucleus.cpp event.cpp charges.cpp dipole_ipsat.cpp dipole_mv.cpp model_gbw.cpp model_ipsat.cpp model_mv.cpp random.cpp 
+SRC        = main.cpp routines.cpp config.cpp config_mv.cpp pdfs_lhapdf.cpp nucleus.cpp event.cpp charges.cpp dipole_ipsat.cpp dipole_mv.cpp model_gbw.cpp model_ipsat.cpp model_mv.cpp random.cpp h5_out.cpp
 SRCH       = Hankel.cpp
 OBJS       = $(patsubst %.cpp,$(objdir)/%.o,$(SRC))
 
@@ -34,7 +35,12 @@ $(tabdir):
 	@mkdir -p $(tabdir)
 
 obj/%.o : %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# Rebuild a .o when any header it includes changes. Without this, editing
+# params_gen.h / params_ipsat.h / routines.h leaves a stale binary that does
+# not reflect the change, with no warning.
+-include $(OBJS:.o=.d)
 
 buildfldr:
 	mkdir $(BUILD)
@@ -50,7 +56,7 @@ builder:
 
 
 clean:
-		@rm -f $(OBJS) $(TARGET)
+		@rm -f $(OBJS) $(OBJS:.o=.d) $(TARGET)
 
 again:
 		make clean

@@ -42,6 +42,8 @@ class Dipole{
 	//Moment functions
 	double FundamentalDipole_k(double x, double k, double T);
 	double AdjointDipole_k(double x, double k, double T);
+	double FundamentalDipole_k_slice(int jT, double k, double Y_t);
+	double AdjointDipole_k_slice(int jT, double k, double Y_t);
 	double MomentDipole(int n, double x, double T, Rep rep);
 	double EffectiveRadius(int n, double x, double T, Rep rep);
 

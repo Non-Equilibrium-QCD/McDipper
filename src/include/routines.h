@@ -4,6 +4,7 @@
 #ifndef ROUTINES_H
 #define ROUTINES_H
 #include <iostream>
+#include <cmath>
 #include <gsl/gsl_sf_bessel.h>
 #include <gsl/gsl_dht.h>
 #include <gsl/gsl_monte_plain.h>
@@ -52,6 +53,17 @@ namespace Routines {
 
     void make_suave_1C(int DIM, integrand_t integrand, void * parameters,
                        double &result, double &error);
+
+    // Cuhre returns fail>0 when the requested accuracy was not reached within
+    // maxEval. Keep a tally of those and report it once per table.
+    inline long   & cuhre_calls()    { static long   n = 0;   return n; }
+    inline long   & cuhre_fails()    { static long   n = 0;   return n; }
+    inline double & cuhre_worst_rel(){ static double e = 0.0; return e; }
+    // make_cuhre_1C replaces a NaN result by zero. Count these so they are
+    // reported together with the failed calls.
+    inline long   & cuhre_nans()     { static long   n = 0;   return n; }
+
+    void report_cuhre_stats(const char * where);
 
 }
 

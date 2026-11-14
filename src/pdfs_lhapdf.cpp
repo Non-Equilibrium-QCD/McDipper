@@ -46,7 +46,10 @@ PDFs::~PDFs(){}
 double PDFs::xfpart(QuarkID ID,double xx, double QQ){
 
 	if(xx <= xMin || xx >= xMax){return 0;}
-	else if(QQ >= QMax ){return 0;}
+	// Freeze at the tabulated Q boundaries rather than dropping to zero, so
+	// that a PDF set whose grid ends below PMAX does not put a step in the
+	// quark tables. Symmetric with the QMin branch below.
+	else if(QQ >= QMax ){return PDF_ptr->xfxQ ((int) ID, xx, QMax);}
 	else if(QQ <= QMin){return PDF_ptr->xfxQ ((int) ID, xx, QMin);}
 	else{return PDF_ptr->xfxQ ((int) ID, xx, QQ);}
 }

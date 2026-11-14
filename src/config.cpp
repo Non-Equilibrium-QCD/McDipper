@@ -34,7 +34,13 @@ void Config::process_parameters(){
     while ( getline (configfile,line) )
     {
       int indent_level = count_indent(line);
-      if(line.length()>0){
+      // Drop trailing comments before parsing.
+      size_t hash = line.find('#');
+      if(hash != std::string::npos){ line = line.substr(0,hash); }
+      // A line without ':' carries no key/value. Skipping it here keeps a
+      // blank-but-indented line from clearing `subheader`, which would
+      // silently discard every field left in the current section.
+      if(line.length()>0 && line.find(":") != std::string::npos){
         if(indent_level == 0){
           if (line[0]=='V'){check_version(line);}
           else{header=get_header(line);}
@@ -140,6 +146,7 @@ void Config::process_general_parameters(std::string testline){
       if (name_t=="Hotspots_fluct"){hotspots_fluct=make_bool(value_t);}
       if (name_t=="Bq"){Bq=std::stod(value_t);}
       if (name_t=="Nq"){Nq=std::stoi(value_t);}
+      if (name_t=="Hotspots_mode"){hotspots_mode=value_t;}
     }
     if(name_t=="A"){
       if(subheader=="Nucleus1"){A1=std::stoi(value_t);}
@@ -223,7 +230,9 @@ void Config::process_grid_parameters(std::string testline){
 void Config::fill_up_grid_params(){
   dX=(XMAX-XMIN)/(NX-1.);
   dY=(YMAX-YMIN)/(NY-1.);
-  dETA=(ETAMAX-ETAMIN)/(NETA-1.);
+  // A single rapidity slice has no spacing; without this the division gives inf
+  // and the first node becomes NaN. Tables built one slice per job need it.
+  dETA=(NETA>1)? (ETAMAX-ETAMIN)/(NETA-1.) : 0.0;
 };
 
 //////////////////  Model Parameters  //////////////////
@@ -299,6 +308,10 @@ void Config::process_output_parameters(std::string testline){
     path_to_output= value_t;
   }
   if(name_t == "run_name"){run_name=value_t; is_run_renamed=true;}
+  if(name_t == "TableOnly"){table_only=make_bool(value_t);}
+  if(name_t == "H5"){h5_output=make_bool(value_t);}
+  if(name_t == "Reuse"){reuse=make_bool(value_t);}
+  if(name_t == "ReuseTable"){reuse_table=value_t;}
   if(name_t == "Format"){
     n_formats = 1 + std::count(value_t.begin(), value_t.end(), ',');
     format=new std::string[n_formats];
@@ -360,6 +373,7 @@ void Config::terminal_setup_output(){
   std::cout<< "                 Hotspots  fluctuation: True\n";
   std::cout<< "                 Hotspots  smearing parameter Bq = "<< Bq << "fm^2 \n";
   std::cout<< "                 Hotspots  number = " << Nq << "\n";
+  std::cout<< "                 Hotspots  mode = " << hotspots_mode << "\n";
   }
   std::cout<< "|--------------------------------- Model Parameters -------------------------------------|\n";
   if(cModel==Model::GBW){
@@ -406,8 +420,9 @@ void Config::dump(std::string OUTPATH){
     config_f << "        mode: "<< mode1<<"\n";
     if(mode1==3){
       config_f << "        InputFile: "<< Nucleus1ListFile<<"\n";
-      config_f << "        IsospinSpecified: "<< N1IsospinSpec<<"\n";
+      config_f << "        IsospinSpecified: "<< bool_string(N1IsospinSpec)<<"\n";
       config_f << "        Configurations: "<< NConf1<<"\n";
+      config_f << "        Weights: "<< bool_string(N1_weights)<<"\n";
     } 
   }
   config_f << "    Nucleus2:\n";
@@ -417,8 +432,9 @@ void Config::dump(std::string OUTPATH){
     config_f << "        mode: "<< mode2<<"\n";
     if(mode2==3){
       config_f << "        InputFile: "<< Nucleus2ListFile<<"\n";
-      config_f << "        IsospinSpecified: "<< N2IsospinSpec<<"\n";
+      config_f << "        IsospinSpecified: "<< bool_string(N2IsospinSpec)<<"\n";
       config_f << "        Configurations: "<< NConf2<<"\n";
+      config_f << "        Weights: "<< bool_string(N2_weights)<<"\n";
     }
   }
 
@@ -441,12 +457,13 @@ void Config::dump(std::string OUTPATH){
   config_f << "        ForcePositive: "<< cForcedMode<<"\n";
   config_f << "    K-Factor: "<< KFactor << "\n";
   config_f << "    Fluctuations:\n";
-  config_f << "        Thickness_fluct: "<< thick_fluct << "\n";
+  config_f << "        Thickness_fluct: "<< bool_string(thick_fluct) << "\n";
   config_f << "        Fluct_mode: "     << fluct_mode << "\n";
   config_f << "        Sigma: "          << sigma << "\n";
-  config_f << "        Hotspots_fluct: " << hotspots_fluct << "\n";
+  config_f << "        Hotspots_fluct: " << bool_string(hotspots_fluct) << "\n";
   config_f << "        Bq: "             << Bq << "\n";
   config_f << "        Nq: "             << Nq << "\n";
+  config_f << "        Hotspots_mode: "  << hotspots_mode << "\n";
   config_f << "\n";
   config_f << "Grid:\n";
   config_f << "    NX: "<< NX<<"\n";
@@ -488,6 +505,7 @@ void Config::dump(std::string OUTPATH){
   config_f << "\n";
   config_f << "Output:\n";
   config_f << "    path_to_output: "<< path_to_output<<"\n";
+  if(is_run_renamed){config_f << "    run_name: "<< run_name<<"\n";}
   config_f << "    Format:  [";
   for (int i = 0; i < n_formats; i++) { if(i==n_formats-1){config_f << "\"" << format[i] << "\"]\n";}else{config_f << "\"" << format[i] << "\", ";}}
   config_f << "    PrintAvg: ";
@@ -497,6 +515,7 @@ void Config::dump(std::string OUTPATH){
   config_f<< "    BoostInvariant: " ;
   if(boost_invariant){ config_f<<"True\n";}
   else{ config_f<<"False\n";}
+  config_f << "    H5: "<< bool_string(h5_output)<<"\n";
   config_f << "\n";
 config_f.close();
 }
@@ -652,6 +671,7 @@ Config::Config(const Config& OldConf){
    hotspots_fluct=OldConf.hotspots_fluct;
    Bq=OldConf.Bq;
    Nq=OldConf.Nq;
+   hotspots_mode=OldConf.hotspots_mode;
    NEvents = OldConf.NEvents;
    //Grid
    NX=OldConf.NX;NY=OldConf.NY;NETA=OldConf.NETA;
@@ -672,6 +692,13 @@ Config::Config(const Config& OldConf){
    format=new std::string[n_formats];
    print_avg=OldConf.print_avg;
    boost_invariant=OldConf.boost_invariant;
+   // Every member has to be listed here by hand. One left out is not a compile
+   // error: the copy silently keeps its default, and Config is copied on the way
+   // into Charges, Event and the models, so the parsed value never arrives.
+   table_only=OldConf.table_only;
+   h5_output=OldConf.h5_output;
+   reuse=OldConf.reuse;
+   reuse_table=OldConf.reuse_table;
    for (int i = 0; i < n_formats; i++) {format[i]=OldConf.format[i];}
    //Thickness_Parameters
    TMax= OldConf.TMax;
@@ -681,17 +708,21 @@ Config::Config(const Config& OldConf){
 
 
 bool Config::compare_grid_parameters (Config *OldConf, double tolerance){
-  bool is_equal= ( NETA==OldConf->get_NETA()) ;
-  is_equal= is_equal && ( NDiff(ETAMIN,OldConf->get_ETAMIN())<tolerance ) ;
-  is_equal= is_equal && ( NDiff(ETAMAX,OldConf->get_ETAMAX())<tolerance ) ;
-  return is_equal;
+  // Coverage, not equality, as for the thickness grid. Charges::gluon_energy
+  // locates its interval by searching the tabulated rapidity nodes, so the run
+  // grid only has to lie inside the table range.
+  return (OldConf->get_ETAMIN() <= ETAMIN + tolerance)
+      && (OldConf->get_ETAMAX() >= ETAMAX - tolerance);
 }
 
 bool Config::compare_Thickness_parameters (Config *OldConf, double tolerance){
-    bool is_equal= ( NT==OldConf->get_NT());
-    is_equal= is_equal && ( NDiff(TMin,OldConf->get_TMin())<tolerance ) ;
-    is_equal= is_equal && ( NDiff(TMax,OldConf->get_TMax())<tolerance ) ;
-    return is_equal;
+    // Coverage, not equality: the charge tables are 2D splines in (T1,T2) that
+    // carry their own abscissae, so any thickness inside the tabulated range is
+    // interpolated correctly regardless of how the run's own grid is spaced.
+    // This avoids rebuilding the tables for a change of TMax or NT that they
+    // already cover.
+    return (OldConf->get_TMin() <= TMin + tolerance)
+        && (OldConf->get_TMax() >= TMax - tolerance);
 }
 
 bool Config::compare_PDF_parameters (Config *OldConf, double tolerance){

@@ -23,6 +23,12 @@ struct GluonParsIPSat{
   double T1;
   double T2;
   Dipole * dip;
+
+// Azimuthal range this call integrates over. Carried per call rather than
+// read from a namespace variable so the bulk and the tail can be computed
+// from parallel threads.
+  double phi_lo = -M_PI;
+  double phi_hi =  M_PI;
 };
 
 struct QuarkParsIPSat{
