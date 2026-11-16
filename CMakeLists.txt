@@ -63,6 +63,24 @@ if(NOT LHAPDF_FOUND)
 endif()
 
 
+# HDF5 (C API, used by h5_out.cpp)
+find_package(HDF5 REQUIRED COMPONENTS C)
+include_directories(${HDF5_INCLUDE_DIRS})
+list(APPEND LIBRARIES_TO_LINK ${HDF5_LIBRARIES})
+
+# OpenMP. macOS: Apple clang needs libomp (brew install libomp) and -Xpreprocessor
+if(APPLE AND NOT OpenMP_CXX_FLAGS)
+    execute_process(COMMAND brew --prefix libomp
+                    OUTPUT_VARIABLE LIBOMP_PREFIX
+                    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(LIBOMP_PREFIX)
+        set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include")
+        set(OpenMP_CXX_LIB_NAMES "omp")
+        set(OpenMP_omp_LIBRARY "${LIBOMP_PREFIX}/lib/libomp.dylib")
+    endif()
+endif()
+find_package(OpenMP REQUIRED)
+
 message(STATUS "LIBRARIES_TO_LINK = " ${LIBRARIES_TO_LINK})
 
 
@@ -81,6 +99,8 @@ set(SRC
     src/model_gbw.cpp
     src/model_ipsat.cpp
     src/model_mv.cpp
+    src/random.cpp
+    src/h5_out.cpp
     # Add other source files here
 )
 
@@ -92,7 +112,7 @@ add_executable(mcDipper ${SRC})
 
 
 # Link libraries
-target_link_libraries(mcDipper ${LIBRARIES_TO_LINK}) # Add more libraries here if needed
+target_link_libraries(mcDipper ${LIBRARIES_TO_LINK} OpenMP::OpenMP_CXX) # Add more libraries here if needed
 
 
 

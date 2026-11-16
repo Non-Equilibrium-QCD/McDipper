@@ -108,7 +108,7 @@ Nucleus::~Nucleus(){
 	delete[] NucleonType;
 	delete[] ParticipantStatus;
 	delete[] CollisionNumber;
-	if(mode==3){delete[] Configurations_ptr;}
+	if(mode==3){delete[] Configurations_ptr; delete[] Config_weights;}
 
   // delete participants;
   // delete collisionNum;
@@ -172,26 +172,28 @@ double Nucleus::random_position(){
 void Nucleus::sample_hotspots(double * x_t){
   // sample hotspots_num hotspots in a nucleon, the transverse positions of them are stored into (x_t[3], x_t[4]), (x_t[5], x_t[6]) ...
   // These transverse positions are relative to the center of nucleon, not absolute position. And these positions won't be changed by rotation of nuclei. Jie
-  if (Nq>1){
-        double nucleon_xcm=0.0;
-        double nucleon_ycm=0.0;
-        for (int i=0;i<Nq;i++){
-            x_t[3+i*2]=hotspots_posi_dist(engine);
-            x_t[4+i*2]=hotspots_posi_dist(engine);
-            nucleon_xcm+=x_t[3+i*2];
-            nucleon_ycm+=x_t[4+i*2];
-          }
-        nucleon_xcm /= Nq;
-        nucleon_ycm /= Nq;
-
-        // recenter the hotspots
-        for (int i=0;i<Nq;i++){
-            x_t[3+i*2] -= nucleon_xcm;
-            x_t[4+i*2] -= nucleon_ycm;
-          }
-    }
+  if (Nq>1){ sample_hotspot_offsets(&x_t[3],Nq,hotspots_posi_dist,engine); }
   else{std::cerr << "hotspots number shouldn't be smaller than 1" << std::endl;
       exit(EXIT_FAILURE);}
+}
+
+void sample_hotspot_offsets(double * s, int Nq, std::normal_distribution<double> & d, Engine & gen){
+  double nucleon_xcm=0.0;
+  double nucleon_ycm=0.0;
+  for (int i=0;i<Nq;i++){
+      s[i*2]=d(gen);
+      s[1+i*2]=d(gen);
+      nucleon_xcm+=s[i*2];
+      nucleon_ycm+=s[1+i*2];
+    }
+  nucleon_xcm /= Nq;
+  nucleon_ycm /= Nq;
+
+  // recenter the hotspots
+  for (int i=0;i<Nq;i++){
+      s[i*2] -= nucleon_xcm;
+      s[1+i*2] -= nucleon_ycm;
+    }
 }
 
 void Nucleus::sample_single_position(double * x_t){
@@ -297,7 +299,9 @@ void Nucleus::set_nucleon_positions(){
 
 void Nucleus::rotate_nucleus(){
 	double thetaX=2*M_PI*uni_nu_rn();
-	double thetaY=M_PI*(uni_nu_rn()-0.5);
+	// Isotropic orientation needs sin(thetaY) uniform, not thetaY uniform:
+	// sampling the middle Euler angle flat in angle over-weights the equator.
+	double thetaY=asin(2*uni_nu_rn()-1);
 	double thetaZ=2*M_PI*uni_nu_rn();
 	for(int n=0;n<A;n++){
 		rotate_X_axis(r[n],thetaX);
@@ -472,8 +476,8 @@ void Nucleus::import_nuclear_configurations(){
 			if(is_weights){
 				if (read_weight){
 					// std::cerr << "w " << j<< std::endl;
-					char temp1[10];char temp2[10];
-					if (fscanf(NuclearConfigurations,"%s %s %lf", temp1,temp2,&weight_t) == 3){
+					char temp1[10];char temp2[10];char temp3[10];
+					if (fscanf(NuclearConfigurations,"%s %s %s %lf", temp1,temp2,temp3,&weight_t) == 4){
 						Config_weights[iC]=weight_t;
 						// std::cout << "Weight "<< iC << "= " << Config_weights[iC]<< std::endl;
 						read_weight=false;
@@ -534,8 +538,11 @@ void Nucleus::import_nuclear_configurations(){
 					if(iA>A-1){std::cerr<<" [ Error ]: Input configurations has different number of nucleons than specified in config-file!!" << iA ;exit(EXIT_FAILURE);}
 					iA++;
 				}
+				else{
+					std::cerr<<" [ Error :: Nucleus ]: Configuration format incorrect for isospin-specified configuration file!!" <<std::endl;exit(EXIT_FAILURE);
+				}
 			}
-			
+
 		}
 	}
 	else{
@@ -543,8 +550,8 @@ void Nucleus::import_nuclear_configurations(){
 			if(is_weights){
 				if (read_weight){
 					// std::cerr << "w " << j<< std::endl;
-					char temp1[10];char temp2[10];
-					if (fscanf(NuclearConfigurations,"%s %s %lf", temp1,temp2,&weight_t) == 3){
+					char temp1[10];char temp2[10];char temp3[10];
+					if (fscanf(NuclearConfigurations,"%s %s %s %lf", temp1,temp2,temp3,&weight_t) == 4){
 						Config_weights[iC]=weight_t;
 						// std::cout << "Weight "<< iC << "= " << Config_weights[iC]<< std::endl;
 						read_weight=false;
@@ -583,7 +590,7 @@ void Nucleus::import_nuclear_configurations(){
 					iA++;
 				}
 				else{
-					std::cout<< sample<<"\t"<<x_t<<"\t"<<y_t <<"\t"<< z_t<<std::endl;
+					std::cerr<<" [ Error :: Nucleus ]: Configuration format incorrect!" <<std::endl;exit(EXIT_FAILURE);
 				}
 			}
 		}

@@ -1,0 +1,56 @@
+Version: 1.2
+
+Logging:
+    Verbose: False
+
+General:
+    SqrtsNN: 5360.0
+    Nucleus1:
+        A:    16
+        Z:    8
+        mode: 0
+    Nucleus2:
+        A:    16
+        Z:    8
+        mode: 0
+    GlauberAcceptance: Gaussian
+    Events: 1
+    Model: 1
+    Impact:
+        Value: 0.0
+    PDFs:
+      PDFSet: CT18NNLO
+      ForcePositive: 1
+    K-Factor: 1.
+    Fluctuations:
+        Thickness_fluct: False
+        Fluct_mode: Log_Normal
+        Sigma: 0.563
+        Hotspots_fluct: False
+        Bq: 0.04
+        Nq: 3
+
+Thickness:
+    TMax: 30
+    TMin: 0
+    NT: 301
+
+Grid:
+    NX:        4
+    NY:        4
+    NETA:      1
+    X_RANGE:   [-1,1]
+    Y_RANGE:   [-1,1]
+    ETA_RANGE: [{eta},{eta}]
+    BG: 0.156
+
+Model_Parameters:
+    Set:   1
+    XScaling: 0.01
+    P_reg: 0.001
+
+Output:
+    path_to_output: ./unused
+    run_name: eta_{index:03d}
+    Format: ["EMoments"]
+    TableOnly: True

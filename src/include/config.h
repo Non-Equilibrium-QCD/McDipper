@@ -102,10 +102,15 @@ class Config{
     int get_Nq() {return Nq;}
     double get_Bq() {return Bq;}
     double get_Br() {
-      //The sampling width of hotspots. Br=(BG-Bq)/(1-1/Nq)
+      // Sampling width of the hotspot centres. The recentring narrows the
+      // realised spread by (1-1/Nq), which both branches undo:
+      //   Nucleon_Width  - BG is the nucleon width, the spread follows
+      //   Hotspot_Spread - BG is the spread of the centres, the nucleon
+      //                    width follows and comes out as Bq+BG
       if (Nq==1){return 0.0;}
-      double Br = (BG-Bq) / (1.0-1.0/Nq);
-      return Br;
+      if (hotspots_mode=="Nucleon_Width"){return (BG-Bq) / (1.0-1.0/Nq);}
+      if (hotspots_mode=="Hotspot_Spread"){return BG / (1.0-1.0/Nq);}
+      std::cerr<<"Error: Please choose Hotspots_mode from Nucleon_Width, Hotspot_Spread. Exiting.";exit(EXIT_FAILURE);
     }
 
     std::string get_PDFSet(){return cPDFSetStr;}
@@ -180,6 +185,10 @@ class Config{
     }
     int print_avg_event(){return print_avg;}
     bool is_boost_invariant(){return boost_invariant;}
+    bool is_table_only(){return table_only;}
+    bool is_h5(){return h5_output;}
+    bool is_reuse(){return reuse;}
+    std::string get_reuse_table(){return reuse_table;}
 
   private:
 
@@ -192,8 +201,9 @@ class Config{
     // General
     Model cModel;
     bool hotspots_fluct=false;
-    int Nq = 0;
+    int Nq = 1;
     double Bq = 0.0;
+    std::string hotspots_mode="Nucleon_Width";
 
     bool thick_fluct=false;
     double sigma=-1.0;
@@ -220,7 +230,7 @@ class Config{
     // int ImpactMode=3;
     ImpSample ImpactMode=ImpSample::bdbSampled;
     double ImpactValue;
-    double bMin, bMax;
+    double bMin=0.0, bMax=0.0;
     double KFactor=1.;
     int64_t seed=-1;
     int NEvents=1;
@@ -248,6 +258,19 @@ class Config{
     std::string * format;
     int print_avg=0;
     bool boost_invariant=false;
+    // Stop once the tables are written, without reading them back or running
+    // events. Lets a table be built one rapidity slice per job and merged
+    // afterwards, which the read-back path could not support anyway since it
+    // needs at least four slices.
+    bool table_only=false;
+
+    // Writes one Event_<id>.h5 per event instead of the .dat files.
+    bool h5_output=false;
+
+    // Seed a table build from points an earlier one already computed. Keyed on
+    // coordinates, so the two grids need not match.
+    bool reuse=false;
+    std::string reuse_table="";
 
     // Thickness_Parameters
     double TMax=-1;

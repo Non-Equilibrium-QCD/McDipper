@@ -1,0 +1,64 @@
+Version: 1.2
+
+Logging:
+    Verbose: True
+
+General:
+    SqrtsNN: 5360.0
+    Nucleus1:
+        A:    20
+        Z:    10
+        mode: 3
+        InputFile: ./Oxygen_Neon_ini/dat/PGCM_clustered_dmin0_Ne_20000.dat
+        IsospinSpecified: False
+        Configurations: 20000
+        Weights: True
+    Nucleus2:
+        A:    20
+        Z:    10
+        mode: 3
+        InputFile: ./Oxygen_Neon_ini/dat/PGCM_clustered_dmin0_Ne_20000.dat
+        IsospinSpecified: False
+        Configurations: 20000
+        Weights: True
+    GlauberAcceptance: Gaussian
+    Events: 500
+    Model: 1
+    Impact:
+        Range: [0, 40]
+        Sampling: Quadratic
+    PDFs:
+      PDFSet: CT18NNLO
+      ForcePositive: 1
+    K-Factor: 1.
+    Fluctuations:
+        Thickness_fluct: False
+        Fluct_mode: Log_Normal
+        Sigma: 0.563
+        Hotspots_fluct: False
+        Bq: 0.04
+        Nq: 3
+
+Thickness:
+    TMax: 30
+    TMin: 0
+    NT: 301
+
+Grid:
+    NX:        251
+    NY:        251
+    NETA:      121
+    X_RANGE:   [-15,15]
+    Y_RANGE:   [-15,15]
+    ETA_RANGE: [-12,12]
+    BG: 0.156
+
+Model_Parameters:
+    Set:   1
+    XScaling: 0.01
+    P_reg: 0.001 
+
+Output:
+    path_to_output: ./results/nucleon
+    run_name: NeNe_5360GeV_nucleon_IPSat_Set1_batch99
+    Format: ["EMoments","Nuclei","Charges"]

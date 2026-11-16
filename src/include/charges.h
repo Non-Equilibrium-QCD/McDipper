@@ -4,6 +4,7 @@
 #ifndef CHARGES_H
 #define CHARGES_H
 #include <iostream>
+#include <vector>
 
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_interp2d.h>
@@ -54,6 +55,9 @@ class Charges{
     void set_T_warning_off(){T_warning=false;}
     void set_eta_warning_off(){eta_warning=false;}
 
+    void assert_T_in_range(double T, int which, const char * caller);
+    void assert_eta_in_range(double eta, const char * caller);
+
 
     // TEST (OUTPUT) FUNCTIONS 
     void dump_charges(double T1,double T2);
@@ -71,7 +75,10 @@ class Charges{
     bool T_warning=true;
     bool eta_warning=true;
 
-    int NX,NY,NETA;
+    // Grid of the tables that were read in, not of the run. They are allowed to
+    // differ: the run only has to sit inside what the tables cover.
+    int NX=0,NY=0,NETA=0;
+    std::vector<double> eta_tab;   // rapidity nodes as tabulated
     int NQComp=2*2;
 
     std::string path_to_tabs;

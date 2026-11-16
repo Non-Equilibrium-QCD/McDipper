@@ -79,6 +79,27 @@ There are several options for output. Please see the documentation file.
 
 For usage in the mac environment, a couple of issues may arise when installing the LHAPDF. The python version installed in most the newest iOS is incompatible with the scripts from LHAPDF. This can be circumvented for the needs of this code by installing LHAPDF using ``` --disable-python ``` when installing LHAPDF.
 
+### Compiling with CMake on macOS
+
+The code uses OpenMP and HDF5. Apple's `clang` does not ship OpenMP, so the following must be installed through [Homebrew](https://brew.sh) before compiling:
+```
+brew install cmake libomp hdf5 gsl
+```
+CUBA and LHAPDF are installed as described above. Then
+```
+mkdir build && cd build
+cmake .. -DCUBA_PATH=<path> -DLHAPDF_PATH=<path> -DCMAKE_PREFIX_PATH=$(brew --prefix hdf5)
+make
+```
+where
+- `CUBA_PATH` is the folder that contains `libcuba.a` (e.g. `/usr/local/lib`), not the installation prefix.
+- `LHAPDF_PATH` is the LHAPDF installation prefix (e.g. `/usr/local`), i.e. the folder containing `include/` and `lib/`. It can be obtained with `lhapdf-config --prefix`.
+- `CMAKE_PREFIX_PATH` makes CMake use the Homebrew HDF5. Without it, CMake may pick another HDF5 installation (e.g. the one shipped with Anaconda), which may not match the version used by the `Makefile` build, or may not be found at all.
+
+OpenMP is detected automatically through `brew --prefix libomp`. If `libomp` is not installed, the configuration stops with `Could NOT find OpenMP_CXX`.
+
+The `Makefile` build (`make`) detects macOS and uses the same Homebrew `libomp` and `hdf5`, so no extra flags are needed there.
+
 
 ## Acknowledgments
 
