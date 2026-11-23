@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "params_gen.h"
 
@@ -30,6 +31,9 @@ class MVConfig{
 		void process_MV_parameters(std::string testline);
 		// Evolution
 		void process_BK_parameters(std::string testline);
+		// McDipper settings that enter the momentum table (written/compared only in tabs/MV-Dipole/SetN/config.yaml)
+		void process_McDipper_settings(std::string testline);
+		void set_McDipper_settings(int LargeX_t, int Npoints_t, double xmax_t, const std::vector<double>& pars_t, int HankelMode_t);
 		// processing tools 
 		int count_indent(std::string testline);
 		std::string get_header(std::string testline);
@@ -45,13 +49,17 @@ class MVConfig{
 		int    getNC()        const { return NC; }
 		int    getNF()        const { return NF; }
 		double getLambdaQCD() const { return LambdaQCD; }
+		double getLambdaEff() const { return LambdaEff; }
 
 		// MV
+		const std::string& getIC() const { return IC; }   // "MV-Logarithm" or "MV-Regulated"
 		double getQs02()      const { return Qs02; }
 		double getGamma()     const { return gamma; }
 		double getLambdaMV()  const { return LambdaMV; }
 		double getSigma0()    const { return sigma0; }
 		double getEc()        const { return ec; }
+		double getKappa()     const { return kappa; }   // MV-Regulated only
+		double getMIC()       const { return m_IC; }    // MV-Regulated only, GeV
 
 		double getQs02_in_fm()      const { return Qs02*gen_pars::GeV2_to_fmm2; }
 		double getLambdaMV_in_fm()  const { return LambdaMV*gen_pars::GeV_to_fmm1; }
@@ -65,6 +73,11 @@ class MVConfig{
 		double getMp()        const { return mp; }
 		double getNGC()       const { return nGC; }
 		const std::string& getKtype() const { return Ktype; }
+		const std::string& getAdjoint() const { return Adjoint; }
+		const std::string& getCoupling() const { return Coupling; }      // "Smooth" or "Frozen"
+		double getAlphaFreeze() const { return alpha_freeze; }           // Frozen only
+		// S_A = S_F^p with p = CA/CF (Casimir) or 2 (Squared), as in BK-EV-NIP
+		double getAdjointPower() const { return (Adjoint=="Squared") ? 2.0 : gen_pars::CA/gen_pars::CF; }
 
 		// Grid sizes
 		int    getNr() const { return Nr; }
@@ -121,20 +134,30 @@ class MVConfig{
 		std::string subheader;
 		std::string path;
 		//Config Variables 
+		// Initialized so that keys the table does not write (e.g. Qs02 for MV-Regulated) are 0 / "", not garbage
 		// General
-		int NC, NF;
-		double LambdaQCD; 
+		int NC=0, NF=0;
+		double LambdaQCD=0, LambdaEff=0;
 		// MV parameters
-		double Qs02,gamma,LambdaMV,sigma0,ec;
+		std::string IC;                               // "MV-Logarithm" or "MV-Regulated"
+		double Qs02=0,gamma=0,LambdaMV=0,sigma0=0,ec=0;  // MV-Logarithm
+		double kappa=0, m_IC=0;                       // MV-Regulated
 		// BK-Parameters
-		double LambdaBK,mu2,C2,zeta,mp,nGC;
-		std::string Ktype; 
+		double LambdaBK=0,mu2=0,C2=0,zeta=0,mp=0,nGC=0;
+		std::string Ktype;
+		std::string Coupling;                         // "Smooth" or "Frozen"
+		double alpha_freeze=0;                        // Frozen only
+		std::string Adjoint;   // BK-Parameters: Adjoint = "Casimir" or "Squared"
+		// McDipper-Settings (not in the BK-EV-NIP config; HankelMode = -1 means "not set")
+		int LargeXMode=0, NpointsLX=0, HankelMode=-1;
+		double xmaxLX=0;
+		std::vector<double> LargeXPars;
 		// Grid
-		int Nr, NT, NY, NK;
-		double rmin,rmax,qmin,qmax,dq;
-		double x0, Ymin, Ymax, dY, xmin;
-		double Tmin, Tmax, dT;
-		double kmax,kmin, umax,umin,du;
+		int Nr=0, NT=0, NY=0, NK=0;
+		double rmin=0,rmax=0,qmin=0,qmax=0,dq=0;
+		double x0=0, Ymin=0, Ymax=0, dY=0, xmin=0;
+		double Tmin=0, Tmax=0, dT=0;
+		double kmax=0,kmin=0, umax=0,umin=0,du=0;
 
 		void get_name_and_value(std::string testline,std::string &name, std::string &value);
 		// void make_momentum_parameters(bool in_run);

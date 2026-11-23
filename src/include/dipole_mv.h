@@ -24,7 +24,7 @@ enum class MVLargeX : int { Frozen=0,Simple = 1, TMD = 2, PDFMatch = 3 };
 enum class MVRep : int { Fundamental = 0, Adjoint = 1};
 
 namespace MV_pars{
-  const int HankelTransMode=1; /// Chooses the way to perform the Hankel transform, the naive integration is preferred to the fast Hankel transform
+  const int HankelTransMode=2; /// Hankel transform: 0 = fast DHT, 1 = J0 integration of S, 2 = J1 integration of dS/dr (default)
   const double xMax =0.8;
   const int large_X_modes= 20; 
 }
@@ -48,6 +48,8 @@ class MVDipole{
 	
 	double AdjointDipole(double x, double r, double T);
 	double FundamentalDipole(double x, double r, double T);
+	double FundamentalDipole_dr(double x, double r, double T);   // dS_F/dr [fm^-1]
+	double AdjointDipole_dr(double x, double r, double T);       // dS_A/dr [fm^-1]
 	double FundamentalQ2(double x, double T);
 	double AdjointQ2(double x, double T);
 	double FundamentaldQ2dY(double x, double T);
@@ -147,11 +149,7 @@ class MVDipole{
 		gsl_spline2d ** DF_spl ; //spline in 2d for (k,T)
 		gsl_spline2d ** DA_spl ; //spline in 2d for (k,T), the Y direction  is made by
 
-		gsl_interp_accel ** xaccDA ;
-		gsl_interp_accel ** yaccDA ;
 
-		gsl_interp_accel ** xaccDF ;
-		gsl_interp_accel ** yaccDF ;
 
 		gsl_spline2d * Q2F_spl ; //spline in 2d for (k,T)
 		gsl_spline2d * Q2A_spl ; //spline in 2d for (k,T), the Y direction  is made by
@@ -180,6 +178,13 @@ class MVDipole{
 		// Tools//
 		// exptrapolation tools 
 		double get_LargeX_Dipole(double x, double r, double T, MVRep rep);
+		double get_LargeX_Dipole_dr(double x, double r, double T, MVRep rep);
+		double get_LargeX_Q2(double x, double T, MVRep rep);   // Q^2(x) in fm^-2, < 0 if the mode is not implemented
+		// MV-Regulated large x (Simple mode): lambda(r,T) = d ln(-ln S_F)/dY at Y = 0 from the BK table, as a (T, q) spline
+		gsl_spline2d * LamF_spl = nullptr;
+		void initialize_MVReg_LargeX();
+		double MVReg_LargeX_Exponent(double x, double r, double T, MVRep rep, double * dEdr);   // -ln S for x > x0
+		double Dipole_dr(double x, double r, double T, MVRep rep);
 		void get_LargeX_Type(int large_x_extrapolator);
 		double get_Y_at(int i);
 
@@ -200,6 +205,7 @@ class MVDipole{
 		void set_largeX_values();
 
 	 	double MVExponent(double r, double T,double Q2x, MVRep rep );
+	 	double MVExponent_dr(double r, double T,double Q2x, MVRep rep );
 
 		
 

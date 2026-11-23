@@ -264,7 +264,7 @@ void Config::process_ipsat_parameters(std::string testline){
 void Config::process_mv_parameters(std::string testline){
   std::string name_t,value_t;
   get_name_and_value(testline,name_t,value_t);
-  if(name_t=="Path"){modelPath = value_t; std::cout<< modelPath << std::endl;}
+  if(name_t=="Path"){modelPath = value_t;}
   if(name_t=="P_reg"){ModelPars[0]=std::stod(value_t);NModelParams++;}
   if(name_t=="LargeX"){ModelPars[1]=std::stod(value_t); NModelParams++;}
   if(name_t=="Npoints"){ModelPars[2]=std::stod(value_t); NModelParams++;}
