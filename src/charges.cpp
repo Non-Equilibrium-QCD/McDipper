@@ -54,7 +54,6 @@ Charges::Charges(Config ConfInput){
   // set_output_tests();
   // Set the safety Tmin
   safe_Tmin = 1.1*config_set.get_TMin();
-  std::cout<< "safe_Tmin = " << safe_Tmin << std::endl;
 }
 
 Charges::~Charges(){
@@ -228,7 +227,6 @@ bool Charges::check_config(){
   is_config = is_config && config.compare_collEnergy(set_conf->get_collEnergy(), double_tolerance);
   is_config = is_config && config.compare_PDF_parameters(set_conf, double_tolerance);
   is_config = is_config && config.compare_Thickness_parameters(set_conf, double_tolerance);
-  std::cerr << "PATHS = " << config.get_modelPath() << "\t" << set_conf->get_modelPath()<<std::endl;
   if(is_config){config_set = Config(path_to_config.str());}
   if(is_config && config.get_Verbose_int()>0){
     std::cout<<"[ Charges ] Tables tabulated on T in ["
@@ -466,22 +464,39 @@ void Charges::assert_eta_in_range(double eta, const char * caller){
   }
 }
 
-// Linear extrapolation to T=0 below safe_Tmin: the table is read at safe_Tmin
-// and scaled by T/safe_Tmin.
-static inline double lowT(double T, double Tsafe, double &scale){
-  if(T < Tsafe){ scale = T/Tsafe; return Tsafe; }
-  scale = 1.0; return T;
+// Below safe_Tmin the table is read at safe_Tmin (lowT clamps the argument) and
+// scaled by a power law, (T/Tsafe)^p, with p fitted on the table between Tsafe
+// and 2 Tsafe for the same eta and partner thickness (lowT_factor). The tables
+// are close to power laws in T at small T (the MV-Log local power is constant to
+// a few % for T = 0.1-0.8 and not 1, e.g. p = 0.75 at eta = 0), so a linear
+// scaling would be off there. Where a table value is not positive (e.g. the
+// q - qbar columns) p = 1, i.e. linear scaling.
+// The power law is used only down to T_lin_low; below it the charges go to zero
+// linearly in T (dilute limit), continuously at T_lin_low. Without this, a local
+// power p close to 0 (forward eta) would keep the charge finite at T -> 0.
+static constexpr double T_lin_low = 0.01;   // fm^-2
+
+static inline double lowT(double T, double Tsafe){ return (T < Tsafe) ? Tsafe : T; }
+
+static inline double lowT_factor(double T, double Tsafe, double f_lo, double f_hi){
+  if(T >= Tsafe){ return 1.0; }
+  double p = 1.0;
+  if(f_lo > 0.0 && f_hi > 0.0){ p = log(f_hi/f_lo)/log(2.0); }
+  const double Tl = (T_lin_low < Tsafe) ? T_lin_low : Tsafe;
+  if(T >= Tl){ return pow(T/Tsafe, p); }
+  return pow(Tl/Tsafe, p) * (T/Tl);
 }
 
 double Charges::gluon_energy(double eta, double T1, double T2){
   assert_T_in_range(T1, 1, "gluon_energy");
   assert_T_in_range(T2, 2, "gluon_energy");
   assert_eta_in_range(eta, "gluon_energy");
-  double s1, s2;
-  const double T1c = lowT(T1, safe_Tmin, s1);
-  const double T2c = lowT(T2, safe_Tmin, s2);
+  const double Ts = safe_Tmin;
+  const double T1c = lowT(T1, Ts);
+  const double T2c = lowT(T2, Ts);
 
-  {
+  // Table value at (T1c, T2c), interpolated in eta.
+  auto E = [&](double T1c, double T2c){
     int iETA;
     double ETA1,ETA2;
     double tmp1,tmp2;
@@ -511,40 +526,51 @@ double Charges::gluon_energy(double eta, double T1, double T2){
     if(iETA >= 1 && iETA+2 <= NETA-1){
       double f0 = gsl_spline2d_eval(e_g_spl[iETA-1],T1c,T2c,xaccEG[iETA-1], yaccEG[iETA-1]);
       double f3 = gsl_spline2d_eval(e_g_spl[iETA+2],T1c,T2c,xaccEG[iETA+2], yaccEG[iETA+2]);
-      return s1*s2*0.5*( 2.0*tmp1
+      return 0.5*( 2.0*tmp1
                  + (-f0 + tmp2)*s
                  + (2.0*f0 - 5.0*tmp1 + 4.0*tmp2 - f3)*s*s
                  + (-f0 + 3.0*tmp1 - 3.0*tmp2 + f3)*s*s*s );
     }
-    return s1*s2*( tmp1 + (tmp2-tmp1) * s ) ;
-  }
+    return tmp1 + (tmp2-tmp1) * s ;
+  };
+
+  double val = E(T1c, T2c);
+  if(T1 < Ts){ val *= lowT_factor(T1, Ts, E(Ts, T2c), E(2.0*Ts, T2c)); }
+  if(T2 < Ts){ val *= lowT_factor(T2, Ts, E(T1c, Ts), E(T1c, 2.0*Ts)); }
+  return val;
 }
 
 double Charges::quark_energy(double eta, double T1, double T2){
   assert_T_in_range(T1, 1, "quark_energy");
   assert_T_in_range(T2, 2, "quark_energy");
   assert_eta_in_range(eta, "quark_energy");
-  double s1, s2;
-  const double T1c = lowT(T1, safe_Tmin, s1);
-  const double T2c = lowT(T2, safe_Tmin, s2);
+  const double Ts = safe_Tmin;
+  const double T1c = lowT(T1, Ts);
+  const double T2c = lowT(T2, Ts);
+  // Spline in (eta, target thickness), with the power-law factor below Ts.
+  auto Q = [&](gsl_spline2d * sp, gsl_interp_accel * xa, gsl_interp_accel * ya, double T, double Tc){
+    double v = gsl_spline2d_eval(sp,eta,Tc,xa,ya);
+    if(T < Ts){ v *= lowT_factor(T, Ts, v, gsl_spline2d_eval(sp,eta,2.0*Ts,xa,ya)); }
+    return v;
+  };
   {
 
     double TEMP=0;
     // U QUARK
-    TEMP += T1*s2*gsl_spline2d_eval(N1u_spl[0],eta,T2c,xaccN1u[0], yaccN1u[0]); // 12 u
-    TEMP += T1*s2*gsl_spline2d_eval(N1u_spl[1],eta,T2c,xaccN1u[1], yaccN1u[1]); // 12 ubar
-    TEMP += T2*s1*gsl_spline2d_eval(N1u_spl[2],eta,T1c,xaccN1u[2], yaccN1u[2]); // 21 u
-    TEMP += T2*s1*gsl_spline2d_eval(N1u_spl[3],eta,T1c,xaccN1u[3], yaccN1u[3]); // 21 ubar
+    TEMP += T1*Q(N1u_spl[0],xaccN1u[0],yaccN1u[0],T2,T2c); // 12 u
+    TEMP += T1*Q(N1u_spl[1],xaccN1u[1],yaccN1u[1],T2,T2c); // 12 ubar
+    TEMP += T2*Q(N1u_spl[2],xaccN1u[2],yaccN1u[2],T1,T1c); // 21 u
+    TEMP += T2*Q(N1u_spl[3],xaccN1u[3],yaccN1u[3],T1,T1c); // 21 ubar
     // D QUARK
-    TEMP += T1*s2*gsl_spline2d_eval(N1d_spl[0],eta,T2c,xaccN1d[0], yaccN1d[0]); // 12 d
-    TEMP += T1*s2*gsl_spline2d_eval(N1d_spl[1],eta,T2c,xaccN1d[1], yaccN1d[1]); // 12 dbar
-    TEMP += T2*s1*gsl_spline2d_eval(N1d_spl[2],eta,T1c,xaccN1d[2], yaccN1d[2]); // 21 d
-    TEMP += T2*s1*gsl_spline2d_eval(N1d_spl[3],eta,T1c,xaccN1d[3], yaccN1d[3]); // 21 dbar
+    TEMP += T1*Q(N1d_spl[0],xaccN1d[0],yaccN1d[0],T2,T2c); // 12 d
+    TEMP += T1*Q(N1d_spl[1],xaccN1d[1],yaccN1d[1],T2,T2c); // 12 dbar
+    TEMP += T2*Q(N1d_spl[2],xaccN1d[2],yaccN1d[2],T1,T1c); // 21 d
+    TEMP += T2*Q(N1d_spl[3],xaccN1d[3],yaccN1d[3],T1,T1c); // 21 dbar
     // S QUARK
-    TEMP += T1*s2*gsl_spline2d_eval(N1s_spl[0],eta,T2c,xaccN1s[0], yaccN1s[0]); // 12 s
-    TEMP += T1*s2*gsl_spline2d_eval(N1s_spl[1],eta,T2c,xaccN1s[1], yaccN1s[1]); // 12 sbar
-    TEMP += T2*s1*gsl_spline2d_eval(N1s_spl[2],eta,T1c,xaccN1s[2], yaccN1s[2]); // 21 s
-    TEMP += T2*s1*gsl_spline2d_eval(N1s_spl[3],eta,T1c,xaccN1s[3], yaccN1s[3]); // 21 sbar
+    TEMP += T1*Q(N1s_spl[0],xaccN1s[0],yaccN1s[0],T2,T2c); // 12 s
+    TEMP += T1*Q(N1s_spl[1],xaccN1s[1],yaccN1s[1],T2,T2c); // 12 sbar
+    TEMP += T2*Q(N1s_spl[2],xaccN1s[2],yaccN1s[2],T1,T1c); // 21 s
+    TEMP += T2*Q(N1s_spl[3],xaccN1s[3],yaccN1s[3],T1,T1c); // 21 sbar
 
     return TEMP ;
   }
@@ -560,23 +586,29 @@ double Charges::u_density(double eta, double T1p,double T1n, double T2p, double 
   assert_T_in_range(T1, 1, "u_density");
   assert_T_in_range(T2, 2, "u_density");
   assert_eta_in_range(eta, "u_density");
-  double s1, s2;
-  const double T1c = lowT(T1, safe_Tmin, s1);
-  const double T2c = lowT(T2, safe_Tmin, s2);
+  const double Ts = safe_Tmin;
+  const double T1c = lowT(T1, Ts);
+  const double T2c = lowT(T2, Ts);
+  // Spline in (eta, target thickness), with the power-law factor below Ts.
+  auto Q = [&](gsl_spline2d * sp, gsl_interp_accel * xa, gsl_interp_accel * ya, double T, double Tc){
+    double v = gsl_spline2d_eval(sp,eta,Tc,xa,ya);
+    if(T < Ts){ v *= lowT_factor(T, Ts, v, gsl_spline2d_eval(sp,eta,2.0*Ts,xa,ya)); }
+    return v;
+  };
   {
 
     double TEMP=0;
     // U QUARK - p
-    TEMP += T1p*s2*gsl_spline2d_eval(N0u_spl[0],eta,T2c,xaccN0u[0], yaccN0u[0]); // 12 u
-    TEMP -= T1p*s2*gsl_spline2d_eval(N0u_spl[1],eta,T2c,xaccN0u[1], yaccN0u[1]); // 12 ubar
-    TEMP += T2p*s1*gsl_spline2d_eval(N0u_spl[2],eta,T1c,xaccN0u[2], yaccN0u[2]); // 21 u
-    TEMP -= T2p*s1*gsl_spline2d_eval(N0u_spl[3],eta,T1c,xaccN0u[3], yaccN0u[3]); // 21 ubar
+    TEMP += T1p*Q(N0u_spl[0],xaccN0u[0],yaccN0u[0],T2,T2c); // 12 u
+    TEMP -= T1p*Q(N0u_spl[1],xaccN0u[1],yaccN0u[1],T2,T2c); // 12 ubar
+    TEMP += T2p*Q(N0u_spl[2],xaccN0u[2],yaccN0u[2],T1,T1c); // 21 u
+    TEMP -= T2p*Q(N0u_spl[3],xaccN0u[3],yaccN0u[3],T1,T1c); // 21 ubar
 
     // D QUARK - n
-    TEMP += T1n*s2*gsl_spline2d_eval(N0d_spl[0],eta,T2c,xaccN0d[0], yaccN0d[0]); // 12 u
-    TEMP -= T1n*s2*gsl_spline2d_eval(N0d_spl[1],eta,T2c,xaccN0d[1], yaccN0d[1]); // 12 ubar
-    TEMP += T2n*s1*gsl_spline2d_eval(N0d_spl[2],eta,T1c,xaccN0d[2], yaccN0d[2]); // 21 u
-    TEMP -= T2n*s1*gsl_spline2d_eval(N0d_spl[3],eta,T1c,xaccN0d[3], yaccN0d[3]); // 21 ubar
+    TEMP += T1n*Q(N0d_spl[0],xaccN0d[0],yaccN0d[0],T2,T2c); // 12 u
+    TEMP -= T1n*Q(N0d_spl[1],xaccN0d[1],yaccN0d[1],T2,T2c); // 12 ubar
+    TEMP += T2n*Q(N0d_spl[2],xaccN0d[2],yaccN0d[2],T1,T1c); // 21 u
+    TEMP -= T2n*Q(N0d_spl[3],xaccN0d[3],yaccN0d[3],T1,T1c); // 21 ubar
 
     return TEMP ;
   }
@@ -592,23 +624,29 @@ double Charges::d_density(double eta, double T1p,double T1n, double T2p, double 
   assert_T_in_range(T1, 1, "d_density");
   assert_T_in_range(T2, 2, "d_density");
   assert_eta_in_range(eta, "d_density");
-  double s1, s2;
-  const double T1c = lowT(T1, safe_Tmin, s1);
-  const double T2c = lowT(T2, safe_Tmin, s2);
+  const double Ts = safe_Tmin;
+  const double T1c = lowT(T1, Ts);
+  const double T2c = lowT(T2, Ts);
+  // Spline in (eta, target thickness), with the power-law factor below Ts.
+  auto Q = [&](gsl_spline2d * sp, gsl_interp_accel * xa, gsl_interp_accel * ya, double T, double Tc){
+    double v = gsl_spline2d_eval(sp,eta,Tc,xa,ya);
+    if(T < Ts){ v *= lowT_factor(T, Ts, v, gsl_spline2d_eval(sp,eta,2.0*Ts,xa,ya)); }
+    return v;
+  };
   {
 
     double TEMP=0;
     // U QUARK - n
-    TEMP += T1n*s2*gsl_spline2d_eval(N0u_spl[0],eta,T2c,xaccN0u[0], yaccN0u[0]); // 12 u
-    TEMP -= T1n*s2*gsl_spline2d_eval(N0u_spl[1],eta,T2c,xaccN0u[1], yaccN0u[1]); // 12 ubar
-    TEMP += T2n*s1*gsl_spline2d_eval(N0u_spl[2],eta,T1c,xaccN0u[2], yaccN0u[2]); // 21 u
-    TEMP -= T2n*s1*gsl_spline2d_eval(N0u_spl[3],eta,T1c,xaccN0u[3], yaccN0u[3]); // 21 ubar
+    TEMP += T1n*Q(N0u_spl[0],xaccN0u[0],yaccN0u[0],T2,T2c); // 12 u
+    TEMP -= T1n*Q(N0u_spl[1],xaccN0u[1],yaccN0u[1],T2,T2c); // 12 ubar
+    TEMP += T2n*Q(N0u_spl[2],xaccN0u[2],yaccN0u[2],T1,T1c); // 21 u
+    TEMP -= T2n*Q(N0u_spl[3],xaccN0u[3],yaccN0u[3],T1,T1c); // 21 ubar
 
     // D QUARK - p
-    TEMP += T1p*s2*gsl_spline2d_eval(N0d_spl[0],eta,T2c,xaccN0d[0], yaccN0d[0]); // 12 u
-    TEMP -= T1p*s2*gsl_spline2d_eval(N0d_spl[1],eta,T2c,xaccN0d[1], yaccN0d[1]); // 12 ubar
-    TEMP += T2p*s1*gsl_spline2d_eval(N0d_spl[2],eta,T1c,xaccN0d[2], yaccN0d[2]); // 21 u
-    TEMP -= T2p*s1*gsl_spline2d_eval(N0d_spl[3],eta,T1c,xaccN0d[3], yaccN0d[3]); // 21 ubar
+    TEMP += T1p*Q(N0d_spl[0],xaccN0d[0],yaccN0d[0],T2,T2c); // 12 u
+    TEMP -= T1p*Q(N0d_spl[1],xaccN0d[1],yaccN0d[1],T2,T2c); // 12 ubar
+    TEMP += T2p*Q(N0d_spl[2],xaccN0d[2],yaccN0d[2],T1,T1c); // 21 u
+    TEMP -= T2p*Q(N0d_spl[3],xaccN0d[3],yaccN0d[3],T1,T1c); // 21 ubar
 
     return TEMP ;
   }
@@ -618,16 +656,22 @@ double Charges::s_density(double eta, double T1, double T2){
   assert_T_in_range(T1, 1, "s_density");
   assert_T_in_range(T2, 2, "s_density");
   assert_eta_in_range(eta, "s_density");
-  double s1, s2;
-  const double T1c = lowT(T1, safe_Tmin, s1);
-  const double T2c = lowT(T2, safe_Tmin, s2);
+  const double Ts = safe_Tmin;
+  const double T1c = lowT(T1, Ts);
+  const double T2c = lowT(T2, Ts);
+  // Spline in (eta, target thickness), with the power-law factor below Ts.
+  auto Q = [&](gsl_spline2d * sp, gsl_interp_accel * xa, gsl_interp_accel * ya, double T, double Tc){
+    double v = gsl_spline2d_eval(sp,eta,Tc,xa,ya);
+    if(T < Ts){ v *= lowT_factor(T, Ts, v, gsl_spline2d_eval(sp,eta,2.0*Ts,xa,ya)); }
+    return v;
+  };
   {
     double TEMP=0;
     // S QUARK
-    TEMP += T1*s2*gsl_spline2d_eval(N0s_spl[0],eta,T2c,xaccN0s[0], yaccN0s[0]); // 12 s
-    TEMP -= T1*s2*gsl_spline2d_eval(N0s_spl[1],eta,T2c,xaccN0s[1], yaccN0s[1]); // 12 sbar
-    TEMP += T2*s1*gsl_spline2d_eval(N0s_spl[2],eta,T1c,xaccN0s[2], yaccN0s[2]); // 21 s
-    TEMP -= T2*s1*gsl_spline2d_eval(N0s_spl[3],eta,T1c,xaccN0s[3], yaccN0s[3]); // 21 sbar
+    TEMP += T1*Q(N0s_spl[0],xaccN0s[0],yaccN0s[0],T2,T2c); // 12 s
+    TEMP -= T1*Q(N0s_spl[1],xaccN0s[1],yaccN0s[1],T2,T2c); // 12 sbar
+    TEMP += T2*Q(N0s_spl[2],xaccN0s[2],yaccN0s[2],T1,T1c); // 21 s
+    TEMP -= T2*Q(N0s_spl[3],xaccN0s[3],yaccN0s[3],T1,T1c); // 21 sbar
 
     return TEMP ;
   }
