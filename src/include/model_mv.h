@@ -25,6 +25,11 @@ struct GluonParsMV{
   MVDipole * dip;
   double kmax;
   double kmin;
+
+// Azimuthal range this call integrates over. Carried per call so the bulk and
+// the tail can be computed from parallel threads (as in model_ipsat.h).
+  double phi_lo = -M_PI;
+  double phi_hi =  M_PI;
 };
 
 struct QuarkParsMV{

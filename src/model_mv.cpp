@@ -12,6 +12,8 @@
 #include <fstream>
 #include <limits>
 #include <set>
+#include <map>
+#include <array>
 #include <vector>
 #include <functional>
 #include <math.h>
@@ -75,7 +77,13 @@ namespace MVYields{
     bool is_validX(double x, double xmin, double xmax){return (x>xmin) && (x<xmax); }
 
 
-    inline double P(double q, double k, double phi ){ return sqrt(q*q + k*k + 2*q*k*cos(phi)); }
+    // q^2 + k^2 + 2qk cos(phi) cancels catastrophically as phi -> pi with
+    // q ~ k: the sum can come out negative and sqrt returns NaN. This form is
+    // algebraically identical and stays non-negative by construction.
+    inline double P(double q, double k, double phi ){
+      double h = cos(0.5*phi);
+      return sqrt((q-k)*(q-k) + 4.0*q*k*h*h);
+    }
 
     bool check_if_zero(double y,double sqrts,double kmin,double kmax, double xmin, double xmax){
 
@@ -134,7 +142,7 @@ namespace MVYields{
 
           struct GluonParsMV * pars = (struct GluonParsMV *) params;
 
-          double phi_t=(phi_max-phi_min)*xx[2]+phi_min;
+          double phi_t=(pars->phi_hi - pars->phi_lo)*xx[2] + pars->phi_lo;
           double UMIN = 0; double UMAX=log(pars->kmax/pars->kmin);
 
           double JacCuba=pow(UMAX-UMIN,2.);
@@ -165,7 +173,8 @@ namespace MVYields{
             if(D1<0){D1=0.0;}
             if(D2<0){D2=0.0;}
             // std::cerr << D1 <<  "\t" << D2 << "\t" << std::endl
-            ff[0] = 2*M_PI * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,4.)* pow(k_t,4.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
+            // The phi jacobian is the width of the interval actually integrated over.
+            ff[0] = (pars->phi_hi - pars->phi_lo) * JacCuba* ( gen_pars::pref_glue/ ( 2.0*M_PI) ) * ( p_t * pow( q_t,4.)* pow(k_t,4.)/ cutP2) * D1 * D2 *gen_pars::GeV2_to_fmm2 ;
           }
           return 0 ;
         }
@@ -211,6 +220,11 @@ namespace MVYields{
 MV::MV(){}
 MV::MV(Config ConfInput){
   gsl_set_error_handler_off();
+
+  // Cuba forks worker processes of its own, defaulting to one per core. The
+  // tabulation loop is already threaded over (T1,T2), so leaving that on would
+  // fork a set of workers from every thread. Switched off (as in IP-Sat).
+  { int ncores = 0, pcores = 10000; cubacores(&ncores, &pcores); }
   config=Config(ConfInput);
 
   /// THIS NEEDS CHANGES!
@@ -233,7 +247,10 @@ MV::MV(Config ConfInput){
   // Dip->dump_test_norm();
 } 
 
-MV::~MV(){}
+MV::~MV(){
+  delete Dip;
+  delete quark_dist;
+}
 
 void MV::MakeTable(std::string path_to_set){			
 	// MAKES ith SET DIRECTORY. Uncomment when config dump is done
@@ -252,13 +269,41 @@ void MV::MakeTable(std::string path_to_set){
 }
 
 
+// Where the azimuthal integration is split into a bulk and a tail piece (see
+// the table loop below).
+static const double PHI_SPLIT = M_PI*0.99;
+
+// Coordinates quantised so a point can be looked up by value rather than by
+// its position in the file. Six significant digits is what the tables carry,
+// which supports any dT above 1e-4.
+static std::array<long,3> gluon_key(double y, double T1, double T2){
+	return { llround(y*1e4), llround(T1*1e4), llround(T2*1e4) };
+}
+
 void MV::make_gluon_energy(){
 
 	std::ofstream density_f;
   std::ostringstream densityname;
   densityname << SETPATH <<"/"<< gluon_energy_table_name ;
+
+	// Points an earlier build already computed. Keyed on coordinates, so the
+	// table they came from may be on a different grid or left short by a job
+	// that ran out of time.
+	std::map<std::array<long,3>, double> reused_points;
+	if(config.is_reuse()){
+		std::ifstream seed(config.get_reuse_table());
+		if(seed.is_open()){
+			double y,t1,t2,v;
+			while(seed >> y >> t1 >> t2 >> v){ reused_points[gluon_key(y,t1,t2)] = v; }
+			std::cout<<"[MV]: ReuseTable: "<<reused_points.size()<<" points from "
+			         <<config.get_reuse_table()<<std::endl;
+		}
+		else{
+			std::cout<<"[MV]: ReuseTable: nothing at "<<config.get_reuse_table()
+			         <<", computing all points"<<std::endl;
+		}
+	}
   if(config.get_Verbose()>VerboseLevel::None) std::cout<< "[MV]: Explicit integration for rapidities < " <<Dip->getMaxEta()<<std::endl;
-  if(config.get_Verbose()==VerboseLevel::Dynamic){ std::cout<< "Total (y,T1,T2)                                                          Local (T1,T2)"<< std::endl;  ;}
 
 	GluonParsMV parameters;
 	parameters.sqrts= config.get_collEnergy();
@@ -266,55 +311,79 @@ void MV::make_gluon_energy(){
   parameters.p_reg=p_reg;
   parameters.kmax=Dip->getKmax();
   parameters.kmin=Dip->getKmin();
-  
-	double res=0;
 
-  
   density_f.open(densityname.str());
+	const int NT = Dip->getNT();
 
-  
+	// Cuba initialises itself on the first call. Do that once here, serially,
+	// rather than from whichever thread happens to arrive first.
+	{
+		GluonParsMV warm = parameters;
+		warm.y = 0.0;
+		warm.T1 = warm.T2 = Dip->T_at(NT-1);
+		warm.phi_lo = -PHI_SPLIT; warm.phi_hi = PHI_SPLIT;
+		MVYields::GluonEnergyDens(&warm);
+	}
+
 	for (int iy = 0; iy < config.get_NETA(); iy++) {
 		double y_t = iy*config.get_dETA() + config.get_ETAMIN();
-		parameters.y =y_t ;
-    
+		std::vector<double> plane(long(NT)*NT);
 
-		for (int i1 = 0; i1 < Dip->getNT(); i1++) {
-			double T1_t = Dip->T_at(i1);
-			parameters.T1 = T1_t;
+		// x-range of the dipole table: same for the whole rapidity plane
+		bool in_range = false;
+		if ( std::fabs(y_t) < std::fabs(Dip->getMaxEta()) ){
+			double x1l = parameters.kmin*exp(y_t)/parameters.sqrts;
+			double x1h = parameters.kmax*exp(y_t)/parameters.sqrts;
+			double x2l = parameters.kmin*exp(-y_t)/parameters.sqrts;
+			double x2h = parameters.kmax*exp(-y_t)/parameters.sqrts;
+			bool is_x1_within_range = (Dip->getXmin() <x1h) && (Dip->getXmax() > x1l);
+			bool is_x2_within_range = (Dip->getXmin() <x2h) && (Dip->getXmax() > x2l);
+			in_range = is_x1_within_range && is_x2_within_range;
+		}
 
-			for (int i2 = 0; i2 < Dip->getNT(); i2++) {
+		// Every (T1,T2) point is an independent Cuhre call over a table that is
+		// only read, so the rapidity plane parallelises directly. Each thread
+		// takes its own copy of the parameter struct. Results go to an array and
+		// are written afterwards, so the file does not depend on thread order.
+		#pragma omp parallel for collapse(2) schedule(dynamic)
+		for (int i1 = 0; i1 < NT; i1++) {
+			for (int i2 = 0; i2 < NT; i2++) {
+				double T1_t = Dip->T_at(i1);
 				double T2_t = Dip->T_at(i2);
-				parameters.T2 = T2_t;
-        
-        if ( std::fabs(y_t) < std::fabs(Dip->getMaxEta()) ){
-          double x1l = parameters.kmin*exp(y_t)/parameters.sqrts;
-          double x1h = parameters.kmax*exp(y_t)/parameters.sqrts;
-          double x2l = parameters.kmin*exp(-y_t)/parameters.sqrts;
-          double x2h = parameters.kmax*exp(-y_t)/parameters.sqrts;
-          bool is_x1_within_range = (Dip->getXmin() <x1h) && (Dip->getXmax() > x1l);
-          bool is_x2_within_range = (Dip->getXmin() <x2h) && (Dip->getXmax() > x2l);
-          // std::cout<< x1l << "\t"<< x1h << "\t"<< x2l << "\t"<< x2h << "\n";
-          if (is_x1_within_range && is_x2_within_range) {res = MVYields::GluonEnergyDens(&parameters);} 
-          else{res=0;}
-          
-        }
-        else{ res=0;}
-        
 
-				density_f<<parameters.y << "\t"<<parameters.T1 << "\t"<<parameters.T2 << "\t"<<res<< "\n";
-        if(config.get_Verbose()==VerboseLevel::Dynamic){
-					if(remainder(i1,gen_pars::skip)==0){
-						double percentage_done1 = double(iy)/double(config.get_NETA());
-						double percentage_done2 = double(i1)/double(Dip->getNT());
-						printProgress2(percentage_done1,percentage_done2);
-          }
+				GluonParsMV local = parameters;
+				local.y = y_t; local.T1 = T1_t; local.T2 = T2_t;
+
+				double res = 0.0;
+				auto found = reused_points.find(gluon_key(y_t, T1_t, T2_t));
+				if(found != reused_points.end()){ res = found->second; }
+				else if(in_range){
+					// Integrated in two pieces. The integrand carries a spike of
+					// width ~p_reg where phi -> pi and k -> q, which Cuhre misses over
+					// the full circle; split at 0.99 pi the first subdivision of the
+					// tail resolves it. Makes e(y,T1,T2) = e(-y,T2,T1) exact.
+					local.phi_lo = -PHI_SPLIT; local.phi_hi = PHI_SPLIT;
+					double bulk = MVYields::GluonEnergyDens(&local);
+					// The integrand is even in phi, so one side of the tail doubled.
+					local.phi_lo = PHI_SPLIT; local.phi_hi = M_PI;
+					double tail = MVYields::GluonEnergyDens(&local);
+					res = bulk + 2.0*tail;
 				}
+				plane[long(i1)*NT + i2] = res;
 			}
 		}
 
+		for (int i1 = 0; i1 < NT; i1++) {
+			for (int i2 = 0; i2 < NT; i2++) {
+				density_f<<y_t << "\t"<<Dip->T_at(i1) << "\t"<<Dip->T_at(i2) << "\t"<<plane[long(i1)*NT + i2]<< "\n";
+			}
+		}
+		if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress(double(iy)/double(config.get_NETA()));}
 	}
 
-	if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress2(1,1);}
+	density_f.close();
+	if(config.get_Verbose()==VerboseLevel::Dynamic){printProgress(1);}
+	Routines::report_cuhre_stats("gluon energy table");
 }
 
 void MV::make_baryon_stopping(int k, QuarkID qid, QuarkID aqid){
@@ -416,7 +485,9 @@ bool MV::check_if_zero_F(double y,double T){
 
   double x1=gen_pars::PMIN*exp(y)/config.get_collEnergy();
 
-	bool is_null = (T< gen_pars::T_tolerance) ;
+	// No nuclear matter means no charge; any T > 0 carries a small but physical
+	// contribution and is computed.
+	bool is_null = (T <= 0.0) ;
   is_null = is_null || (x1 > gen_pars::XdipMax);
 
 
