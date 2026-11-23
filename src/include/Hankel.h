@@ -53,6 +53,10 @@ public:
   virtual ~Hankel(){
     gsl_dht_free(tf);}
 
+  // Owns the gsl_dht: copying would free it twice.
+  Hankel(const Hankel&) = delete;
+  Hankel& operator=(const Hankel&) = delete;
+
 	//Initialization Functions
 
 	void ReInit(double NPoints_new,double MaxRadius_new){
@@ -75,6 +79,7 @@ public:
     // if(NPoints!=NPoints_new){create_arrays();}
     NPoints=NPoints_new;
     create_arrays();
+    gsl_dht_free(tf);   // release the transform built for the previous domain
     tf = gsl_dht_new( NPoints, TransformOrder, MaxRadius );
   }
 
