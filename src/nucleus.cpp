@@ -64,7 +64,7 @@ Nucleus::Nucleus(NucStruct NucIn){
 						std::cerr<<"Error: Nucleus type not implemented. Exiting.";exit(EXIT_FAILURE);
 				}
 				Y02pref = sqrt(5/(16*M_PI));
-				Y04pref = (3/16)/sqrt(M_PI);
+				Y04pref = (3.0/16.0)/sqrt(M_PI);
 				RSampFactor=4.0;
 			// set parameters //
 			NuclearData::getNPars(A,Z,mode,NucPars);
