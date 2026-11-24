@@ -22,6 +22,14 @@ Nucleus::Nucleus(NucStruct NucIn){
 		A=NucIn.A;
 		Z=NucIn.Z;
 		mode = NucIn.mode;
+		dmin = NucIn.dmin;
+		// dmin is applied only where nucleons are sampled from the Woods-Saxon density
+		// (mode 0 spherical, 1 deformed, A > 3); elsewhere it would be silently ignored.
+		if(dmin>0.0 && !( (mode==0 || mode==1) && A>3 )){
+			std::cerr<<"[ Nucleus::FATAL ] dmin = "<<dmin<<" fm is only implemented for Woods-Saxon sampling"
+			         <<" (mode 0 or 1, A > 3); this nucleus has A = "<<A<<", mode = "<<mode<<". Set dmin: 0."<<std::endl;
+			exit(EXIT_FAILURE);
+		}
 		InputName=NucIn.inputFile;
 		IsIsospinSpecified=NucIn.IsospinSpecified;
 		NConf=NucIn.NConf;
@@ -209,6 +217,56 @@ void Nucleus::sample_single_position(double * x_t){
 	}
 }
 
+// Minimum-distance sampling. A nucleon closer than dmin to one already placed
+// keeps its radius |r| and gets a new direction (up to dmin_angular_tries times),
+// which leaves the radial distribution untouched; only if no direction works is
+// it redrawn fully from the density.
+bool Nucleus::is_too_close(int n){
+	const double d2 = dmin*dmin;
+	for(int m=0;m<n;m++){
+		double dx=r[n][0]-r[m][0], dy=r[n][1]-r[m][1], dz=r[n][2]-r[m][2];
+		if(dx*dx+dy*dy+dz*dz < d2){return true;}
+	}
+	return false;
+}
+
+void Nucleus::sample_direction(double rr, double * x_t){
+	// Spherical: isotropic. Deformed: the direction follows the density at fixed r,
+	// rho(r, cos th) (rejection against its maximum over cos th at this r).
+	double rho_max = 1.0;
+	if(mode==1){
+		rho_max = 0.0;
+		for(int i=0;i<=200;i++){
+			double c = -1.0 + 2.0*i/200.0;
+			rho_max = std::max(rho_max, nuclear_density(rr*std::sqrt(1.0-c*c), 0.0, rr*c));
+		}
+		if(rho_max <= 0.0){rho_max = 1.0;}
+	}
+	while(true){
+		double c   = 2.0*uni_nu_rn()-1.0;
+		double phi = 2.0*M_PI*uni_nu_rn();
+		double s   = std::sqrt(1.0-c*c);
+		x_t[0]=rr*s*cos(phi); x_t[1]=rr*s*sin(phi); x_t[2]=rr*c;
+		if(mode!=1){return;}
+		if(uni_nu_rn()*rho_max < nuclear_density(x_t[0],x_t[1],x_t[2])){return;}
+	}
+}
+
+void Nucleus::sample_position_dmin(int n){
+	for(int full=0; full<dmin_full_tries; full++){
+		sample_single_position(r[n]);
+		if(!is_too_close(n)){return;}
+		const double rr = std::sqrt(r[n][0]*r[n][0]+r[n][1]*r[n][1]+r[n][2]*r[n][2]);
+		for(int t=0; t<dmin_angular_tries; t++){
+			sample_direction(rr, r[n]);
+			if(!is_too_close(n)){return;}
+		}
+	}
+	std::cerr<<"[ Nucleus::FATAL ] could not place nucleon "<<n<<" of A = "<<A<<" at distance >= dmin = "<<dmin
+	         <<" fm from the others after "<<dmin_full_tries<<" full redraws. dmin is too large for this nucleus."<<std::endl;
+	exit(EXIT_FAILURE);
+}
+
 void Nucleus::set_nucleon_positions(){
 	if(mode<3){
 		///Sample Glauber Positions
@@ -236,7 +294,8 @@ void Nucleus::set_nucleon_positions(){
 		}
 		else{
 			for(int n=0;n<A;n++){
-				sample_single_position(r[n]);
+				if(dmin>0.0){sample_position_dmin(n);}
+				else{sample_single_position(r[n]);}
                 if (is_hotspots_fluct) {sample_hotspots(r[n]);}
 				if(n<Z){NucleonType[n]=Nucleon::proton;}
 				else{NucleonType[n]=Nucleon::neutron;}

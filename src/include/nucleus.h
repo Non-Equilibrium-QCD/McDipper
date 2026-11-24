@@ -105,6 +105,13 @@ class Nucleus{
         
         double sigma=0.0;
         std::string fluct_mode="";
+        double dmin=0.0;   // minimum nucleon-nucleon distance in the sampling [fm]; 0 = none
+        // dmin sampling: angular redraws at fixed |r| before a full redraw, and a cap on full redraws per nucleon
+        static const int dmin_angular_tries = 100;
+        static const int dmin_full_tries = 10000;
+        bool is_too_close(int n);                      // nucleon n closer than dmin to one of 0..n-1
+        void sample_direction(double rr, double * x_t); // new direction at fixed |r| = rr, from the density
+        void sample_position_dmin(int n);               // position of nucleon n with the dmin condition
 
 		double * NucPars;
 

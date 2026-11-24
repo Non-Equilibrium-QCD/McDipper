@@ -31,6 +31,7 @@ Event::Event(Config ConfInput){
     N1.is_thick_fluct=config.is_thick_fluct();
     N1.sigma=config.get_sigma();
     N1.fluct_mode =config.get_fluct_mode();
+    N1.dmin=config.get_dmin(1);
 
 	if(N1.mode==3){
 		N1.inputFile=config.get_NucleusInput(1);
@@ -49,6 +50,7 @@ Event::Event(Config ConfInput){
     N2.is_thick_fluct=config.is_thick_fluct();
     N2.sigma=config.get_sigma();
     N2.fluct_mode =config.get_fluct_mode();
+    N2.dmin=config.get_dmin(2);
 
 	if(N2.mode==3){
 		N2.inputFile=config.get_NucleusInput(2);

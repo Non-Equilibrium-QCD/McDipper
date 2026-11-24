@@ -24,6 +24,7 @@ struct NucStruct{
     bool is_hotspots_fluct;
     int Nq; double Bq; double Br;
     std::string fluct_mode; double sigma;
+    double dmin=0.0;   // minimum nucleon-nucleon distance in the sampling [fm]; 0 = none
 };
 
 class Config{
@@ -88,6 +89,8 @@ class Config{
       else if(i==2 && mode2 ==3){IsoDef_t= N2IsospinSpec;}
       return IsoDef_t;
     }
+
+    double get_dmin(int i){double d_t=0.0;if(i==1){d_t=dmin1;}else if(i==2){d_t=dmin2;}return d_t;};
 
     int get_NConf(int i){int NConf_t=0;if(i==1){NConf_t=NConf1;}else if(i==2){NConf_t=NConf2;}return NConf_t;};
 
@@ -221,6 +224,7 @@ class Config{
     int NConf2 = 0;
     bool N1_weights=false;
     bool N2_weights=false;
+    double dmin1=0.0, dmin2=0.0;   // Nucleus1/2: dmin [fm], minimum nucleon-nucleon distance (0 = none)
     
     std::string mode1name,mode2name;
     double sqrtsNN;

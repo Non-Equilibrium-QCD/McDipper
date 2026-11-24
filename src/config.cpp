@@ -187,6 +187,12 @@ void Config::process_general_parameters(std::string testline){
     if(name_t== "Weights"){
       if(subheader=="Nucleus1"){N1_weights=make_bool(value_t);}
       if(subheader=="Nucleus2"){N2_weights=make_bool(value_t);}
+    }
+    if(name_t== "dmin"){
+      double d_t=std::stod(value_t);
+      if(d_t<0){std::cerr<< "Config Error! dmin (minimum nucleon-nucleon distance, fm) must be >= 0! "<<std::endl; exit(EXIT_FAILURE);}
+      if(subheader=="Nucleus1"){dmin1=d_t;}
+      if(subheader=="Nucleus2"){dmin2=d_t;}
       
     }
 
@@ -424,6 +430,7 @@ void Config::dump(std::string OUTPATH){
       config_f << "        Configurations: "<< NConf1<<"\n";
       config_f << "        Weights: "<< bool_string(N1_weights)<<"\n";
     } 
+    config_f << "        dmin: "<< dmin1<<"\n";
   }
   config_f << "    Nucleus2:\n";
   config_f << "        A: "<< A2<<"\n";
@@ -436,6 +443,7 @@ void Config::dump(std::string OUTPATH){
       config_f << "        Configurations: "<< NConf2<<"\n";
       config_f << "        Weights: "<< bool_string(N2_weights)<<"\n";
     }
+    config_f << "        dmin: "<< dmin2<<"\n";
   }
 
   config_f << "    GlauberAcceptance: " << GModeStr << "\n";
@@ -653,6 +661,8 @@ Config::Config(const Config& OldConf){
    NConf2=OldConf.NConf2;
    N1_weights=OldConf.N1_weights;
    N2_weights=OldConf.N2_weights;
+   dmin1=OldConf.dmin1;
+   dmin2=OldConf.dmin2;
 
    GMode=OldConf.GMode;
    GModeStr=OldConf.GModeStr;

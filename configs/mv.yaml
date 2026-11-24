@@ -9,10 +9,12 @@ General:
         A:    208
         Z:    82
         mode: 0
+        dmin: 0.0      # minimum nucleon distance [fm]; 0 = off. Only for mode 0/1 (Woods-Saxon), A > 3
     Nucleus2:
         A:    208
         Z:    82
         mode: 0
+        dmin: 0.0      # minimum nucleon distance [fm]; 0 = off. Only for mode 0/1 (Woods-Saxon), A > 3
     GlauberAcceptance: Gaussian
     Events: 1000 
     Model: 2
