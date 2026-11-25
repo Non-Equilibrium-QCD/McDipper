@@ -91,6 +91,7 @@ class Event{
 		int uni_ev_int();
 
 		double get_x(double ix);
+		void get_moments_centre(int ieta, double &xc, double &yc);
 		double get_y(double iy);
 		double get_eta(double ieta);
 		int get_ID(int ev,int Nruns){return Nruns*id + ev; }

@@ -188,6 +188,7 @@ class Config{
     }
     int print_avg_event(){return print_avg;}
     bool is_boost_invariant(){return boost_invariant;}
+    int get_moments_centre(){return moments_centre;}
     bool is_table_only(){return table_only;}
     bool is_h5(){return h5_output;}
     bool is_reuse(){return reuse;}
@@ -262,6 +263,9 @@ class Config{
     std::string * format;
     int print_avg=0;
     bool boost_invariant=false;
+    // Centre of the transverse moments (EnergyMoments, NuMoments, NdMoments, CentreDipole), key MomentsCentre:
+    // 0 "Grid" = grid origin, 1 "Global" = energy centroid of the whole event, 2 "Slice" = energy centroid of each eta slice
+    int moments_centre=2;
     // Stop once the tables are written, without reading them back or running
     // events. Lets a table be built one rapidity slice per job and merged
     // afterwards, which the read-back path could not support anyway since it

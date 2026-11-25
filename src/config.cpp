@@ -340,6 +340,12 @@ void Config::process_output_parameters(std::string testline){
     else{std::cerr<<"Error: Average-Event output mode not implemented! Exiting.";exit(EXIT_FAILURE);}
   }
   if(name_t == "BoostInvariant"){ boost_invariant= make_bool(value_t);}
+  if(name_t == "MomentsCentre"){
+    if(value_t == "Grid"){moments_centre=0;}
+    else if(value_t == "Global"){moments_centre=1;}
+    else if(value_t == "Slice"){moments_centre=2;}
+    else{std::cerr<<"Error: MomentsCentre must be Grid, Global or Slice! Exiting.";exit(EXIT_FAILURE);}
+  }
   // 
  
 }
@@ -396,6 +402,7 @@ void Config::terminal_setup_output(){
   std::cout<< "  Boost invariant output : " ;
   if(boost_invariant){ std::cout<<"True\n";}
   else{ std::cout<<"False\n";}
+  std::cout<< "  Moments centre : "<< (moments_centre==0 ? "grid origin" : (moments_centre==1 ? "global energy centroid" : "energy centroid of each eta slice")) <<"\n";
   std::cout<< "  Chosen output Formats : ";
   for (int i = 0; i < n_formats; i++) { if(i==n_formats-1){std::cout<< format[i] << "\n";}else{std::cout<< format[i] << ", ";}}
   std::cout<< "  Average Event output: ";
@@ -523,6 +530,7 @@ void Config::dump(std::string OUTPATH){
   config_f<< "    BoostInvariant: " ;
   if(boost_invariant){ config_f<<"True\n";}
   else{ config_f<<"False\n";}
+  config_f << "    MomentsCentre: "<< (moments_centre==0 ? "Grid" : (moments_centre==1 ? "Global" : "Slice")) <<"\n";
   config_f << "    H5: "<< bool_string(h5_output)<<"\n";
   config_f << "\n";
 config_f.close();
@@ -702,6 +710,7 @@ Config::Config(const Config& OldConf){
    format=new std::string[n_formats];
    print_avg=OldConf.print_avg;
    boost_invariant=OldConf.boost_invariant;
+   moments_centre=OldConf.moments_centre;
    // Every member has to be listed here by hand. One left out is not a compile
    // error: the copy silently keeps its default, and Config is copied on the way
    // into Charges, Event and the models, so the parsed value never arrives.

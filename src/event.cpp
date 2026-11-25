@@ -337,6 +337,14 @@ double Event::get_x(double ix){return ix*config.get_dX() + config.get_XMIN();}
 double Event::get_y(double iy){return iy*config.get_dY() + config.get_YMIN();}
 double Event::get_eta(double ieta){return ieta*config.get_dETA() + config.get_ETAMIN();}
 
+// Centre (xc, yc) about which the transverse moments of slice ieta are taken (config MomentsCentre).
+// Slice: energy centroid of that slice, as in C. Shen, S. Alzhrani, PRC 102, 014909, Eqs. (19)-(22).
+void Event::get_moments_centre(int ieta, double &xc, double &yc){
+	if(config.get_moments_centre()==2){xc=x_cm[ieta]; yc=y_cm[ieta];}
+	else if(config.get_moments_centre()==1){xc=x_cm_global; yc=y_cm_global;}
+	else{xc=0.; yc=0.;}
+}
+
 ////////////////////
 void Event::MakeOutputFiles(){
 	/// Make Nuclei File
@@ -927,6 +935,10 @@ void Event::MakeChargeOutput(){
 	long ncell = long(config.get_NX())*config.get_NY();
 	long emom_cols = 3 + 6*(n_max+1);
 	long nmom_cols = 1 + 3*(n_max+1);
+	bool dip_out = config.is_format("EMoments") || config.is_format("NMoments");
+	long dip_cols = 11;   // eta xc yc + 8 dipole sums, as in CentreDipole.dat
+	std::vector<double> dipoles;
+	std::ofstream dip_f;
 
 	if(config.is_h5()){
 		if(config.is_format("Charges")){
@@ -934,6 +946,7 @@ void Event::MakeChargeOutput(){
 			charge_slice.resize(ncell*5);
 		}
 		if(config.is_format("EMoments")){emoments.resize(long(config.get_NETA())*emom_cols);}
+		if(dip_out){dipoles.resize(long(config.get_NETA())*dip_cols);}
 		if(config.is_format("NMoments")){
 			numoments.resize(long(config.get_NETA())*nmom_cols);
 			ndmoments.resize(long(config.get_NETA())*nmom_cols);
@@ -959,6 +972,15 @@ void Event::MakeChargeOutput(){
 		nd_moments_name << OUTPATH <<"/NdMoments.dat" ;
 		nd_moments_f.open(nd_moments_name.str(), std::ios_base::app);
 		nd_moments_f<<"# Start Event "<< EventID << std::endl;
+	}
+	if(dip_out){
+		if(EventID==0){
+			dip_f.open(OUTPATH+"/CentreDipole.dat");
+			dip_f<<"# Moment centre (xc, yc) [fm] and Int r^3 cos(phi) e, Int r^3 sin(phi) e about it (eps_1 numerator; denominator = j=3 'tot' column of the Moments files)"<<std::endl;
+			dip_f<<"# eta  xc  yc  E: r3cos_g r3cos_q r3sin_g r3sin_q  Nu: r3cos r3sin  Nd: r3cos r3sin"<<std::endl;
+		}
+		else{dip_f.open(OUTPATH+"/CentreDipole.dat", std::ios_base::app);}
+		dip_f<<"# Start Event "<< EventID << std::endl;
 	}
 	}
 
@@ -994,12 +1016,15 @@ void Event::MakeChargeOutput(){
 		std::vector<double> lattice_sum_nu_sin(n_max+1, 0.0);
 		std::vector<double> lattice_sum_nd_sin(n_max+1, 0.0);
 
+		double xc, yc;
+		get_moments_centre(ieta, xc, yc);
+		double dip[8] = {0.,0.,0.,0.,0.,0.,0.,0.};
 
 		for (int ix = 0; ix < config.get_NX(); ix++) {
 			for (int iy = 0; iy < config.get_NY(); iy++) {
 
-				double x_t= get_x(ix);//-x_cm_global;
-				double y_t= get_y(iy);//-y_cm_global;
+				double x_t= get_x(ix)-xc;
+				double y_t= get_y(iy)-yc;
 
 				t1p_t=T1p(ix,iy);
 				t1n_t=T1n(ix,iy);
@@ -1020,6 +1045,10 @@ void Event::MakeChargeOutput(){
 
 				double r_t = sqrt(x_t*x_t + y_t*y_t);
 				double phi_t = atan2(y_t,x_t);
+				// r^3 e^(i phi) about the moment centre: eps_1 numerator (Shen, Alzhrani Eq. 19)
+				double r3_t = cell_trans_volume*r_t*r_t*r_t;
+				dip[0]+=r3_t*cos(phi_t)*eg_t; dip[1]+=r3_t*cos(phi_t)*eq_t; dip[2]+=r3_t*sin(phi_t)*eg_t; dip[3]+=r3_t*sin(phi_t)*eq_t;
+				dip[4]+=r3_t*cos(phi_t)*nu_t; dip[5]+=r3_t*sin(phi_t)*nu_t; dip[6]+=r3_t*cos(phi_t)*nd_t; dip[7]+=r3_t*sin(phi_t)*nd_t;
 				if(config.is_format("EMoments")){
 					lattice_sum_dint23dy +=  cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 2./3.);
 					lattice_sum_dint43dy +=  cell_trans_volume* pow(gen_pars::GeV2_to_fmm2 , 2.0)*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 4./3.);  // in fm^{-4}
@@ -1090,6 +1119,11 @@ void Event::MakeChargeOutput(){
 					drow[1+3*j+2]=lattice_sum_nd_sin[j];
 				}
 			}
+			if(dip_out){
+				double * prow = &dipoles[long(ieta)*dip_cols];
+				prow[0]=eta_t; prow[1]=xc; prow[2]=yc;
+				for(int k=0;k<8;k++){prow[3+k]=dip[k];}
+			}
 		}
 		else{
 		if(config.is_format("EMoments")){e_moments_f << eta_t << "\t"<< lattice_sum_dint23dy<< "\t"<< lattice_sum_dint43dy ;}
@@ -1114,6 +1148,11 @@ void Event::MakeChargeOutput(){
 			nu_moments_f << std::endl;
 			nd_moments_f << std::endl;
 		}
+		if(dip_out){
+			dip_f << eta_t << "\t" << xc << "\t" << yc;
+			for(int k=0;k<8;k++){dip_f << "\t" << dip[k];}
+			dip_f << std::endl;
+		}
 		}
 
 		if(config.get_Verbose_int()==3){
@@ -1130,6 +1169,9 @@ void Event::MakeChargeOutput(){
 			h5out->write_table("NuMoments", numoments.data(), config.get_NETA(), nmom_cols);
 			h5out->write_table("NdMoments", ndmoments.data(), config.get_NETA(), nmom_cols);
 		}
+		if(dip_out){
+			h5out->write_table("CentreDipole", dipoles.data(), config.get_NETA(), dip_cols);
+		}
 	}
 	else{
 	if(config.is_format("EMoments")){
@@ -1140,6 +1182,11 @@ void Event::MakeChargeOutput(){
 		nd_moments_f<<"# End Event "<< EventID << std::endl;
 		nu_moments_f.close();
 		nd_moments_f.close();
+	}
+
+	if(dip_out){
+		dip_f<<"# End Event "<< EventID << std::endl;
+		dip_f.close();
 	}
 
 	if(config.is_format("Charges")){charges_f.close();}
@@ -1215,12 +1262,15 @@ void Event::MakeChargeOutputMidrapidity(){
 	std::vector<double> lattice_sum_nu_sin(n_max+1, 0.0);
 	std::vector<double> lattice_sum_nd_sin(n_max+1, 0.0);
 
+	double xc, yc;
+	get_moments_centre(0, xc, yc);   // one slice: Slice and Global coincide
+	double dip[8] = {0.,0.,0.,0.,0.,0.,0.,0.};
 
 	for (int ix = 0; ix < config.get_NX(); ix++) {
 		for (int iy = 0; iy < config.get_NY(); iy++) {
 
-			double x_t= get_x(ix)-x_cm_global;
-			double y_t= get_y(iy)-y_cm_global;
+			double x_t= get_x(ix)-xc;
+			double y_t= get_y(iy)-yc;
 
 			t1p_t=T1p(ix,iy);
 			t1n_t=T1n(ix,iy);
@@ -1237,6 +1287,10 @@ void Event::MakeChargeOutputMidrapidity(){
 
 			double r_t = sqrt(x_t*x_t + y_t*y_t);
 			double phi_t = atan2(y_t,x_t);
+			// r^3 e^(i phi) about the moment centre: eps_1 numerator (Shen, Alzhrani Eq. 19)
+			double r3_t = cell_trans_volume*r_t*r_t*r_t;
+			dip[0]+=r3_t*cos(phi_t)*eg_t; dip[1]+=r3_t*cos(phi_t)*eq_t; dip[2]+=r3_t*sin(phi_t)*eg_t; dip[3]+=r3_t*sin(phi_t)*eq_t;
+			dip[4]+=r3_t*cos(phi_t)*nu_t; dip[5]+=r3_t*sin(phi_t)*nu_t; dip[6]+=r3_t*cos(phi_t)*nd_t; dip[7]+=r3_t*sin(phi_t)*nd_t;
 			if(config.is_format("EMoments")){
 				lattice_sum_dint23dy +=  cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 2./3.);
 				lattice_sum_dint43dy +=  cell_trans_volume* pow(gen_pars::GeV2_to_fmm2 , 2.0) * pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 4./3.);
@@ -1290,6 +1344,18 @@ void Event::MakeChargeOutputMidrapidity(){
 		}
 	}
 	if(config.is_format("EMoments")){e_moments_f << std::endl;}
+	if(config.is_format("EMoments") || config.is_format("NMoments")){
+		std::ofstream dip_f;
+		if(EventID==0){
+			dip_f.open(OUTPATH+"/CentreDipole.dat");
+			dip_f<<"# Moment Output at y=0: EventID  xc  yc  E: r3cos_g r3cos_q r3sin_g r3sin_q  Nu: r3cos r3sin  Nd: r3cos r3sin"<<std::endl;
+		}
+		else{dip_f.open(OUTPATH+"/CentreDipole.dat",std::ofstream::app);}
+		dip_f << EventID << "\t" << xc << "\t" << yc;
+		for(int k=0;k<8;k++){dip_f << "\t" << dip[k];}
+		dip_f << std::endl;
+		dip_f.close();
+	}
 	if(config.is_format("NMoments")){
 		nu_moments_f << std::endl;
 		nd_moments_f << std::endl;
@@ -1849,6 +1915,12 @@ void Event::MakeChargeOutput_AverageEvent(){
 		nd_moments_f.open(nd_moments_name.str());
 	}
 
+	std::ofstream dip_f;
+	if(config.print_avg_event()>0){
+		dip_f.open(OUTPATH+"/AverageEvent_CentreDipole.dat");
+		dip_f<<"# eta  xc  yc  E: r3cos_g r3cos_q r3sin_g r3sin_q  Nu: r3cos r3sin  Nd: r3cos r3sin"<<std::endl;
+	}
+
 	double eg_t,eq_t,nu_t,nd_t,ns_t;
 
 
@@ -1881,12 +1953,15 @@ void Event::MakeChargeOutput_AverageEvent(){
 		std::vector<double> lattice_sum_nu_sin(n_max+1, 0.0);
 		std::vector<double> lattice_sum_nd_sin(n_max+1, 0.0);
 
+		double xc, yc;
+		get_moments_centre(ieta, xc, yc);
+		double dip[8] = {0.,0.,0.,0.,0.,0.,0.,0.};
 
 		for (int ix = 0; ix < config.get_NX(); ix++) {
 			for (int iy = 0; iy < config.get_NY(); iy++) {
 
-				double x_t= get_x(ix)-x_cm_global;
-				double y_t= get_y(iy)-y_cm_global;
+				double x_t= get_x(ix)-xc;
+				double y_t= get_y(iy)-yc;
 
 				eg_t= EgAvg (ieta, ix, iy);
 				eq_t= EqAvg (ieta, ix, iy);
@@ -1897,6 +1972,10 @@ void Event::MakeChargeOutput_AverageEvent(){
 
 				double r_t = sqrt(x_t*x_t + y_t*y_t);
 				double phi_t = atan2(y_t,x_t);
+				// r^3 e^(i phi) about the moment centre: eps_1 numerator (Shen, Alzhrani Eq. 19)
+				double r3_t = cell_trans_volume*r_t*r_t*r_t;
+				dip[0]+=r3_t*cos(phi_t)*eg_t; dip[1]+=r3_t*cos(phi_t)*eq_t; dip[2]+=r3_t*sin(phi_t)*eg_t; dip[3]+=r3_t*sin(phi_t)*eq_t;
+				dip[4]+=r3_t*cos(phi_t)*nu_t; dip[5]+=r3_t*sin(phi_t)*nu_t; dip[6]+=r3_t*cos(phi_t)*nd_t; dip[7]+=r3_t*sin(phi_t)*nd_t;
 				if(config.print_avg_event()>0){
 					lattice_sum_dint23dy +=  cell_trans_volume* gen_pars::GeV2_to_fmm2*pow( gen_pars::fmm2_to_GeV2 * (eg_t + eq_t), 2./3.);
 				}	
@@ -1950,6 +2029,11 @@ void Event::MakeChargeOutput_AverageEvent(){
 		}
 		if(config.print_avg_event()>0){e_moments_f << std::endl;}
 		if(config.print_avg_event()>0){
+			dip_f << eta_t << "\t" << xc << "\t" << yc;
+			for(int k=0;k<8;k++){dip_f << "\t" << dip[k];}
+			dip_f << std::endl;
+		}
+		if(config.print_avg_event()>0){
 			nu_moments_f << std::endl;
 			nd_moments_f << std::endl;
 		}
@@ -1960,7 +2044,7 @@ void Event::MakeChargeOutput_AverageEvent(){
 		}
 	}
 
-	if(config.print_avg_event()>0){e_moments_f.close();}
+	if(config.print_avg_event()>0){e_moments_f.close(); dip_f.close();}
 	if(config.print_avg_event()>0){
 		nu_moments_f.close();
 		nd_moments_f.close();
