@@ -121,7 +121,9 @@ class MVConfig{
 
 		double q_at(int i){return qmin+i*dq; }
 		double u_at(int i){return umin+i*du; }
-		double T_at(int i){return Tmin+i*dT; }
+		// Last point is Tmax exactly: Tmin + (NT-1)*dT can round above Tmax (e.g. 0.1 + 299*0.1 = 30.000000000000004),
+		// which the T > Tmax guards would treat as outside the table.
+		double T_at(int i){return (i==NT-1) ? Tmax : Tmin+i*dT; }
 		double Y_at(int i){return Ymin+i*dY; }
 		double r_at(int i){return rmin*exp(qmin+i*dq);}
 		double k_at(int i){return kmin*exp(umin+i*du);}
