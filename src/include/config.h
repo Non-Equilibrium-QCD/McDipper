@@ -263,7 +263,7 @@ class Config{
     std::string * format;
     int print_avg=0;
     bool boost_invariant=false;
-    // Centre of the transverse moments (EnergyMoments, NuMoments, NdMoments, CentreDipole), key MomentsCentre:
+    // Centre of the transverse moments (EnergyMoments, NuMoments, NdMoments; written to CentreDipole), key MomentsCentre:
     // 0 "Grid" = grid origin, 1 "Global" = energy centroid of the whole event, 2 "Slice" = energy centroid of each eta slice
     int moments_centre=2;
     // Stop once the tables are written, without reading them back or running
