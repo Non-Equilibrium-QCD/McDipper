@@ -1177,7 +1177,7 @@ void Event::MakeChargeOutput(){
 	if(config.is_format("EMoments")){
 		e_moments_f<<"# End Event "<< EventID << std::endl;
 		e_moments_f.close();}
-	if(config.is_format("EMoments")){
+	if(config.is_format("NMoments")){
 		nu_moments_f<<"# End Event "<< EventID << std::endl;
 		nd_moments_f<<"# End Event "<< EventID << std::endl;
 		nu_moments_f.close();
@@ -1362,7 +1362,7 @@ void Event::MakeChargeOutputMidrapidity(){
 	}
 
 	if(config.is_format("EMoments")){e_moments_f.close();}
-	if(config.is_format("EMoments")){
+	if(config.is_format("NMoments")){
 		nu_moments_f.close();
 		nd_moments_f.close();
 	}
